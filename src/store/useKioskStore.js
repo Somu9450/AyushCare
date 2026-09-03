@@ -1,150 +1,580 @@
 import { create } from 'zustand';
 
-// Simulated mock patient data matching NHA ABDM schema
+/*
+ * ---------------------------------------------------------
+ * MOCK PATIENT DATA
+ * ---------------------------------------------------------
+ */
+
 export const MOCK_PATIENTS = {
   abha: {
-    abhaNumber: "91-4432-8812-9012",
-    abhaAddress: "rajesh.sharma@abdm",
-    name: "Rajesh Kumar Sharma",
-    hindiName: "राजेश कुमार शर्मा",
-    gender: "Male",
-    dob: "1984-06-15",
+    abhaNumber: '91-4432-8812-9012',
+    abhaAddress: 'rajesh.sharma@abdm',
+
+    name: 'Rajesh Kumar Sharma',
+    hindiName: 'राजेश कुमार शर्मा',
+
+    gender: 'Male',
+    dob: '1984-06-15',
     age: 42,
-    mobile: "+91 98765 43210",
-    bloodGroup: "B+",
-    district: "Central Delhi",
-    state: "Delhi",
-    photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+
+    mobile: '+91 98765 43210',
+
+    bloodGroup: 'B+',
+
+    district: 'Central Delhi',
+    state: 'Delhi',
+
     hasAyushHistory: true,
-    prakriti: "Vata-Pitta (वात-पित्त)"
+    prakriti: 'Vata-Pitta (वात-पित्त)',
   },
+
   aadhaar: {
-    abhaNumber: "72-8891-2301-4455",
-    abhaAddress: "sunita.devi@abdm",
-    name: "Sunita Devi",
-    hindiName: "सुनीता देवी",
-    gender: "Female",
-    dob: "1978-11-20",
+    abhaNumber: '72-8891-2301-4455',
+    abhaAddress: 'sunita.devi@abdm',
+
+    name: 'Sunita Devi',
+    hindiName: 'सुनीता देवी',
+
+    gender: 'Female',
+    dob: '1978-11-20',
     age: 47,
-    mobile: "+91 91234 56789",
-    bloodGroup: "O+",
-    district: "Varanasi",
-    state: "Uttar Pradesh",
-    photoUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80",
+
+    mobile: '+91 91234 56789',
+
+    bloodGroup: 'O+',
+
+    district: 'Varanasi',
+    state: 'Uttar Pradesh',
+
     hasAyushHistory: false,
-    prakriti: "Kapha-Vata (कफ-वात)"
-  }
+    prakriti: 'Kapha-Vata (कफ-वात)',
+  },
 };
 
-const initialSession = {
-  authType: 'ABHA', // 'ABHA' | 'Aadhaar' | 'Mobile'
+/*
+ * ---------------------------------------------------------
+ * INITIAL SESSION
+ * ---------------------------------------------------------
+ */
+
+const createInitialSession = () => ({
+  /*
+   * Authentication
+   */
+  authType: 'ABHA',
   identifier: '',
   otp: '',
   isVerified: false,
   patientProfile: null,
-  track: 'AYUSH', // 'AYUSH' | 'ALLOPATHY'
-  selectedDepartment: null, // Department object
-  requestedDoctor: null, // Doctor object or null for 'General Duty'
-  appointmentSlot: 'Today - Morning (10:30 AM - 11:30 AM)',
+
+  /*
+   * Track
+   */
+  track: null,
+  // 'ALLOPATHY' | 'AYUSH'
+
+  /*
+   * Department
+   */
+  selectedDepartment: null,
+
+  /*
+   * Doctor routing
+   */
+  requestedDoctor: null,
+  doctorAvailability: null,
+
+  appointmentSlot: null,
+
+  /*
+   * Clinical intake
+   */
+  intakeMode: 'MULTIMODAL',
+  // 'VOICE' | 'TOUCH' | 'MULTIMODAL'
+
   symptoms: [],
-  vitals: {
-    bp: '120/80',
-    pulse: '74',
-    temp: '98.4',
-    spo2: '98%'
+
+  chiefComplaint: '',
+
+  clinicalHistory: {
+    hpi: {},
+    pastMedicalHistory: [],
+    pastSurgicalHistory: [],
+    medications: [],
+    allergies: [],
+    familyHistory: [],
+    personalHistory: {},
+    reviewOfSystems: {},
   },
-  tokenNumber: 'AY-OPD-108'
-};
+
+  /*
+   * Adaptive question engine
+   */
+  currentQuestion: null,
+  questionIndex: 0,
+  questionHistory: [],
+
+  /*
+   * AYUSH
+   */
+  ayushHistory: {
+    prakriti: null,
+    vikriti: null,
+    sara: null,
+    samhanana: null,
+    pramana: null,
+    satmya: null,
+    sattva: null,
+    aharaShakti: null,
+    vyayamaShakti: null,
+    vaya: null,
+    agni: null,
+    kostha: null,
+    aharaVihara: {},
+  },
+
+  /*
+   * Documents
+   */
+  documents: [],
+
+  /*
+   * Safety
+   */
+  redFlags: [],
+  redFlagDetected: false,
+
+  /*
+   * Vitals
+   */
+  vitals: {
+    bp: '',
+    pulse: '',
+    temp: '',
+    spo2: '',
+  },
+
+  /*
+   * Session
+   */
+  sessionToken: null,
+  sessionExpiresAt: null,
+
+  /*
+   * Completion
+   */
+  tokenNumber: null,
+});
+
+/*
+ * ---------------------------------------------------------
+ * STORE
+ * ---------------------------------------------------------
+ */
 
 export const useKioskStore = create((set, get) => ({
-  // Screen routing (1 to 10)
+  /*
+   * Navigation
+   */
   currentScreen: 1,
-  
-  // Instant multi-language support (en, hi, pa, bn)
+
+  /*
+   * Language
+   */
   language: 'en',
-  
-  // Accessibility and Audio states
-  audioEnabled: false,
-  emergencyModalOpen: false,
+
+  /*
+   * Audio / Accessibility
+   */
+  audioEnabled: true,
+  silentMode: false,
   highContrast: false,
-  fontSizeMultiplier: 1.0, // 1.0 = normal, 1.15 = large
+  fontSizeMultiplier: 1,
 
-  // Active Session state
-  sessionData: { ...initialSession },
+  /*
+   * Emergency
+   */
+  emergencyModalOpen: false,
 
-  // Navigation actions
-  setScreen: (screenNum) => {
-    const clamped = Math.max(1, Math.min(10, screenNum));
-    set({ currentScreen: clamped });
+  /*
+   * WebSocket
+   */
+  socketStatus: 'DISCONNECTED',
+  // CONNECTING | CONNECTED | DISCONNECTED | ERROR
+
+  /*
+   * Session
+   */
+  sessionData: createInitialSession(),
+
+  /*
+   * -------------------------------------------------------
+   * NAVIGATION
+   * -------------------------------------------------------
+   */
+
+  setScreen: (screen) => {
+    const safeScreen = Math.max(
+      1,
+      Math.min(10, screen)
+    );
+
+    set({
+      currentScreen: safeScreen,
+    });
   },
 
   nextScreen: () => {
     const current = get().currentScreen;
+
     if (current < 10) {
-      set({ currentScreen: current + 1 });
+      set({
+        currentScreen: current + 1,
+      });
     }
   },
 
   prevScreen: () => {
     const current = get().currentScreen;
+
     if (current > 1) {
-      set({ currentScreen: current - 1 });
+      set({
+        currentScreen: current - 1,
+      });
     }
   },
 
-  // Language update - strictly does NOT clear current session data or screen progress
-  setLanguage: (lang) => {
-    set({ language: lang });
+  /*
+   * -------------------------------------------------------
+   * LANGUAGE
+   * -------------------------------------------------------
+   */
+
+  setLanguage: (language) => {
+    set({ language });
   },
 
-  // Accessibility actions
+  /*
+   * -------------------------------------------------------
+   * AUDIO / ACCESSIBILITY
+   * -------------------------------------------------------
+   */
+
   toggleAudio: () => {
-    set((state) => ({ audioEnabled: !state.audioEnabled }));
+    set((state) => {
+      const nextValue = !state.audioEnabled;
+
+      return {
+        audioEnabled: nextValue,
+        silentMode: !nextValue,
+      };
+    });
   },
 
-  toggleEmergencyModal: (open) => {
-    set((state) => ({ 
-      emergencyModalOpen: typeof open === 'boolean' ? open : !state.emergencyModalOpen 
-    }));
+  setSilentMode: (enabled) => {
+    set({
+      silentMode: enabled,
+      audioEnabled: !enabled,
+    });
   },
 
   toggleHighContrast: () => {
-    set((state) => ({ highContrast: !state.highContrast }));
+    set((state) => ({
+      highContrast: !state.highContrast,
+    }));
   },
 
-  setFontSizeMultiplier: (multiplier) => {
-    set({ fontSizeMultiplier: multiplier });
+  setFontSizeMultiplier: (value) => {
+    set({
+      fontSizeMultiplier: value,
+    });
   },
 
-  // Session data mutations
+  /*
+   * -------------------------------------------------------
+   * EMERGENCY
+   * -------------------------------------------------------
+   */
+
+  toggleEmergencyModal: (open) => {
+    set((state) => ({
+      emergencyModalOpen:
+        typeof open === 'boolean'
+          ? open
+          : !state.emergencyModalOpen,
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * SESSION
+   * -------------------------------------------------------
+   */
+
   updateSessionData: (payload) => {
     set((state) => ({
       sessionData: {
         ...state.sessionData,
-        ...payload
-      }
+        ...payload,
+      },
     }));
   },
 
-  // Direct patient verification helper
-  setVerifiedPatient: (profile, authType, identifier) => {
+  setVerifiedPatient: (
+    profile,
+    authType,
+    identifier
+  ) => {
     set((state) => ({
       sessionData: {
         ...state.sessionData,
-        authType: authType || state.sessionData.authType,
-        identifier: identifier || state.sessionData.identifier,
+
+        authType:
+          authType ||
+          state.sessionData.authType,
+
+        identifier:
+          identifier ||
+          state.sessionData.identifier,
+
         isVerified: true,
-        patientProfile: profile
-      }
+
+        patientProfile: profile,
+      },
     }));
   },
 
-  // Complete reset to initial kiosk state (for new user after completion or timeout)
+  /*
+   * -------------------------------------------------------
+   * TRACK
+   * -------------------------------------------------------
+   */
+
+  setTrack: (track) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        track,
+      },
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * DOCTOR ROUTING
+   * -------------------------------------------------------
+   */
+
+  setSelectedDepartment: (department) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        selectedDepartment: department,
+      },
+    }));
+  },
+
+  setRequestedDoctor: (doctor) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        requestedDoctor: doctor,
+      },
+    }));
+  },
+
+  setDoctorAvailability: (availability) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        doctorAvailability: availability,
+      },
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * CLINICAL INTAKE
+   * -------------------------------------------------------
+   */
+
+  setIntakeMode: (mode) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        intakeMode: mode,
+      },
+    }));
+  },
+
+  setCurrentQuestion: (question) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        currentQuestion: question,
+      },
+    }));
+  },
+
+  recordQuestionAnswer: (
+    question,
+    answer
+  ) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+
+        questionHistory: [
+          ...state.sessionData.questionHistory,
+
+          {
+            question,
+            answer,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+
+        questionIndex:
+          state.sessionData.questionIndex + 1,
+
+        currentQuestion: null,
+      },
+    }));
+  },
+
+  setChiefComplaint: (complaint) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+        chiefComplaint: complaint,
+      },
+    }));
+  },
+
+  addSymptom: (symptom) => {
+    set((state) => {
+      const exists =
+        state.sessionData.symptoms.some(
+          (item) =>
+            item.id === symptom.id
+        );
+
+      if (exists) {
+        return state;
+      }
+
+      return {
+        sessionData: {
+          ...state.sessionData,
+
+          symptoms: [
+            ...state.sessionData.symptoms,
+            symptom,
+          ],
+        },
+      };
+    });
+  },
+
+  removeSymptom: (symptomId) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+
+        symptoms:
+          state.sessionData.symptoms.filter(
+            (item) =>
+              item.id !== symptomId
+          ),
+      },
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * RED FLAGS
+   * -------------------------------------------------------
+   */
+
+  setRedFlags: (flags) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+
+        redFlags: flags,
+
+        redFlagDetected:
+          flags.length > 0,
+      },
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * DOCUMENTS
+   * -------------------------------------------------------
+   */
+
+  addDocument: (document) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+
+        documents: [
+          ...state.sessionData.documents,
+          document,
+        ],
+      },
+    }));
+  },
+
+  removeDocument: (documentId) => {
+    set((state) => ({
+      sessionData: {
+        ...state.sessionData,
+
+        documents:
+          state.sessionData.documents.filter(
+            (document) =>
+              document.id !== documentId
+          ),
+      },
+    }));
+  },
+
+  /*
+   * -------------------------------------------------------
+   * WEBSOCKET STATE
+   * -------------------------------------------------------
+   */
+
+  setSocketStatus: (status) => {
+    set({
+      socketStatus: status,
+    });
+  },
+
+  /*
+   * -------------------------------------------------------
+   * RESET
+   * -------------------------------------------------------
+   */
+
   resetSession: () => {
     set({
       currentScreen: 1,
       emergencyModalOpen: false,
-      sessionData: { ...initialSession }
+
+      audioEnabled: true,
+      silentMode: false,
+
+      socketStatus: 'DISCONNECTED',
+
+      sessionData:
+        createInitialSession(),
     });
-  }
+  },
 }));
+
+export default useKioskStore;

@@ -1,455 +1,716 @@
 import React, { useState } from 'react';
-import { 
-  CreditCard, 
-  Fingerprint, 
-  Smartphone, 
-  CheckCircle2, 
-  ShieldCheck, 
-  Sparkles, 
-  QrCode, 
-  ArrowRight, 
-  Loader2, 
-  AlertCircle,
-  UserCheck,
-  Building2
+import {
+  ArrowRight,
+  CheckCircle2,
+  CreditCard,
+  Fingerprint,
+  Loader2,
+  LockKeyhole,
+  QrCode,
+  ShieldCheck,
+  Smartphone,
 } from 'lucide-react';
-import { useKioskStore, MOCK_PATIENTS } from '../store/useKioskStore';
+
+import {
+  MOCK_PATIENTS,
+  useKioskStore,
+} from '../store/useKioskStore';
+
 import { useTranslation } from '../hooks/useTranslation';
 import VirtualKeypad from '../components/common/VirtualKeypad';
 import AudioButton from '../components/common/AudioButton';
 
-export const Screen2_Auth = () => {
-  const { sessionData, updateSessionData, setVerifiedPatient, nextScreen, language } = useKioskStore();
+const AUTH_TYPES = {
+  ABHA: {
+    label: 'ABHA',
+    hindi: 'आभा',
+    icon: CreditCard,
+    placeholder: '91-XXXX-XXXX-XXXX',
+  },
+
+  Aadhaar: {
+    label: 'Aadhaar',
+    hindi: 'आधार',
+    icon: Fingerprint,
+    placeholder: 'XXXX XXXX XXXX',
+  },
+
+  Mobile: {
+    label: 'Mobile OTP',
+    hindi: 'मोबाइल OTP',
+    icon: Smartphone,
+    placeholder: '98765 43210',
+  },
+};
+
+const Screen2_Auth = () => {
+
+  const {
+    sessionData,
+    updateSessionData,
+    setVerifiedPatient,
+    nextScreen,
+    language,
+  } = useKioskStore();
+
   const { t } = useTranslation();
 
-  const [activeTab, setActiveTab] = useState(sessionData.authType || 'ABHA');
-  const [inputValue, setInputValue] = useState(sessionData.identifier || '');
+  const [activeTab, setActiveTab] = useState(
+    sessionData.authType || 'ABHA'
+  );
+
+  const [inputValue, setInputValue] = useState(
+    sessionData.identifier || ''
+  );
+
   const [otpValue, setOtpValue] = useState('');
+
   const [otpSent, setOtpSent] = useState(false);
+
   const [isVerifying, setIsVerifying] = useState(false);
+
   const [showKeypad, setShowKeypad] = useState(true);
 
-  const isVerified = sessionData.isVerified && sessionData.patientProfile;
+  const isVerified =
+    Boolean(
+      sessionData.isVerified &&
+      sessionData.patientProfile
+    );
 
-  // Handle Tab Switch
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
+  /* -------------------------------------------------------
+     TAB CHANGE
+  -------------------------------------------------------- */
+
+  const handleTabChange = (type) => {
+
+    setActiveTab(type);
     setInputValue('');
-    setOtpSent(false);
     setOtpValue('');
-    updateSessionData({ authType: tab, isVerified: false, patientProfile: null });
+    setOtpSent(false);
+
+    updateSessionData({
+      authType: type,
+      identifier: '',
+      otp: '',
+      isVerified: false,
+      patientProfile: null,
+    });
   };
 
-  // Virtual Keypad input handler
-  const handleKeyPress = (num) => {
+  /* -------------------------------------------------------
+     INPUT
+  -------------------------------------------------------- */
+
+  const handleKeyPress = (value) => {
+
     if (otpSent) {
-      if (otpValue.length < 6) setOtpValue((prev) => prev + num);
-    } else {
-      if (activeTab === 'ABHA' && inputValue.length < 17) {
-        // Auto format 14-digit ABHA: XX-XXXX-XXXX-XXXX
-        const clean = (inputValue + num).replace(/\D/g, '');
-        let formatted = clean;
-        if (clean.length > 2 && clean.length <= 6) {
-          formatted = `${clean.slice(0, 2)}-${clean.slice(2)}`;
-        } else if (clean.length > 6 && clean.length <= 10) {
-          formatted = `${clean.slice(0, 2)}-${clean.slice(2, 6)}-${clean.slice(6)}`;
-        } else if (clean.length > 10) {
-          formatted = `${clean.slice(0, 2)}-${clean.slice(2, 6)}-${clean.slice(6, 10)}-${clean.slice(10, 14)}`;
-        }
-        setInputValue(formatted);
-      } else if (activeTab === 'Aadhaar' && inputValue.length < 14) {
-        // Format XXXX XXXX XXXX
-        const clean = (inputValue + num).replace(/\D/g, '');
-        let formatted = clean;
-        if (clean.length > 4 && clean.length <= 8) {
-          formatted = `${clean.slice(0, 4)} ${clean.slice(4)}`;
-        } else if (clean.length > 8) {
-          formatted = `${clean.slice(0, 4)} ${clean.slice(4, 8)} ${clean.slice(8, 12)}`;
-        }
-        setInputValue(formatted);
-      } else if (activeTab === 'Mobile' && inputValue.length < 10) {
-        setInputValue((prev) => prev + num);
+
+      if (otpValue.length < 6) {
+        setOtpValue(
+          (previous) =>
+            `${previous}${value}`
+        );
+      }
+
+      return;
+    }
+
+    const clean =
+      `${inputValue}${value}`.replace(
+        /\D/g,
+        ''
+      );
+
+    if (activeTab === 'ABHA') {
+
+      if (clean.length > 14) {
+        return;
+      }
+
+      let formatted = clean;
+
+      if (clean.length > 2) {
+        formatted =
+          `${clean.slice(0, 2)}-${clean.slice(2)}`;
+      }
+
+      if (clean.length > 6) {
+        formatted =
+          `${clean.slice(0, 2)}-${clean.slice(2, 6)}-${clean.slice(6)}`;
+      }
+
+      if (clean.length > 10) {
+        formatted =
+          `${clean.slice(0, 2)}-${clean.slice(2, 6)}-${clean.slice(6, 10)}-${clean.slice(10, 14)}`;
+      }
+
+      setInputValue(formatted);
+
+      return;
+    }
+
+    if (activeTab === 'Aadhaar') {
+
+      if (clean.length > 12) {
+        return;
+      }
+
+      let formatted = clean;
+
+      if (clean.length > 4) {
+        formatted =
+          `${clean.slice(0, 4)} ${clean.slice(4)}`;
+      }
+
+      if (clean.length > 8) {
+        formatted =
+          `${clean.slice(0, 4)} ${clean.slice(4, 8)} ${clean.slice(8)}`;
+      }
+
+      setInputValue(formatted);
+
+      return;
+    }
+
+    if (activeTab === 'Mobile') {
+
+      if (clean.length <= 10) {
+        setInputValue(clean);
       }
     }
   };
 
   const handleBackspace = () => {
+
     if (otpSent) {
-      setOtpValue((prev) => prev.slice(0, -1));
-    } else {
-      setInputValue((prev) => prev.slice(0, -1));
+      setOtpValue(
+        (previous) =>
+          previous.slice(0, -1)
+      );
+      return;
     }
+
+    setInputValue(
+      (previous) =>
+        previous.slice(0, -1)
+    );
   };
 
   const handleClear = () => {
+
     if (otpSent) {
       setOtpValue('');
-    } else {
-      setInputValue('');
-    }
-  };
-
-  // Simulated NHA verification flow
-  const triggerVerification = () => {
-    setIsVerifying(true);
-
-    setTimeout(() => {
-      setIsVerifying(false);
-      const mockUser = activeTab === 'Aadhaar' ? MOCK_PATIENTS.aadhaar : MOCK_PATIENTS.abha;
-      setVerifiedPatient(mockUser, activeTab, inputValue || mockUser.abhaNumber);
-    }, 1200);
-  };
-
-  // Demo Quick-Fill button
-  const handleQuickFill = () => {
-    const mock = MOCK_PATIENTS.abha;
-    setInputValue(mock.abhaNumber);
-    setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
-      setVerifiedPatient(mock, 'ABHA', mock.abhaNumber);
-    }, 800);
-  };
-
-  const handleSendOtp = () => {
-    if (inputValue.length < 10) {
-      alert('Please enter a valid 10-digit mobile number');
       return;
     }
+
+    setInputValue('');
+  };
+
+  /* -------------------------------------------------------
+     MOCK VERIFICATION
+  -------------------------------------------------------- */
+
+  const triggerVerification = () => {
+
+    if (isVerifying) {
+      return;
+    }
+
+    setIsVerifying(true);
+
+    window.setTimeout(() => {
+
+      const mockUser =
+        activeTab === 'Aadhaar'
+          ? MOCK_PATIENTS.aadhaar
+          : MOCK_PATIENTS.abha;
+
+      setVerifiedPatient(
+        mockUser,
+        activeTab,
+        inputValue ||
+          mockUser.abhaNumber
+      );
+
+      setIsVerifying(false);
+
+    }, 900);
+  };
+
+  /* -------------------------------------------------------
+     MOBILE OTP
+  -------------------------------------------------------- */
+
+  const handleSendOtp = () => {
+
+    if (inputValue.length !== 10) {
+      return;
+    }
+
     setOtpSent(true);
   };
 
-  const audioPrompt = language === 'hi'
-    ? 'कृपया अपना 14 अंकों का आभा नंबर, आधार अथवा पंजीकृत मोबाइल नंबर दर्ज करें और सत्यापन करें।'
-    : 'Please enter your 14 digit ABHA number, Aadhaar or registered mobile number to verify your health profile.';
+  /* -------------------------------------------------------
+     DEMO QUICK FILL
+  -------------------------------------------------------- */
+
+  const handleDemoPatient = () => {
+
+    const patient =
+      MOCK_PATIENTS.abha;
+
+    setActiveTab('ABHA');
+
+    setInputValue(
+      patient.abhaNumber
+    );
+
+    setIsVerifying(true);
+
+    window.setTimeout(() => {
+
+      setVerifiedPatient(
+        patient,
+        'ABHA',
+        patient.abhaNumber
+      );
+
+      setIsVerifying(false);
+
+    }, 600);
+  };
+
+  /* -------------------------------------------------------
+     CONTINUE
+  -------------------------------------------------------- */
+
+  const handleContinue = () => {
+
+    if (!isVerified) {
+      return;
+    }
+
+    nextScreen();
+  };
+
+  const audioPrompt =
+    language === 'hi'
+      ? 'अपना आभा नंबर, आधार या मोबाइल नंबर दर्ज करके पहचान सत्यापित करें।'
+      : 'Enter your ABHA number, Aadhaar or registered mobile number to verify your identity.';
+
+  const ActiveIcon =
+    AUTH_TYPES[activeTab].icon;
 
   return (
-    <div className="flex-1 flex flex-col p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full select-none animate-in fade-in duration-300">
-      
-      {/* Screen Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2 text-teal-800 font-bold text-xs uppercase tracking-wider mb-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>NHA ABDM Gateway Security</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            {t('screen2.title', 'Patient Identification & Verification')}
-          </h2>
-          <p className="text-sm text-slate-600 mt-1">
-            {t('screen2.subtitle', 'Verify your identity using official Government of India health credentials')}
-          </p>
-        </div>
+    <div className="flex-1 flex items-center justify-center px-4 py-6 sm:px-6 md:px-10">
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={handleQuickFill}
-            className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-sm cursor-pointer active:scale-95 transition-all flex items-center gap-2"
-          >
-            <Sparkles className="w-4 h-4 text-amber-600" />
-            <span>{t('screen2.demoQuickFill', '⚡ Demo Quick Fill')}</span>
-          </button>
-          <AudioButton textToRead={audioPrompt} />
-        </div>
-      </div>
+      <div className="w-full max-w-5xl">
 
-      {/* Main Content Grid: Verification Form vs Patient Card / Scanner */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6 items-start">
-        
-        {/* Left Form Column (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          
-          {/* Government Style Tab Switcher */}
-          <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            {/* ABHA Tab */}
-            <button
-              type="button"
-              onClick={() => handleTabChange('ABHA')}
-              className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all min-h-[56px] ${
-                activeTab === 'ABHA'
-                  ? 'bg-white text-teal-900 shadow-md border border-teal-700/30'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <CreditCard className={`w-5 h-5 ${activeTab === 'ABHA' ? 'text-teal-700' : 'text-slate-400'}`} />
-              <span>{t('screen2.tabAbha', 'ABHA (ABDM)')}</span>
-            </button>
+        {/* --------------------------------------------------
+            HEADER
+        --------------------------------------------------- */}
 
-            {/* Aadhaar Tab */}
-            <button
-              type="button"
-              onClick={() => handleTabChange('Aadhaar')}
-              className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all min-h-[56px] ${
-                activeTab === 'Aadhaar'
-                  ? 'bg-white text-teal-900 shadow-md border border-teal-700/30'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <Fingerprint className={`w-5 h-5 ${activeTab === 'Aadhaar' ? 'text-teal-700' : 'text-slate-400'}`} />
-              <span>{t('screen2.tabAadhaar', 'Aadhaar')}</span>
-            </button>
+        <div className="mb-5 flex items-start justify-between gap-4">
 
-            {/* Mobile Tab */}
-            <button
-              type="button"
-              onClick={() => handleTabChange('Mobile')}
-              className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm cursor-pointer transition-all min-h-[56px] ${
-                activeTab === 'Mobile'
-                  ? 'bg-white text-teal-900 shadow-md border border-teal-700/30'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <Smartphone className={`w-5 h-5 ${activeTab === 'Mobile' ? 'text-teal-700' : 'text-slate-400'}`} />
-              <span>{t('screen2.tabMobile', 'Mobile OTP')}</span>
-            </button>
+          <div>
+
+            <p className="text-xs font-black uppercase tracking-wider text-teal-700">
+              Step 1 · Identity
+            </p>
+
+            <h1 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
+              Verify your identity
+            </h1>
+
+            <p className="mt-1 text-sm sm:text-base text-slate-500">
+              अपनी पहचान सत्यापित करें
+            </p>
+
           </div>
 
-          {/* Form Input Display Area */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            
-            <label className="block text-sm font-bold text-slate-800">
-              {activeTab === 'ABHA' && t('screen2.abhaPrompt')}
-              {activeTab === 'Aadhaar' && t('screen2.aadhaarPrompt')}
-              {activeTab === 'Mobile' && (!otpSent ? t('screen2.mobilePrompt') : t('screen2.otpPrompt'))}
-            </label>
+          <AudioButton
+            textToRead={audioPrompt}
+            label={
+              language === 'hi'
+                ? 'सुनें'
+                : 'Listen'
+            }
+          />
 
-            {!otpSent ? (
+        </div>
+
+        {/* --------------------------------------------------
+            MAIN CARD
+        --------------------------------------------------- */}
+
+        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+
+          {/* Security strip */}
+
+          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+
+            <LockKeyhole className="w-4 h-4 text-teal-700" />
+
+            <p className="text-xs font-semibold text-slate-600">
+              Your information is handled securely for this kiosk session.
+            </p>
+
+          </div>
+
+          <div className="p-5 sm:p-8">
+
+            {/* ------------------------------------------------
+                AUTH TYPE
+            ------------------------------------------------- */}
+
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+
+              {Object.entries(AUTH_TYPES).map(
+                ([type, config]) => {
+
+                  const Icon =
+                    config.icon;
+
+                  const active =
+                    activeTab === type;
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() =>
+                        handleTabChange(type)
+                      }
+                      className={`
+                        min-h-[78px]
+                        rounded-xl
+                        border-2
+                        px-2
+                        sm:px-4
+                        flex
+                        flex-col
+                        sm:flex-row
+                        items-center
+                        justify-center
+                        gap-2
+                        cursor-pointer
+                        transition
+                        ${
+                          active
+                            ? 'border-teal-700 bg-teal-50 text-teal-900'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }
+                      `}
+                    >
+
+                      <Icon className="w-6 h-6" />
+
+                      <span className="text-xs sm:text-sm font-black text-center">
+                        {config.label}
+
+                        <small className="block font-medium mt-1">
+                          {config.hindi}
+                        </small>
+                      </span>
+
+                    </button>
+                  );
+                }
+              )}
+
+            </div>
+
+            {/* ------------------------------------------------
+                INPUT
+            ------------------------------------------------- */}
+
+            <div className="mt-6">
+
+              <label className="block text-sm font-black text-slate-800 mb-2">
+
+                {activeTab === 'ABHA' &&
+                  'Enter your ABHA number'}
+
+                {activeTab === 'Aadhaar' &&
+                  'Enter your Aadhaar number'}
+
+                {activeTab === 'Mobile' &&
+                  (!otpSent
+                    ? 'Enter registered mobile number'
+                    : 'Enter OTP')}
+
+                <span className="block text-xs font-medium text-slate-500 mt-1">
+                  {activeTab === 'ABHA' &&
+                    'अपना आभा नंबर दर्ज करें'}
+
+                  {activeTab === 'Aadhaar' &&
+                    'अपना आधार नंबर दर्ज करें'}
+
+                  {activeTab === 'Mobile' &&
+                    (!otpSent
+                      ? 'पंजीकृत मोबाइल नंबर दर्ज करें'
+                      : 'OTP दर्ज करें')}
+                </span>
+
+              </label>
+
               <div className="relative">
+
                 <input
-                  type="text"
                   readOnly
-                  value={inputValue}
-                  placeholder={
-                    activeTab === 'ABHA'
-                      ? '91-XXXX-XXXX-XXXX'
-                      : activeTab === 'Aadhaar'
-                      ? 'XXXX XXXX XXXX'
-                      : '98765 43210'
+                  value={
+                    otpSent
+                      ? otpValue
+                      : inputValue
                   }
-                  className="w-full text-2xl sm:text-3xl font-mono tracking-wider px-5 py-4 rounded-xl border-2 border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-teal-700 font-bold"
+                  placeholder={
+                    otpSent
+                      ? '• • • • • •'
+                      : AUTH_TYPES[
+                          activeTab
+                        ].placeholder
+                  }
+                  className={`
+                    w-full
+                    min-h-[76px]
+                    rounded-xl
+                    border-2
+                    px-5
+                    text-center
+                    font-mono
+                    text-2xl
+                    sm:text-3xl
+                    font-black
+                    tracking-wider
+                    outline-none
+                    ${
+                      isVerified
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                        : 'border-slate-300 bg-slate-50 text-slate-900'
+                    }
+                  `}
                 />
+
+                {isVerified && (
+                  <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 text-emerald-600" />
+                )}
+
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                  <span>OTP sent to: <strong>+91 {inputValue}</strong></span>
-                  <button 
-                    type="button" 
-                    onClick={() => setOtpSent(false)} 
-                    className="text-teal-700 underline font-bold cursor-pointer"
+
+              {/* Mobile OTP helper */}
+
+              {otpSent && (
+                <div className="mt-3 flex items-center justify-between gap-3">
+
+                  <p className="text-xs text-slate-500">
+                    OTP sent to +91 {inputValue}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOtpSent(false)
+                    }
+                    className="min-h-[44px] px-3 text-xs font-bold text-teal-700 underline cursor-pointer"
                   >
-                    Change Number
+                    Change number
                   </button>
+
                 </div>
-                <input
-                  type="text"
-                  readOnly
-                  value={otpValue}
-                  placeholder="• • • • • •"
-                  className="w-full text-center text-3xl font-mono tracking-widest px-5 py-4 rounded-xl border-2 border-teal-600 bg-teal-50/40 text-teal-950 font-black focus:outline-none"
+              )}
+
+            </div>
+
+            {/* ------------------------------------------------
+                KEYPAD
+            ------------------------------------------------- */}
+
+            {!isVerified && showKeypad && (
+              <div className="mt-5">
+
+                <VirtualKeypad
+                  onKeyPress={handleKeyPress}
+                  onBackspace={handleBackspace}
+                  onClear={handleClear}
+                  onSubmit={
+                    activeTab === 'Mobile' &&
+                    !otpSent
+                      ? handleSendOtp
+                      : triggerVerification
+                  }
+                  submitLabel={
+                    activeTab === 'Mobile' &&
+                    !otpSent
+                      ? 'Send OTP'
+                      : 'Verify'
+                  }
                 />
+
               </div>
             )}
 
-            {/* Action Bar inside Input Box */}
-            <div className="flex items-center justify-between pt-2 gap-3">
+            <div className="mt-4 flex items-center justify-between">
+
               <button
                 type="button"
-                onClick={() => setShowKeypad(!showKeypad)}
-                className="text-xs text-teal-700 font-bold underline cursor-pointer"
+                onClick={() =>
+                  setShowKeypad(
+                    (previous) =>
+                      !previous
+                  )
+                }
+                className="min-h-[44px] px-2 text-xs font-bold text-teal-700 underline cursor-pointer"
               >
-                {showKeypad ? 'Hide On-Screen Keypad' : 'Show On-Screen Keypad'}
+                {showKeypad
+                  ? 'Hide keypad'
+                  : 'Show on-screen keypad'}
               </button>
 
-              {activeTab === 'Mobile' && !otpSent ? (
-                <button
-                  type="button"
-                  onClick={handleSendOtp}
-                  disabled={inputValue.length < 10}
-                  className="px-6 py-3 bg-teal-800 hover:bg-teal-700 disabled:bg-slate-300 text-white font-bold text-sm rounded-xl cursor-pointer shadow-md transition-all"
-                >
-                  {t('screen2.sendOtp', 'Send OTP')}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={triggerVerification}
-                  disabled={isVerifying || (!otpSent && inputValue.length < 10) || (otpSent && otpValue.length < 4)}
-                  className="px-6 py-3 bg-teal-800 hover:bg-teal-700 disabled:bg-slate-300 text-white font-bold text-sm rounded-xl cursor-pointer shadow-md transition-all flex items-center gap-2"
-                >
-                  {isVerifying ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-300" />
-                      <span>{t('screen2.verifying', 'Verifying...')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-5 h-5 text-amber-300" />
-                      <span>{t('screen2.verifyOtp', 'Verify & Retrieve Profile')}</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
+              <button
+                type="button"
+                onClick={handleDemoPatient}
+                className="min-h-[44px] px-3 text-xs font-bold text-slate-500 hover:text-teal-700 cursor-pointer"
+              >
+                Demo patient
+              </button>
 
-          {/* Virtual Keypad for Kiosk Touch Screens */}
-          {showKeypad && !isVerified && (
-            <div className="pt-2">
-              <VirtualKeypad
-                onKeyPress={handleKeyPress}
-                onBackspace={handleBackspace}
-                onClear={handleClear}
-                onSubmit={activeTab === 'Mobile' && !otpSent ? handleSendOtp : triggerVerification}
-                submitLabel={activeTab === 'Mobile' && !otpSent ? 'Send OTP' : 'Verify'}
-              />
             </div>
-          )}
 
-          {/* QR Barcode scan mock helper */}
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center">
-                <QrCode className="w-6 h-6" />
+            {/* ------------------------------------------------
+                VERIFIED PATIENT
+            ------------------------------------------------- */}
+
+            {isVerified && (
+              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+
+                <div className="flex items-start gap-4">
+
+                  <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+
+                  <div className="flex-1">
+
+                    <p className="text-xs font-black uppercase tracking-wider text-emerald-700">
+                      Identity verified
+                    </p>
+
+                    <h2 className="mt-1 text-lg font-black text-slate-900">
+                      {language === 'hi'
+                        ? sessionData.patientProfile?.hindiName ||
+                          sessionData.patientProfile?.name
+                        : sessionData.patientProfile?.name}
+                    </h2>
+
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+                      <div>
+                        <p className="text-[11px] text-slate-500">
+                          Age
+                        </p>
+                        <p className="text-sm font-bold">
+                          {sessionData.patientProfile?.age}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] text-slate-500">
+                          Gender
+                        </p>
+                        <p className="text-sm font-bold">
+                          {sessionData.patientProfile?.gender}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] text-slate-500">
+                          ABHA
+                        </p>
+                        <p className="text-sm font-bold">
+                          {sessionData.patientProfile?.abhaNumber}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] text-slate-500">
+                          State
+                        </p>
+                        <p className="text-sm font-bold">
+                          {sessionData.patientProfile?.state}
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
               </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-amber-950">
-                  {t('screen2.scanQr', 'Scan ABHA / QR Code on Scanner Below')}
-                </p>
-                <p className="text-[11px] text-amber-800">
-                  Hold your ABHA Card or Ayushman App QR Code near the optical scanner
-                </p>
-              </div>
-            </div>
+            )}
+
+            {/* ------------------------------------------------
+                CONTINUE
+            ------------------------------------------------- */}
 
             <button
               type="button"
-              onClick={handleQuickFill}
-              className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-xl cursor-pointer whitespace-nowrap shadow-sm"
+              disabled={!isVerified || isVerifying}
+              onClick={handleContinue}
+              className="
+                mt-6
+                w-full
+                min-h-[76px]
+                rounded-2xl
+                bg-teal-700
+                hover:bg-teal-800
+                disabled:bg-slate-200
+                disabled:text-slate-400
+                text-white
+                font-black
+                flex
+                items-center
+                justify-between
+                px-6
+                cursor-pointer
+                disabled:cursor-not-allowed
+                transition
+              "
             >
-              Simulate Scan
+
+              <span className="text-left">
+
+                <span className="block text-lg">
+                  Continue
+                </span>
+
+                <span className="block text-xs font-medium mt-1 opacity-80">
+                  विभाग चयन पर जाएं
+                </span>
+
+              </span>
+
+              {isVerifying ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <ArrowRight className="w-6 h-6" />
+              )}
+
             </button>
+
           </div>
 
         </div>
 
-        {/* Right Preview Column (5 Cols): NHA Verified Card / Preview */}
-        <div className="lg:col-span-5 space-y-4">
-          
-          {isVerified ? (
-            /* Official NHA ABDM Card Preview */
-            <div className="bg-white rounded-3xl border-2 border-emerald-500 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
-              
-              {/* Card Header */}
-              <div className="bg-gradient-to-r from-teal-800 to-teal-900 text-white p-5 flex items-center justify-between border-b-4 border-amber-400">
-                <div className="flex items-center gap-3">
-                  <Building2 className="w-7 h-7 text-amber-300" />
-                  <div>
-                    <h3 className="text-base font-black tracking-wide uppercase">Ayushman Bharat</h3>
-                    <p className="text-[10px] text-teal-200 font-semibold tracking-wider uppercase">Digital Health Account (ABDM)</p>
-                  </div>
-                </div>
-                <div className="bg-emerald-500 text-white text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>VERIFIED</span>
-                </div>
-              </div>
+        {/* Bottom information */}
 
-              {/* Patient Details */}
-              <div className="p-6 space-y-5">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={sessionData.patientProfile.photoUrl}
-                    alt={sessionData.patientProfile.name}
-                    className="w-20 h-20 rounded-2xl object-cover border-2 border-teal-700 shadow-md"
-                  />
-                  <div>
-                    <h4 className="text-xl font-black text-slate-900 leading-tight">
-                      {sessionData.patientProfile.name}
-                    </h4>
-                    <p className="text-sm font-semibold text-teal-800 font-serif">
-                      {sessionData.patientProfile.hindiName}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-600">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                        {sessionData.patientProfile.gender}, {sessionData.patientProfile.age} yrs
-                      </span>
-                      <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded border border-rose-200">
-                        Blood: {sessionData.patientProfile.bloodGroup}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-400">
 
-                {/* Key-Value details */}
-                <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-slate-500 font-medium">ABHA Number</span>
-                    <span className="font-mono font-bold text-slate-900 text-sm">{sessionData.patientProfile.abhaNumber}</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-slate-500 font-medium">ABHA Address</span>
-                    <span className="font-mono font-bold text-teal-800 text-sm truncate block">{sessionData.patientProfile.abhaAddress}</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-slate-500 font-medium">Mobile Number</span>
-                    <span className="font-mono font-bold text-slate-800">{sessionData.patientProfile.mobile}</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span className="block text-slate-500 font-medium">State / District</span>
-                    <span className="font-semibold text-slate-800">{sessionData.patientProfile.district}, {sessionData.patientProfile.state}</span>
-                  </div>
-                </div>
+          <ShieldCheck className="w-4 h-4" />
 
-                {/* Ayurvedic Prakriti Tag if recorded */}
-                {sessionData.patientProfile.prakriti && (
-                  <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] font-bold text-teal-900 uppercase tracking-wider block">
-                        Ayush Health Profile (आयुष प्रकृति)
-                      </span>
-                      <span className="text-sm font-extrabold text-teal-800">
-                        {sessionData.patientProfile.prakriti}
-                      </span>
-                    </div>
-                    <span className="text-xs bg-teal-700 text-white font-bold px-2 py-1 rounded-lg">
-                      Synchronized
-                    </span>
-                  </div>
-                )}
-
-                {/* Continue to Next Screen button */}
-                <button
-                  type="button"
-                  onClick={nextScreen}
-                  className="w-full min-h-[60px] bg-gradient-to-r from-teal-800 to-teal-700 hover:from-teal-700 hover:to-teal-600 text-white font-black text-lg rounded-2xl shadow-lg flex items-center justify-center gap-3 cursor-pointer active:scale-98 transition-all"
-                >
-                  <span>Proceed to Medical Track Selection</span>
-                  <ArrowRight className="w-6 h-6 text-amber-300" />
-                </button>
-              </div>
-
-            </div>
-          ) : (
-            /* Standby Card placeholder */
-            <div className="bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 p-8 text-center flex flex-col items-center justify-center min-h-[380px] space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center shadow-sm">
-                <UserCheck className="w-8 h-8" />
-              </div>
-              <div className="max-w-xs">
-                <h4 className="font-bold text-slate-800 text-base">Awaiting Verification</h4>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Enter your ABHA or Aadhaar details on the left, or use the Demo Quick Fill button to test instantly.
-                </p>
-              </div>
-              <div className="pt-2">
-                <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-3 py-1.5 rounded-full border border-teal-200">
-                  Government of India • NHA M1/M2 Standard
-                </span>
-              </div>
-            </div>
-          )}
+          <span>
+            Identity verification is simulated in this prototype.
+          </span>
 
         </div>
 
