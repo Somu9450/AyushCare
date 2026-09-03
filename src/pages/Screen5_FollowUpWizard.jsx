@@ -13,7 +13,9 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useKioskStore } from '../store/useKioskStore';
+import { useTranslation } from '../hooks/useTranslation';
 import AudioButton from '../components/common/AudioButton';
+import { SkeletonFollowUpWizard } from '../components/common/KioskSkeleton';
 
 const QUESTION_BANK = {
   headache: [
@@ -253,7 +255,7 @@ export const Screen5_FollowUpWizard = () => {
     language,
   } = useKioskStore();
 
-  const isHindi = language === 'hi';
+  const { t, isHindi } = useTranslation();
   const isAyush = sessionData.track === 'AYUSH';
 
   const questions = useMemo(
@@ -276,6 +278,7 @@ export const Screen5_FollowUpWizard = () => {
   );
 
   const [isListening, setIsListening] = useState(false);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
 
   const recognitionRef = useRef(null);
 
@@ -399,23 +402,27 @@ export const Screen5_FollowUpWizard = () => {
           <ShieldCheck className="w-14 h-14 mx-auto text-teal-700" />
 
           <h1 className="text-2xl font-black text-slate-900 mt-4">
-            Intake complete
+            {t('screen5.intakeComplete', 'Follow-Up Questions Complete')}
           </h1>
 
           <p className="text-slate-600 mt-2">
-            We have enough information to prepare your health history.
+            {t('screen5.intakeCompleteSub', 'We have enough information to prepare your health summary.')}
           </p>
 
           <button
             type="button"
             onClick={nextScreen}
-            className="mt-6 min-h-[56px] px-8 rounded-2xl bg-teal-800 text-white font-black"
+            className="mt-6 min-h-[56px] px-8 rounded-2xl bg-teal-800 text-white font-black cursor-pointer"
           >
-            Continue
+            {t('nav.continue', 'Continue')}
           </button>
         </div>
       </div>
     );
+  }
+
+  if (isLoadingQuestions) {
+    return <SkeletonFollowUpWizard />;
   }
 
   const selectedAnswer = answers[currentQuestion.id];
@@ -428,33 +435,31 @@ export const Screen5_FollowUpWizard = () => {
     : currentQuestion.title;
 
   return (
-    <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col">
+    <div className="h-full w-full max-w-3xl mx-auto px-4 py-2 select-none flex flex-col justify-between">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={goBack}
-          className="min-h-[48px] px-4 rounded-xl bg-slate-100 text-slate-700 font-bold flex items-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+      <div>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={goBack}
+              className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>{t('nav.back', 'Back')}</span>
+            </button>
+            <span className="text-xs font-black text-slate-700">
+              {t('screen5.questionCount', 'Question')} {currentIndex + 1} {t('screen5.of', 'of')} {questions.length}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <AudioButton textToRead={questionAudioText} />
-        </div>
-      </div>
-
-      {/* Progress */}
-      <div className="mt-5">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
-          <span>
-            Question {currentIndex + 1} of {questions.length}
-          </span>
-          <span>{Math.round(progress)}%</span>
+          <div className="flex items-center gap-2">
+            <AudioButton textToRead={questionAudioText} label={t('nav.listen', isHindi ? 'सुनें' : 'Listen')} className="min-h-[32px] py-1 text-xs" />
+          </div>
         </div>
 
-        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+        {/* Progress */}
+        <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
           <div
             className="h-full bg-teal-700 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -462,144 +467,108 @@ export const Screen5_FollowUpWizard = () => {
         </div>
       </div>
 
-      {/* Question */}
-      <main className="flex-1 flex flex-col justify-center py-8 max-w-4xl w-full mx-auto">
+      {/* Question & Options Center */}
+      <div className="my-auto py-2 flex flex-col gap-2.5">
         {currentQuestion.traditional && (
-          <div className="inline-flex self-start items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-black mb-5">
-            <Leaf className="w-4 h-4" />
-            {currentQuestion.traditional}
+          <div className="inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black">
+            <Leaf className="w-3.5 h-3.5" />
+            <span>{currentQuestion.traditional}</span>
           </div>
         )}
 
-        <div className="flex items-start justify-between gap-5">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight">
-              {isHindi
-                ? currentQuestion.hi
-                : currentQuestion.title}
-            </h1>
-
-            {currentQuestion.traditional && (
-              <p className="mt-3 text-sm sm:text-base text-slate-600 max-w-2xl">
-                {currentQuestion.explanation}
-              </p>
-            )}
-          </div>
-
-          <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-teal-50 text-teal-800 items-center justify-center shrink-0">
-            <CircleHelp className="w-7 h-7" />
-          </div>
+        <div>
+          <h1 className="text-base sm:text-xl font-black text-slate-900 leading-tight">
+            {isHindi ? currentQuestion.hi : currentQuestion.title}
+          </h1>
+          {currentQuestion.explanation && (
+            <p className="mt-1 text-xs text-slate-500">
+              {currentQuestion.explanation}
+            </p>
+          )}
         </div>
 
-        {/* Voice option */}
+        {/* Voice Option Compact Bar */}
         <button
           type="button"
           onClick={startVoiceAnswer}
-          className={`mt-7 min-h-[76px] rounded-2xl border-2 p-4 flex items-center gap-4 text-left ${
+          className={`h-9 rounded-xl border px-3 flex items-center gap-2 text-left cursor-pointer transition ${
             isListening
-              ? 'border-amber-400 bg-amber-50'
-              : 'border-teal-100 bg-teal-50 hover:border-teal-300'
+              ? 'border-amber-400 bg-amber-50 text-amber-950 font-bold animate-pulse'
+              : 'border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-900'
           }`}
         >
-          <div
-            className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              isListening
-                ? 'bg-amber-400 text-slate-950 animate-pulse'
-                : 'bg-teal-800 text-white'
-            }`}
-          >
-            {isListening ? (
-              <MicOff className="w-6 h-6" />
-            ) : (
-              <Mic className="w-6 h-6" />
-            )}
+          <div className="w-5 h-5 rounded-md flex items-center justify-center">
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-teal-700" />}
           </div>
-
-          <div>
-            <div className="font-black text-slate-900">
-              {isListening
-                ? 'Listening…'
-                : 'Answer by speaking'}
-            </div>
-            <div className="text-xs text-slate-600 mt-1">
-              Or simply tap one of the answers below.
-            </div>
-          </div>
+          <span className="text-xs font-bold">
+            {isListening ? t('screen5.voiceListening', 'Listening… speak your answer') : t('screen5.voiceAnswer', 'Or tap to answer by voice')}
+          </span>
         </button>
 
-        {/* Answer cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-          {currentQuestion.options.map(
-            ([value, english, hindi]) => {
-              const selected = selectedAnswer === value;
+        {/* Answer Cards 2x2 Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+          {currentQuestion.options.map(([value, english, hindi]) => {
+            const selected = selectedAnswer === value;
+            const primaryLabel = isHindi ? (hindi || english) : english;
+            const secondaryLabel = isHindi ? english : (hindi || '');
 
-              return (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => selectAnswer(value)}
-                  className={`relative min-h-[82px] rounded-2xl border-2 px-5 py-4 text-left transition-all active:scale-[0.99] ${
-                    selected
-                      ? 'border-teal-700 bg-teal-50 shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-teal-300'
-                  }`}
-                >
-                  {selected && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-teal-800 text-white flex items-center justify-center">
-                      <Check className="w-4 h-4" />
-                    </div>
-                  )}
-
-                  <div className="font-black text-slate-900 pr-8">
-                    {english}
+            return (
+              <button
+                type="button"
+                key={value}
+                onClick={() => selectAnswer(value)}
+                className={`relative h-[62px] rounded-xl border-2 px-3 py-2 text-left transition flex flex-col justify-center cursor-pointer ${
+                  selected
+                    ? 'border-teal-700 bg-teal-50 text-teal-900 shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-teal-300 text-slate-800'
+                }`}
+              >
+                {selected && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-teal-700 text-white flex items-center justify-center">
+                    <Check className="w-3 h-3" />
                   </div>
-
-                  {isHindi && (
-                    <div className="text-xs text-slate-500 mt-1 pr-8">
-                      {hindi}
-                    </div>
-                  )}
-                </button>
-              );
-            }
-          )}
+                )}
+                <div className="font-black text-xs sm:text-sm pr-6 leading-tight">
+                  {primaryLabel}
+                </div>
+                {secondaryLabel && (
+                  <div className="text-[10px] text-slate-400 mt-0.5 pr-6 truncate">
+                    {secondaryLabel}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Red flag */}
-        {currentQuestion.redFlag &&
-          selectedAnswer === 'yes' && (
-            <div className="mt-5 rounded-2xl border-2 border-red-300 bg-red-50 p-4 flex gap-3">
-              <AlertTriangle className="w-6 h-6 text-red-600 shrink-0" />
-
-              <div>
-                <div className="font-black text-red-900">
-                  Please alert triage staff
-                </div>
-                <p className="text-sm text-red-800 mt-1">
-                  This answer may require priority clinical assessment.
-                </p>
-              </div>
-            </div>
-          )}
-      </main>
+        {currentQuestion.redFlag && selectedAnswer === 'yes' && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-2 flex items-center gap-2 text-xs text-red-800">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span className="font-bold">{t('screen5.triageAlert', 'Please alert triage staff')}</span>
+          </div>
+        )}
+      </div>
 
       {/* Bottom */}
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
-          <Clock3 className="w-4 h-4" />
-          Take your time. There is no need to rush.
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500">
+          <Clock3 className="w-3.5 h-3.5" />
+          <span>{t('screen5.takeYourTime', 'Take your time')}</span>
         </div>
 
         <button
           type="button"
           onClick={goNext}
           disabled={!selectedAnswer}
-          className="ml-auto min-h-[58px] px-7 rounded-2xl bg-teal-800 text-white font-black flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="ml-auto h-10 px-6 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition shadow-xs"
         >
-          {currentIndex === questions.length - 1
-            ? 'Finish Questions'
-            : 'Next Question'}
-          <ArrowRight className="w-5 h-5" />
+          <span>
+            {currentIndex === questions.length - 1
+              ? t('screen5.finishQuestions', 'Finish Questions')
+              : t('screen5.nextQuestion', 'Next Question')}
+          </span>
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>

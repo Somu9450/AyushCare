@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { useKioskStore } from '../store/useKioskStore';
+import { useTranslation } from '../hooks/useTranslation';
 
 export const Screen10_TokenSuccess = () => {
   const {
@@ -21,7 +22,7 @@ export const Screen10_TokenSuccess = () => {
     resetSession,
   } = useKioskStore();
 
-  const isHindi = language === 'hi';
+  const { t, isHindi, isPunjabi, isBengali } = useTranslation();
 
   const {
     tokenNumber,
@@ -62,7 +63,7 @@ export const Screen10_TokenSuccess = () => {
     tokenNumber || 'AY-OPD-108';
 
   const currentDate = new Date().toLocaleDateString(
-    isHindi ? 'hi-IN' : 'en-IN',
+    isHindi ? 'hi-IN' : isPunjabi ? 'pa-IN' : isBengali ? 'bn-IN' : 'en-IN',
     {
       day: '2-digit',
       month: 'short',
@@ -71,7 +72,7 @@ export const Screen10_TokenSuccess = () => {
   );
 
   const currentTime = new Date().toLocaleTimeString(
-    isHindi ? 'hi-IN' : 'en-IN',
+    isHindi ? 'hi-IN' : isPunjabi ? 'pa-IN' : isBengali ? 'bn-IN' : 'en-IN',
     {
       hour: '2-digit',
       minute: '2-digit',
@@ -99,73 +100,93 @@ export const Screen10_TokenSuccess = () => {
    */
 
   const text = {
-    successTitle: isHindi
+    successTitle: isPunjabi
+      ? 'ਓਪੀਡੀ ਟੋਕਨ ਸਫ਼ਲਤਾਪੂਰਵਕ ਤਿਆਰ ਹੋਇਆ'
+      : isBengali
+      ? 'ওপিডি টোকেন সফলভাবে তৈরি হয়েছে'
+      : isHindi
       ? 'ओपीडी टोकन सफलतापूर्वक जनरेट हुआ'
       : 'OPD Token Generated Successfully',
 
-    successDescription: isHindi
+    successDescription: isPunjabi
+      ? 'ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਟੋਕਨ ਨੰਬਰ ਨੋਟ ਕਰੋ ਅਤੇ ਉਡੀਕ ਖੇਤਰ ਵਿੱਚ ਜਾਓ।'
+      : isBengali
+      ? 'অনুগ্রহ করে আপনার টোকেন নম্বর নোট করুন এবং অপেক্ষা করুন।'
+      : isHindi
       ? 'कृपया अपना टोकन नंबर नोट करें और प्रतीक्षा क्षेत्र में जाएँ।'
       : 'Please note your token number and proceed to the waiting area.',
 
-    tokenLabel: isHindi
+    tokenLabel: isPunjabi
+      ? 'ਤੁਹਾਡਾ ਟੋਕਨ ਨੰਬਰ'
+      : isBengali
+      ? 'আপনার টোকেন নম্বর'
+      : isHindi
       ? 'आपका टोकन नंबर'
       : 'Your Token Number',
 
-    patient: isHindi
-      ? 'मरीज़'
-      : 'Patient',
+    patient: isPunjabi ? 'ਮਰੀਜ਼' : isBengali ? 'রোগী' : isHindi ? 'मरीज़' : 'Patient',
 
-    department: isHindi
-      ? 'विभाग'
-      : 'Department',
+    department: isPunjabi ? 'ਵਿਭਾਗ' : isBengali ? 'বিভাগ' : isHindi ? 'विभाग' : 'Department',
 
-    doctor: isHindi
-      ? 'डॉक्टर'
-      : 'Doctor',
+    doctor: isPunjabi ? 'ਡਾਕਟਰ' : isBengali ? 'ডাক্তার' : isHindi ? 'डॉक्टर' : 'Doctor',
 
-    date: isHindi
-      ? 'दिनांक'
-      : 'Date',
+    date: isPunjabi ? 'ਮਿਤੀ' : isBengali ? 'তারিখ' : isHindi ? 'दिनांक' : 'Date',
 
-    time: isHindi
-      ? 'समय'
-      : 'Time',
+    time: isPunjabi ? 'ਸਮਾਂ' : isBengali ? 'সময়' : isHindi ? 'समय' : 'Time',
 
-    priority: isHindi
+    priority: isPunjabi
+      ? 'ਤਰਜੀਹ ਟ੍ਰਾਈਏਜ'
+      : isBengali
+      ? 'জরুরি ট্রায়াজ'
+      : isHindi
       ? 'प्राथमिकता ट्रायेज'
       : 'Priority Triage',
 
-    priorityMessage: isHindi
+    priorityMessage: isPunjabi
+      ? 'ਤੁਹਾਡੇ ਲੱਛਣਾਂ ਦੇ ਆਧਾਰ ਤੇ ਸਟਾਫ ਨੂੰ ਸੂਚਿਤ ਕੀਤਾ ਗਿਆ ਹੈ।'
+      : isBengali
+      ? 'আপনার লক্ষণের ভিত্তিতে কর্মীদের সতর্ক করা হয়েছে।'
+      : isHindi
       ? 'आपके लक्षणों के आधार पर स्टाफ को प्राथमिकता सूचना भेजी गई है।'
       : 'The triage staff has been alerted based on the symptoms recorded.',
 
-    waitingMessage: isHindi
+    waitingMessage: isPunjabi
+      ? 'ਕਿਰਪਾ ਕਰਕੇ ਸਕ੍ਰੀਨ ਤੇ ਆਪਣਾ ਟੋਕਨ ਨੰਬਰ ਆਉਣ ਦੀ ਉਡੀਕ ਕਰੋ।'
+      : isBengali
+      ? 'স্ক্রিনে আপনার টোকেন নম্বর আসার জন্য অপেক্ষা করুন।'
+      : isHindi
       ? 'कृपया स्क्रीन पर प्रदर्शित टोकन नंबर के लिए प्रतीक्षा करें।'
       : 'Please wait for your token number to be displayed on the waiting screen.',
 
-    print: isHindi
+    print: isPunjabi
+      ? 'ਟੋਕਨ ਸਲਿੱਪ ਪ੍ਰਿੰਟ ਕਰੋ'
+      : isBengali
+      ? 'টোকেন স্লিপ প্রিন্ট করুন'
+      : isHindi
       ? 'टोकन स्लिप प्रिंट करें'
       : 'Print Token Slip',
 
-    newCheckIn: isHindi
+    newCheckIn: isPunjabi
+      ? 'ਨਵਾਂ ਚੈੱਕ-ਇਨ'
+      : isBengali
+      ? 'নতুন চেক-ইন'
+      : isHindi
       ? 'नया चेक-इन'
       : 'New Check-In',
 
-    secure: isHindi
+    secure: isPunjabi
+      ? 'ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ ਸੁਰੱਖਿਅਤ ਰੂਪ ਨਾਲ ਸੇਵ ਕੀਤੀ ਗਈ ਹੈ'
+      : isBengali
+      ? 'আপনার তথ্য সুরক্ষিতভাবে সংরক্ষিত হয়েছে'
+      : isHindi
       ? 'आपकी जानकारी सुरक्षित रूप से सेव की गई है'
       : 'Your information has been securely saved',
 
-    track: isHindi
-      ? 'सेवा'
-      : 'Service',
+    track: isPunjabi ? 'ਸੇਵਾ' : isBengali ? 'সেবা' : isHindi ? 'सेवा' : 'Service',
 
-    ayush: isHindi
-      ? 'आयुष'
-      : 'AYUSH',
+    ayush: isPunjabi ? 'ਆਯੁਸ਼' : isBengali ? 'আয়ুষ' : isHindi ? 'आयुष' : 'AYUSH',
 
-    allopathy: isHindi
-      ? 'एलोपैथी'
-      : 'Allopathy',
+    allopathy: isPunjabi ? 'ਐਲੋਪੈਥੀ' : isBengali ? 'অ্যালোপ্যাথি' : isHindi ? 'एलोपैथी' : 'Allopathy',
   };
 
   /*
@@ -175,474 +196,98 @@ export const Screen10_TokenSuccess = () => {
    */
 
   return (
-    <div className="flex-1 w-full bg-slate-50 overflow-y-auto">
-      <div className="min-h-full w-full max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col justify-center">
-
-        {/* =================================================
-            SUCCESS HEADER
-        ================================================= */}
-
-        <div className="text-center mb-6 sm:mb-8">
-
-          <div
-            className="
-              mx-auto
-              w-20 h-20
-              sm:w-24 sm:h-24
-              rounded-[28px]
-              bg-emerald-100
-              text-emerald-700
-              flex items-center justify-center
-              shadow-sm
-              mb-5
-            "
-          >
-            <CheckCircle2
-              className="w-12 h-12 sm:w-14 sm:h-14"
-              strokeWidth={2.2}
-            />
+    <div className="h-full w-full max-w-4xl mx-auto px-4 py-2 select-none flex flex-col justify-between">
+      {/* --------------------------------------------------
+          COMPACT HEADER
+      --------------------------------------------------- */}
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
-
-          <h1
-            className="
-              text-2xl
-              sm:text-3xl
-              lg:text-4xl
-              font-black
-              tracking-tight
-              text-slate-900
-            "
-          >
-            {text.successTitle}
-          </h1>
-
-          <p
-            className="
-              mt-2
-              text-sm
-              sm:text-base
-              text-slate-600
-              max-w-xl
-              mx-auto
-            "
-          >
-            {text.successDescription}
-          </p>
-
+          <div>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
+              {text.successTitle}
+            </h1>
+            <p className="text-xs text-slate-500">
+              {text.successDescription}
+            </p>
+          </div>
         </div>
 
-        {/* =================================================
-            MAIN TOKEN CARD
-        ================================================= */}
+        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold bg-slate-100 px-2.5 py-1 rounded-full">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>{text.secure}</span>
+        </div>
+      </div>
 
-        <div
-          className="
-            bg-white
-            rounded-[28px]
-            border border-slate-200
-            shadow-xl
-            overflow-hidden
-            w-full
-          "
-        >
+      {/* --------------------------------------------------
+          TWO-COLUMN ATM LAYOUT
+      --------------------------------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.2fr] gap-3 items-stretch flex-1 min-h-0">
 
-          {/* -------------------------------------------------
-              TOKEN SECTION
-          ------------------------------------------------- */}
-
-          <div
-            className="
-              bg-teal-800
-              text-white
-              px-5 py-7
-              sm:px-8 sm:py-9
-              text-center
-            "
-          >
-
-            <p
-              className="
-                text-xs
-                sm:text-sm
-                font-bold
-                uppercase
-                tracking-[0.18em]
-                text-teal-100
-              "
-            >
+        {/* LEFT COLUMN: Token Display Card */}
+        <div className="bg-teal-800 text-white rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-teal-200">
               {text.tokenLabel}
-            </p>
-
-            <div
-              className="
-                mt-3
-                text-5xl
-                sm:text-6xl
-                lg:text-7xl
-                font-black
-                tracking-tight
-                font-mono
-              "
-            >
+            </span>
+            <div className="text-5xl font-black font-mono tracking-tight my-2 text-white">
               {displayToken}
             </div>
-
-            <div
-              className="
-                mt-4
-                inline-flex
-                items-center
-                gap-2
-                px-4 py-2
-                rounded-full
-                bg-white/10
-                border border-white/15
-                text-xs
-                sm:text-sm
-                font-semibold
-              "
-            >
-              <Clock3 className="w-4 h-4" />
-
-              <span>
-                {currentDate} • {currentTime}
-              </span>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold">
+              <Clock3 className="w-3.5 h-3.5 text-teal-200" />
+              <span>{currentDate} • {currentTime}</span>
             </div>
-
           </div>
 
-          {/* -------------------------------------------------
-              PATIENT / ROUTING INFORMATION
-          ------------------------------------------------- */}
+          <div className="rounded-xl bg-teal-900/60 p-2.5 border border-teal-700/50 text-xs text-teal-100 leading-relaxed mt-3">
+            <p className="font-bold text-white mb-0.5">Please proceed to Waiting Area</p>
+            <p className="text-[11px] text-teal-200">{text.waitingMessage}</p>
+          </div>
+        </div>
 
-          <div className="p-5 sm:p-7">
-
-            <div
-              className="
-                grid
-                grid-cols-1
-                sm:grid-cols-2
-                gap-3
-                sm:gap-4
-              "
-            >
-
-              {/* Patient */}
-
-              <InfoCard
-                icon={<UserRound className="w-5 h-5" />}
-                label={text.patient}
-                value={patientName}
-              />
-
-              {/* Department */}
-
-              <InfoCard
-                icon={<MapPin className="w-5 h-5" />}
-                label={text.department}
-                value={departmentName}
-              />
-
-              {/* Doctor */}
-
-              <InfoCard
-                icon={<Stethoscope className="w-5 h-5" />}
-                label={text.doctor}
-                value={doctorName}
-              />
-
-              {/* Track */}
-
-              <InfoCard
-                icon={<HeartPulse className="w-5 h-5" />}
-                label={text.track}
-                value={
-                  track === 'AYUSH'
-                    ? text.ayush
-                    : text.allopathy
-                }
-              />
-
-            </div>
-
-            {/* -------------------------------------------------
-                DOCTOR AVAILABILITY
-            ------------------------------------------------- */}
-
-            {doctorAvailability && (
-              <div
-                className="
-                  mt-4
-                  p-4
-                  rounded-2xl
-                  bg-slate-50
-                  border border-slate-200
-                  text-sm
-                  text-slate-700
-                "
-              >
-                <div className="font-bold text-slate-900 mb-1">
-                  {isHindi
-                    ? 'रूटिंग स्थिति'
-                    : 'Routing Status'}
-                </div>
-
-                <div>
-                  {typeof doctorAvailability === 'string'
-                    ? doctorAvailability
-                    : doctorAvailability.message ||
-                      doctorAvailability.status ||
-                      doctorAvailability.availability_status ||
-                      'Routing confirmed'}
-                </div>
-              </div>
-            )}
-
-            {/* -------------------------------------------------
-                RED FLAG / PRIORITY ALERT
-            ------------------------------------------------- */}
-
-            {redFlagDetected && (
-              <div
-                className="
-                  mt-4
-                  rounded-2xl
-                  border-2
-                  border-amber-300
-                  bg-amber-50
-                  p-4
-                  sm:p-5
-                "
-              >
-
-                <div className="flex items-start gap-3">
-
-                  <div
-                    className="
-                      shrink-0
-                      w-10 h-10
-                      rounded-xl
-                      bg-amber-100
-                      text-amber-700
-                      flex items-center justify-center
-                    "
-                  >
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <div
-                      className="
-                        font-black
-                        text-amber-900
-                        text-sm
-                        sm:text-base
-                      "
-                    >
-                      {text.priority}
-                    </div>
-
-                    <p
-                      className="
-                        mt-1
-                        text-xs
-                        sm:text-sm
-                        text-amber-800
-                        leading-relaxed
-                      "
-                    >
-                      {text.priorityMessage}
-                    </p>
-
-                    {redFlags?.length > 0 && (
-                      <div className="mt-2 text-xs text-amber-800">
-                        {redFlags.length}{' '}
-                        {isHindi
-                          ? 'प्राथमिकता संकेत रिकॉर्ड किए गए हैं।'
-                          : 'priority indicator(s) recorded.'}
-                      </div>
-                    )}
-
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-
-            {/* -------------------------------------------------
-                WAITING MESSAGE
-            ------------------------------------------------- */}
-
-            <div
-              className="
-                mt-5
-                rounded-2xl
-                bg-teal-50
-                border border-teal-100
-                p-4
-                flex
-                items-start
-                gap-3
-              "
-            >
-
-              <div
-                className="
-                  shrink-0
-                  w-9 h-9
-                  rounded-xl
-                  bg-teal-100
-                  text-teal-800
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <Clock3 className="w-5 h-5" />
-              </div>
-
-              <p
-                className="
-                  text-sm
-                  text-teal-900
-                  leading-relaxed
-                "
-              >
-                {text.waitingMessage}
-              </p>
-
-            </div>
-
-            {/* -------------------------------------------------
-                SECURITY MESSAGE
-            ------------------------------------------------- */}
-
-            <div
-              className="
-                mt-5
-                flex
-                items-center
-                justify-center
-                gap-2
-                text-xs
-                sm:text-sm
-                text-slate-500
-                text-center
-              "
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-
-              <span>
-                {text.secure}
-              </span>
-            </div>
-
+        {/* RIGHT COLUMN: Details & Actions */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex flex-col justify-between gap-2">
+          {/* Patient and Dept info */}
+          <div className="grid grid-cols-2 gap-2">
+            <InfoCard icon={<UserRound className="w-4 h-4" />} label={text.patient} value={patientName} />
+            <InfoCard icon={<MapPin className="w-4 h-4" />} label={text.department} value={departmentName} />
+            <InfoCard icon={<Stethoscope className="w-4 h-4" />} label={text.doctor} value={doctorName} />
+            <InfoCard icon={<HeartPulse className="w-4 h-4" />} label={text.track} value={track === 'AYUSH' ? text.ayush : text.allopathy} />
           </div>
 
-        </div>
+          {/* Priority Alert if any */}
+          {redFlagDetected && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-2 flex items-center gap-2 text-xs text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="min-w-0">
+                <span className="font-black block">{text.priority}</span>
+                <span className="text-[10px] text-amber-800">{text.priorityMessage}</span>
+              </div>
+            </div>
+          )}
 
-        {/* =================================================
-            ACTION BUTTONS
-        ================================================= */}
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={resetSession}
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>{text.newCheckIn}</span>
+            </button>
 
-        <div
-          className="
-            mt-6
-            flex
-            flex-col-reverse
-            sm:flex-row
-            justify-center
-            gap-3
-            sm:gap-4
-          "
-        >
-
-          {/* New Check-In */}
-
-          <button
-            type="button"
-            onClick={resetSession}
-            className="
-              min-h-[60px]
-              px-6
-              sm:px-8
-              rounded-2xl
-              border-2
-              border-slate-200
-              bg-white
-              text-slate-800
-              font-bold
-              text-base
-              flex
-              items-center
-              justify-center
-              gap-2
-              hover:bg-slate-50
-              active:scale-[0.98]
-              transition
-              shadow-sm
-              cursor-pointer
-            "
-          >
-            <RotateCcw className="w-5 h-5" />
-
-            <span>
-              {text.newCheckIn}
-            </span>
-          </button>
-
-          {/* Print */}
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="
-              min-h-[60px]
-              px-6
-              sm:px-8
-              rounded-2xl
-              bg-teal-800
-              text-white
-              font-bold
-              text-base
-              flex
-              items-center
-              justify-center
-              gap-2
-              hover:bg-teal-700
-              active:scale-[0.98]
-              transition
-              shadow-md
-              cursor-pointer
-            "
-          >
-            <Printer className="w-5 h-5" />
-
-            <span>
-              {text.print}
-            </span>
-          </button>
-
-        </div>
-
-        {/* =================================================
-            KIOSK FOOTER
-        ================================================= */}
-
-        <div
-          className="
-            mt-5
-            text-center
-            text-[11px]
-            sm:text-xs
-            text-slate-400
-          "
-        >
-          {isHindi
-            ? 'कृपया अपना टोकन नंबर सुरक्षित रखें।'
-            : 'Please keep your token number safe.'}
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="h-11 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition shadow-xs"
+            >
+              <Printer className="w-4 h-4" />
+              <span>{text.print}</span>
+            </button>
+          </div>
         </div>
 
       </div>

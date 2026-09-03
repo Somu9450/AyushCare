@@ -15,26 +15,32 @@ import {
 } from 'lucide-react';
 
 import { useKioskStore } from '../store/useKioskStore';
+import { useTranslation } from '../hooks/useTranslation';
+import { SkeletonOCRExtraction } from '../components/common/KioskSkeleton';
 
 const DOCUMENT_TYPES = [
   {
     id: 'prescription',
     title: 'Prescription',
+    hi: 'डॉक्टर की पर्ची',
     subtitle: 'Doctor prescription or OPD slip',
   },
   {
     id: 'lab_report',
     title: 'Lab report',
+    hi: 'जांच रिपोर्ट',
     subtitle: 'Blood, urine or other investigations',
   },
   {
     id: 'discharge_summary',
     title: 'Discharge summary',
+    hi: 'डिस्चार्ज समरी',
     subtitle: 'Hospital or surgery records',
   },
   {
     id: 'other',
     title: 'Other document',
+    hi: 'अन्य मेडिकल दस्तावेज़',
     subtitle: 'Any relevant medical document',
   },
 ];
@@ -47,6 +53,8 @@ const Screen8_QRUpload = () => {
     addDocument,
     removeDocument,
   } = useKioskStore();
+
+  const { t, isHindi } = useTranslation();
 
   const fileInputRef = useRef(null);
 
@@ -136,293 +144,162 @@ const Screen8_QRUpload = () => {
   };
 
   const getDocumentLabel = (type) => {
-    return (
-      DOCUMENT_TYPES.find((item) => item.id === type)?.title ||
-      'Medical document'
-    );
+    const doc = DOCUMENT_TYPES.find((item) => item.id === type);
+    if (!doc) return t('screen8.docOther', 'Medical document');
+    return isHindi ? (doc.hi || doc.title) : doc.title;
   };
 
   return (
-    <div className="flex-1 w-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="h-full w-full max-w-5xl mx-auto px-4 py-2 select-none flex flex-col justify-between">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+      />
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,.pdf"
-          multiple
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-bold text-teal-700">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100">
-                8
-              </span>
-
-              <span>Medical documents</span>
-            </div>
-
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-              Add your previous medical documents
+      {/* --------------------------------------------------
+          COMPACT HEADER
+      --------------------------------------------------- */}
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+              {t('screen8.stepLabel', 'Step 6 · Document Upload')}
+            </span>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900">
+              {t('screen8.title', 'Upload Previous Medical Records')}
             </h1>
-
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Scan prescriptions, reports or discharge summaries. The system
-              will digitize them and organize important information for your doctor.
-            </p>
           </div>
-
-          <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 sm:flex">
-            <ScanLine className="h-8 w-8" />
-          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {t('screen8.subtitle', 'Attach previous prescriptions, lab reports, or discharge summaries (Optional)')}
+          </p>
         </div>
 
-        {/* Privacy notice */}
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+          <ScanLine className="w-4 h-4" />
+        </div>
+      </div>
 
+      {/* --------------------------------------------------
+          TWO-COLUMN ATM LAYOUT
+      --------------------------------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.85fr] gap-3 items-start flex-1 min-h-0">
+
+        {/* LEFT COLUMN: Upload Type & Trigger Buttons */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs flex flex-col gap-2">
+          {/* Document Type Selector Pill Bar */}
           <div>
-            <p className="text-sm font-black text-emerald-900">
-              Your documents stay part of your clinical session
-            </p>
+            <span className="text-[11px] font-black text-slate-700 block mb-1">Select Document Category:</span>
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {DOCUMENT_TYPES.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setSelectedType(type.id)}
+                  className={`shrink-0 h-7 px-2.5 rounded-lg border text-[11px] font-bold cursor-pointer transition ${
+                    selectedType === type.id
+                      ? 'bg-teal-700 text-white border-teal-700 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {type.title}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <p className="mt-1 text-sm leading-5 text-emerald-800">
-              Documents are processed to help create a structured medical
-              history for the doctor.
-            </p>
+          {/* Upload & Scan Buttons in 2 Columns */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-[80px] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-teal-50 hover:border-teal-400 p-2 text-left flex items-center gap-2.5 cursor-pointer transition active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white text-teal-700 flex items-center justify-center shadow-xs shrink-0">
+                <Upload className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-slate-900 truncate">Upload File</p>
+                <p className="text-[10px] text-slate-500 truncate">Photo, PDF, Image</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleScanDocument}
+              className="h-[80px] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-teal-50 hover:border-teal-400 p-2 text-left flex items-center gap-2.5 cursor-pointer transition active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white text-teal-700 flex items-center justify-center shadow-xs shrink-0">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-slate-900 truncate">Scan with Kiosk</p>
+                <p className="text-[10px] text-slate-500 truncate">Hardware scanner</p>
+              </div>
+            </button>
+          </div>
+
+          {/* OCR Processing Skeleton */}
+          {isProcessing && <SkeletonOCRExtraction />}
+
+          {/* Extraction Pills */}
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-1.5 flex items-center justify-between text-[10px] text-slate-500">
+            <span>OCR extracts:</span>
+            <span className="font-bold text-slate-700">Rx Diagnoses • Dosages • Lab Results</span>
           </div>
         </div>
 
-        {/* Main layout */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-
-          {/* Upload area */}
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-
-            <div className="mb-5">
-              <h2 className="text-xl font-black text-slate-900">
-                Upload or scan
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                You can add multiple documents.
-              </p>
+        {/* RIGHT COLUMN: Added Documents List & Continue */}
+        <div className="flex flex-col gap-2 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+              <FileText className="w-4 h-4 text-teal-700" />
+              <span>Added Documents</span>
             </div>
+            <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+              {documents.length} Files
+            </span>
+          </div>
 
-            {/* Document type */}
-            <div className="mb-5">
-              <label className="mb-2 block text-sm font-black text-slate-700">
-                What are you adding?
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setShowTypeSelector(!showTypeSelector)}
-                className="flex min-h-[58px] w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 text-left transition hover:bg-slate-100 active:scale-[0.99]"
-              >
-                <div>
-                  <p className="text-sm font-black text-slate-900">
-                    {getDocumentLabel(selectedType)}
-                  </p>
-
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Choose the closest document type
-                  </p>
-                </div>
-
-                <ArrowRight
-                  className={`h-5 w-5 text-slate-400 transition ${
-                    showTypeSelector ? 'rotate-90' : ''
-                  }`}
-                />
-              </button>
-
-              {showTypeSelector && (
-                <div className="mt-2 grid gap-2">
-                  {DOCUMENT_TYPES.map((type) => (
-                    <button
-                      key={type.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedType(type.id);
-                        setShowTypeSelector(false);
-                      }}
-                      className={`rounded-xl border p-3 text-left transition ${
-                        selectedType === type.id
-                          ? 'border-teal-300 bg-teal-50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <p className="text-sm font-black text-slate-900">
-                        {type.title}
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        {type.subtitle}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Upload buttons */}
-            <div className="grid gap-4 sm:grid-cols-2">
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="group flex min-h-[150px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-teal-400 hover:bg-teal-50 active:scale-[0.99]"
-              >
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm transition group-hover:bg-teal-100">
-                  <Upload className="h-7 w-7" />
-                </div>
-
-                <p className="text-base font-black text-slate-900">
-                  Upload document
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Photo, scanned image or PDF
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleScanDocument}
-                className="group flex min-h-[150px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-teal-400 hover:bg-teal-50 active:scale-[0.99]"
-              >
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-sm transition group-hover:bg-teal-100">
-                  <Camera className="h-7 w-7" />
-                </div>
-
-                <p className="text-base font-black text-slate-900">
-                  Scan with kiosk
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Use the connected document scanner
-                </p>
-              </button>
-
-            </div>
-
-            {/* OCR processing */}
-            {isProcessing && (
-              <div className="mt-5 flex items-center gap-4 rounded-2xl border border-teal-100 bg-teal-50 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-teal-700">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-teal-900">
-                    Digitizing document...
-                  </p>
-
-                  <p className="mt-1 truncate text-xs text-teal-700">
-                    {processingFile}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* What OCR does */}
-            <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-800">
-                What will be extracted?
-              </p>
-
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <ExtractionItem text="Diagnoses" />
-                <ExtractionItem text="Medications & dosage" />
-                <ExtractionItem text="Investigation values" />
-                <ExtractionItem text="Previous procedures" />
-              </div>
-            </div>
-          </section>
-
-          {/* Documents list */}
-          <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">
-                  Added documents
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  {documents.length} document
-                  {documents.length === 1 ? '' : 's'} added
-                </p>
-              </div>
-
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                <FileText className="h-5 w-5" />
-              </div>
-            </div>
-
+          {/* Document list */}
+          <div className="min-h-[70px] max-h-36 overflow-y-auto space-y-1.5 pr-0.5">
             {documents.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                <FileImage className="mx-auto h-8 w-8 text-slate-300" />
-
-                <p className="mt-3 text-sm font-bold text-slate-600">
-                  No documents added yet
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-slate-400">
-                  You can continue without uploading anything.
-                </p>
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 text-center">
+                <FileImage className="mx-auto w-6 h-6 text-slate-300" />
+                <p className="mt-1 text-xs font-bold text-slate-600">No documents added</p>
+                <p className="text-[10px] text-slate-400">Optional: you can proceed without documents</p>
               </div>
             ) : (
-              <div className="mt-5 space-y-3">
-                {documents.map((document) => (
-                  <DocumentCard
-                    key={document.id}
-                    document={document}
-                    getDocumentLabel={getDocumentLabel}
-                    onRemove={() => removeDocument(document.id)}
-                  />
-                ))}
-              </div>
+              documents.map((document) => (
+                <DocumentCard
+                  key={document.id}
+                  document={document}
+                  getDocumentLabel={getDocumentLabel}
+                  onRemove={() => removeDocument(document.id)}
+                />
+              ))
             )}
+          </div>
 
-            <div className="mt-5 rounded-2xl bg-amber-50 p-4">
-              <p className="text-xs leading-5 text-amber-800">
-                <strong>Tip:</strong> Upload clear images so the OCR system
-                can read handwritten prescriptions and printed reports more accurately.
-              </p>
-            </div>
-          </aside>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-
-          <button
-            type="button"
-            onClick={prevScreen}
-            className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-white px-6 text-base font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-[0.99]"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            Back
-          </button>
-
+          {/* Action Continue Button */}
           <button
             type="button"
             onClick={handleContinue}
-            className="flex min-h-[60px] items-center justify-center gap-3 rounded-2xl bg-teal-800 px-8 text-base font-black text-white shadow-lg shadow-teal-900/10 transition hover:bg-teal-900 active:scale-[0.99]"
+            className="w-full h-11 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black flex items-center justify-between px-4 cursor-pointer transition text-sm shadow-xs"
           >
-            Review my information
-            <ArrowRight className="h-5 w-5" />
+            <span>
+              {documents.length > 0
+                ? t('screen9.title', 'Review & Confirm')
+                : t('screen8.skipUpload', 'Skip & Continue')}
+            </span>
+            <ArrowRight className="w-5 h-5" />
           </button>
-
         </div>
+
       </div>
     </div>
   );

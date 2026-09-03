@@ -12,9 +12,12 @@ import {
   Droplets,
   Gauge,
   UserRound,
+  Keyboard,
 } from 'lucide-react';
 
 import { useKioskStore } from '../store/useKioskStore';
+import { useTranslation } from '../hooks/useTranslation';
+import { useKeyboard } from '../context/KeyboardContext';
 
 const Screen7_PreparingSession = () => {
   const {
@@ -23,6 +26,8 @@ const Screen7_PreparingSession = () => {
     sessionData,
     updateSessionData,
   } = useKioskStore();
+
+  const { t, isHindi } = useTranslation();
 
   const { vitals } = sessionData;
 
@@ -92,228 +97,146 @@ const Screen7_PreparingSession = () => {
   const hasAnyVitals = bp || pulse || temp || spo2;
 
   return (
-    <div className="flex-1 w-full bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-bold text-teal-700">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100">
-                7
-              </span>
-
-              <span>Clinical preparation</span>
-            </div>
-
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-              Let&apos;s prepare your clinical session
+    <div className="h-full w-full max-w-5xl mx-auto px-4 py-2 select-none flex flex-col justify-between">
+      {/* --------------------------------------------------
+          COMPACT HEADER
+      --------------------------------------------------- */}
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+              {t('screen7.stepLabel', 'Step 5 · Clinical Vitals')}
+            </span>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900">
+              {t('screen7.title', 'Record Baseline Health Vitals')}
             </h1>
-
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              We&apos;ll capture a few basic vitals before you meet the doctor.
-              You can review everything before submission.
-            </p>
           </div>
-
-          <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 sm:flex">
-            <HeartPulse className="h-8 w-8" />
-          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {t('screen7.subtitle', 'Use the integrated kiosk sensors or enter your vital signs')}
+          </p>
         </div>
 
-        {/* Information banner */}
-        <div className="flex items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50 p-4">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" />
+        <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+          <HeartPulse className="w-5 h-5" />
+        </div>
+      </div>
 
-          <div>
-            <p className="text-sm font-bold text-teal-900">
-              Your vitals help the doctor prepare
-            </p>
+      {/* --------------------------------------------------
+          TWO-COLUMN ATM LAYOUT
+      --------------------------------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.85fr] gap-3 items-start flex-1 min-h-0">
 
-            <p className="mt-1 text-sm leading-5 text-teal-800">
-              These measurements are only recorded for your clinical visit.
-              They do not replace the doctor&apos;s examination.
-            </p>
+        {/* LEFT COLUMN: 4 Vitals in 2x2 Grid + Automatic Sensor Button */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-black text-slate-800">
+              {t('screen7.title', 'Vital Signs')}
+            </h2>
+            {completed && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <CheckCircle2 className="w-3 h-3" /> Captured
+              </span>
+            )}
           </div>
-        </div>
 
-        {/* Main content */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="grid grid-cols-2 gap-2">
+            {/* Blood Pressure */}
+            <VitalInput
+              icon={<Gauge className="w-4 h-4" />}
+              title={t('screen7.bloodPressure', 'Blood Pressure')}
+              subtitle="Systolic / Diastolic"
+              value={bp}
+              placeholder="120/80"
+              onChange={setBp}
+              suffix="mmHg"
+            />
 
-          {/* Vitals card */}
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            {/* Pulse */}
+            <VitalInput
+              icon={<Activity className="w-4 h-4" />}
+              title={t('screen7.pulse', 'Pulse Rate')}
+              subtitle="Heart beats / min"
+              value={pulse}
+              placeholder="76"
+              onChange={setPulse}
+              suffix="bpm"
+            />
 
-            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  Basic vitals
-                </h2>
+            {/* Temperature */}
+            <VitalInput
+              icon={<Thermometer className="w-4 h-4" />}
+              title={t('screen7.temperature', 'Body Temperature')}
+              subtitle="Body temperature"
+              value={temp}
+              placeholder="98.4"
+              onChange={setTemp}
+              suffix="°F"
+            />
 
-                <p className="mt-1 text-sm text-slate-500">
-                  You may enter them manually or use the kiosk sensors.
-                </p>
-              </div>
+            {/* SpO2 */}
+            <VitalInput
+              icon={<Droplets className="w-4 h-4" />}
+              title={t('screen7.spo2', 'Oxygen (SpO2)')}
+              subtitle="Blood oxygen level"
+              value={spo2}
+              placeholder="98"
+              onChange={setSpo2}
+              suffix="%"
+            />
+          </div>
 
-              {completed && (
-                <div className="flex items-center gap-2 text-sm font-bold text-emerald-700">
-                  <CheckCircle2 className="h-5 w-5" />
-                  Captured
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-
-              {/* Blood Pressure */}
-              <VitalInput
-                icon={<Gauge className="h-6 w-6" />}
-                title="Blood pressure"
-                subtitle="Systolic / Diastolic"
-                value={bp}
-                placeholder="120/80"
-                onChange={setBp}
-                suffix="mmHg"
-              />
-
-              {/* Pulse */}
-              <VitalInput
-                icon={<Activity className="h-6 w-6" />}
-                title="Pulse"
-                subtitle="Heart beats per minute"
-                value={pulse}
-                placeholder="76"
-                onChange={setPulse}
-                suffix="bpm"
-              />
-
-              {/* Temperature */}
-              <VitalInput
-                icon={<Thermometer className="h-6 w-6" />}
-                title="Temperature"
-                subtitle="Body temperature"
-                value={temp}
-                placeholder="98.4"
-                onChange={setTemp}
-                suffix="°F"
-              />
-
-              {/* SpO2 */}
-              <VitalInput
-                icon={<Droplets className="h-6 w-6" />}
-                title="SpO₂"
-                subtitle="Blood oxygen level"
-                value={spo2}
-                placeholder="98"
-                onChange={setSpo2}
-                suffix="%"
-              />
-
-            </div>
-
-            {/* Sensor capture */}
-            <button
-              type="button"
-              onClick={simulateVitalsCapture}
-              disabled={isCapturing}
-              className="mt-6 flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50 px-5 py-4 text-base font-black text-teal-800 transition hover:border-teal-300 hover:bg-teal-100 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
-            >
-              <HeartPulse className="h-5 w-5" />
-
-              {isCapturing
-                ? 'Reading kiosk sensors...'
-                : 'Capture vitals automatically'}
-            </button>
-          </section>
-
-          {/* Side summary */}
-          <aside className="flex flex-col gap-4">
-
-            {/* Patient */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                  <UserRound className="h-5 w-5" />
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Patient
-                  </p>
-
-                  <p className="truncate text-base font-black text-slate-900">
-                    {sessionData.patientProfile?.name || 'Patient'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Status */}
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-black text-slate-900">
-                Session status
-              </p>
-
-              <div className="mt-4 space-y-3">
-
-                <StatusRow
-                  label="Patient verified"
-                  done={sessionData.isVerified}
-                />
-
-                <StatusRow
-                  label="Clinical history"
-                  done={
-                    Boolean(sessionData.chiefComplaint) ||
-                    sessionData.symptoms?.length > 0
-                  }
-                />
-
-                <StatusRow
-                  label="Vitals"
-                  done={Boolean(hasAnyVitals)}
-                />
-
-                <StatusRow
-                  label="Documents"
-                  done={sessionData.documents?.length > 0}
-                />
-
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-100 p-4 text-xs leading-5 text-slate-500">
-              <strong className="text-slate-700">
-                Important:
-              </strong>{' '}
-              The information collected here is presented to the doctor for
-              review. The kiosk does not make an autonomous diagnosis.
-            </div>
-          </aside>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-
+          {/* Automatic Sensor Button */}
           <button
             type="button"
-            onClick={prevScreen}
-            className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-white px-6 text-base font-black text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 active:scale-[0.99]"
+            onClick={simulateVitalsCapture}
+            disabled={isCapturing}
+            className="h-9 w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs cursor-pointer transition active:scale-[0.99] disabled:cursor-wait"
           >
-            <ArrowLeft className="h-5 w-5" />
-            Back
+            <HeartPulse className="w-4 h-4 text-teal-700" />
+            <span>
+              {isCapturing ? t('screen7.capturing', 'Reading kiosk sensors...') : t('screen7.takeVitalsNow', 'Auto-Capture from Kiosk Sensors')}
+            </span>
           </button>
+        </div>
 
+        {/* RIGHT COLUMN: Patient & Session Status + Continue */}
+        <div className="flex flex-col gap-2 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs">
+          {/* Patient Card */}
+          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+              <UserRound className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Patient</p>
+              <p className="text-xs font-black text-slate-900 truncate">
+                {sessionData.patientProfile?.name || 'Patient'}
+              </p>
+            </div>
+          </div>
+
+          {/* Session Checklist */}
+          <div className="space-y-1.5 text-xs py-1 border-y border-slate-100">
+            <StatusRow label="Patient verified" done={sessionData.isVerified} />
+            <StatusRow label="Clinical history" done={Boolean(sessionData.chiefComplaint) || sessionData.symptoms?.length > 0} />
+            <StatusRow label="Baseline vitals" done={Boolean(hasAnyVitals)} />
+            <StatusRow label="Documents" done={sessionData.documents?.length > 0} />
+          </div>
+
+          <div className="p-2 rounded-xl bg-teal-50 border border-teal-100 text-[10px] text-teal-900">
+            <strong>Clinical Safety:</strong> Measurements assist the doctor. The kiosk does not diagnose.
+          </div>
+
+          {/* Action Continue Button */}
           <button
             type="button"
             onClick={handleContinue}
-            className="flex min-h-[60px] items-center justify-center gap-3 rounded-2xl bg-teal-800 px-8 text-base font-black text-white shadow-lg shadow-teal-900/10 transition hover:bg-teal-900 active:scale-[0.99]"
+            className="w-full h-11 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black flex items-center justify-between px-4 cursor-pointer transition text-sm shadow-xs"
           >
-            Continue to documents
-            <ArrowRight className="h-5 w-5" />
+            <span>{t('screen7.continueSession', 'Continue to Documents')}</span>
+            <ArrowRight className="w-5 h-5" />
           </button>
-
         </div>
+
       </div>
     </div>
   );
@@ -332,38 +255,54 @@ const VitalInput = ({
   onChange,
   suffix,
 }) => {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+  const { openKeyboard } = useKeyboard();
 
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-teal-700 shadow-sm">
+  const handleOpen = () => {
+    openKeyboard({
+      id: title,
+      value,
+      onChange,
+      type: 'number',
+      placeholder,
+      label: title,
+    });
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 flex flex-col justify-between">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-6 h-6 rounded-md bg-white text-teal-700 flex items-center justify-center shadow-2xs shrink-0">
           {icon}
         </div>
-
-        <div>
-          <p className="text-sm font-black text-slate-900">
-            {title}
-          </p>
-
-          <p className="text-xs text-slate-500">
-            {subtitle}
-          </p>
+        <div className="min-w-0">
+          <p className="text-xs font-black text-slate-900 truncate leading-tight">{title}</p>
+          <p className="text-[10px] text-slate-400 truncate">{subtitle}</p>
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative flex items-center">
         <input
           type="text"
           inputMode="decimal"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onClick={handleOpen}
           placeholder={placeholder}
-          className="min-h-[56px] w-full rounded-xl border border-slate-200 bg-white px-4 pr-16 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10"
+          className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 pr-16 text-xs font-bold text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-teal-500 cursor-pointer"
         />
 
-        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-          {suffix}
-        </span>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <span className="text-[10px] font-bold text-slate-400">{suffix}</span>
+          <button
+            type="button"
+            onClick={handleOpen}
+            title="Open Touch Numpad"
+            aria-label="Open Touch Numpad"
+            className="w-5 h-5 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 flex items-center justify-center cursor-pointer active:scale-95 shadow-2xs"
+          >
+            <Keyboard className="w-3 h-3" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -371,19 +310,10 @@ const VitalInput = ({
 
 const StatusRow = ({ label, done }) => {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-sm font-semibold text-slate-600">
-        {label}
-      </span>
-
-      <span
-        className={`flex h-7 w-7 items-center justify-center rounded-full ${
-          done
-            ? 'bg-emerald-100 text-emerald-700'
-            : 'bg-slate-100 text-slate-300'
-        }`}
-      >
-        <CheckCircle2 className="h-4 w-4" />
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px] font-semibold text-slate-600 truncate">{label}</span>
+      <span className={`flex h-4 w-4 items-center justify-center rounded-full shrink-0 ${done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-300'}`}>
+        <CheckCircle2 className="w-3 h-3" />
       </span>
     </div>
   );

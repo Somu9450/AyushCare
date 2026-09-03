@@ -1,5 +1,6 @@
 import React from 'react';
 import { useKioskStore } from '../../store/useKioskStore';
+import { useTranslation } from '../../hooks/useTranslation';
 
 const TOTAL_STEPS = 10;
 
@@ -31,11 +32,39 @@ const STEP_LABELS = {
   ],
 };
 
+STEP_LABELS.pa = [
+  'ਸੁਆਗਤ',
+  'ਪ੍ਰਮਾਣਿਕਤਾ',
+  'ਵਿਭਾਗ',
+  'ਲੱਛਣ',
+  'ਵੇਰਵਾ',
+  'ਇਤਿਹਾਸ',
+  'ਤਿਆਰੀ',
+  'ਦਸਤਾਵੇਜ਼',
+  'ਸਮੀਖਿਆ',
+  'ਟੋਕਨ',
+];
+
+STEP_LABELS.bn = [
+  'স্বাগতম',
+  'যাচাইকরণ',
+  'বিভাগ',
+  'লক্ষণ',
+  'বিবরণ',
+  'ইতিহাস',
+  'প্রস্তুতি',
+  'নথি',
+  'পর্যালোচনা',
+  'টোকেন',
+];
+
 const StepProgressIndicator = () => {
   const {
     currentScreen,
     language,
   } = useKioskStore();
+
+  const { t } = useTranslation();
 
   if (currentScreen === 1 || currentScreen === 10) {
     return null;
@@ -46,7 +75,7 @@ const StepProgressIndicator = () => {
     Math.max(0, ((currentScreen - 1) / (TOTAL_STEPS - 1)) * 100)
   );
 
-  const labels = STEP_LABELS[language] || STEP_LABELS.en;
+  const labels = STEP_LABELS[language] || STEP_LABELS.hi || STEP_LABELS.en;
 
   return (
     <div className="kiosk-progress">
@@ -58,7 +87,7 @@ const StepProgressIndicator = () => {
           </span>
 
           <span>
-            {currentScreen} / {TOTAL_STEPS}
+            {t('nav.step', 'Step')} {currentScreen} {t('nav.of', 'of')} {TOTAL_STEPS}
           </span>
         </div>
 

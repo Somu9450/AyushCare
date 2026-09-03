@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -16,6 +16,8 @@ import {
 import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
 import AudioButton from '../components/common/AudioButton';
+import KioskInput from '../components/common/KioskInput';
+import { SkeletonDepartmentGrid, SkeletonDoctorList } from '../components/common/KioskSkeleton';
 
 /* =========================================================
    DEPARTMENTS
@@ -30,7 +32,6 @@ const DEPARTMENTS = {
       parallel: 'Internal Medicine',
       description:
         'General Ayurvedic medical care, chronic conditions and metabolic disorders.',
-      icon: '🌿',
     },
     {
       id: 'panchakarma',
@@ -39,7 +40,6 @@ const DEPARTMENTS = {
       parallel: 'Therapeutic purification',
       description:
         'Ayurvedic therapeutic procedures and supervised Panchakarma care.',
-      icon: '✨',
     },
     {
       id: 'shalya_tantra',
@@ -48,7 +48,6 @@ const DEPARTMENTS = {
       parallel: 'Surgery & wound care',
       description:
         'Parasurgical procedures, wound care and related Ayurvedic surgical services.',
-      icon: '🩺',
     },
     {
       id: 'shalakya_tantra',
@@ -57,7 +56,6 @@ const DEPARTMENTS = {
       parallel: 'Eye, ENT & head-neck',
       description:
         'Conditions involving eyes, ears, nose, throat and head-neck region.',
-      icon: '👁️',
     },
     {
       id: 'kaumarbhritya',
@@ -66,7 +64,6 @@ const DEPARTMENTS = {
       parallel: 'Pediatrics',
       description:
         'Ayurvedic care for infants, children and adolescent health.',
-      icon: '👶',
     },
     {
       id: 'swasthavritta',
@@ -75,7 +72,6 @@ const DEPARTMENTS = {
       parallel: 'Preventive & lifestyle care',
       description:
         'Preventive healthcare, diet, lifestyle and wellness guidance.',
-      icon: '🧘',
     },
   ],
 
@@ -87,7 +83,6 @@ const DEPARTMENTS = {
       parallel: 'Adult primary care',
       description:
         'Fever, infections, chronic diseases and general medical complaints.',
-      icon: '🩺',
     },
     {
       id: 'cardiology',
@@ -96,7 +91,6 @@ const DEPARTMENTS = {
       parallel: 'Heart & circulation',
       description:
         'Heart-related symptoms, hypertension and cardiovascular conditions.',
-      icon: '❤️',
     },
     {
       id: 'orthopedics',
@@ -105,7 +99,6 @@ const DEPARTMENTS = {
       parallel: 'Bones, joints & spine',
       description:
         'Joint pain, fractures, spine problems and musculoskeletal conditions.',
-      icon: '🦴',
     },
     {
       id: 'pediatrics',
@@ -114,7 +107,6 @@ const DEPARTMENTS = {
       parallel: 'Child healthcare',
       description:
         'Medical care for infants, children and adolescents.',
-      icon: '👶',
     },
   ],
 };
@@ -242,36 +234,38 @@ const Screen3_DepartmentSelector = () => {
     language,
   } = useKioskStore();
 
-  const { t } = useTranslation();
+  const { t, isHindi } = useTranslation();
 
-  const [selectedTrack, setSelectedTrack] =
-    useState(
-      sessionData.track || 'AYUSH'
-    );
+  const [selectedTrack, setSelectedTrack] = useState(
+    sessionData.track || 'AYUSH'
+  );
 
-  const [selectedDepartment, setSelectedDepartment] =
-    useState(
-      sessionData.selectedDepartment ||
-        DEPARTMENTS.AYUSH[0]
-    );
+  const departments = DEPARTMENTS[selectedTrack] || DEPARTMENTS.AYUSH;
 
-  const [selectedDoctor, setSelectedDoctor] =
-    useState(
-      sessionData.requestedDoctor || null
-    );
+  const [selectedDepartment, setSelectedDepartment] = useState(() => {
+    if (sessionData.selectedDepartment && typeof sessionData.selectedDepartment === 'object') {
+      return sessionData.selectedDepartment;
+    }
+    return departments[0];
+  });
 
-  const [showGlossary, setShowGlossary] =
-    useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(
+    sessionData.requestedDoctor || null
+  );
 
-  const [doctorSearch, setDoctorSearch] =
-    useState('');
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState('');
+  const [isLoadingDepartments, setIsLoadingDepartments] = useState(false);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
 
-  /* -------------------------------------------------------
-     DEPARTMENTS
-  -------------------------------------------------------- */
-
-  const departments =
-    DEPARTMENTS[selectedTrack];
+  useEffect(() => {
+    if (!sessionData.selectedDepartment) {
+      updateSessionData({
+        track: selectedTrack,
+        selectedDepartment: selectedDepartment || departments[0],
+      });
+    }
+  }, []);
 
   /* -------------------------------------------------------
      DOCTORS
@@ -397,620 +391,292 @@ const Screen3_DepartmentSelector = () => {
     nextScreen();
   };
 
-  const audioPrompt =
-    language === 'hi'
-      ? 'आयुष या एलोपैथी चुनें। फिर अपना विभाग और यदि चाहें तो किसी विशेष डॉक्टर का चयन करें।'
-      : 'Choose Ayush or Allopathy, then select your department and optionally request a specific doctor.';
+  const audioPrompt = t(
+    'screen3.subtitle',
+    'Choose Ayush or Allopathy, then select your department and optionally request a specific doctor.'
+  );
 
   return (
-    <div className="flex-1 px-4 py-6 sm:px-6 md:px-10">
+    <div className="h-full w-full max-w-5xl mx-auto px-4 py-2 select-none flex flex-col justify-between">
 
-      <div className="w-full max-w-6xl mx-auto">
-
-        {/* --------------------------------------------------
-            HEADER
-        --------------------------------------------------- */}
-
-        <div className="flex items-start justify-between gap-4 mb-5">
-
-          <div>
-
-            <p className="text-xs font-black uppercase tracking-wider text-teal-700">
-              Step 2 · Care selection
-            </p>
-
-            <h1 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
-              Choose your department
-            </h1>
-
-            <p className="mt-1 text-sm sm:text-base text-slate-500">
-              अपना विभाग चुनें
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              setShowGlossary(
-                (previous) =>
-                  !previous
-              )
-            }
-            className="
-              min-h-[48px]
-              px-3
-              sm:px-4
-              rounded-xl
-              border
-              border-teal-200
-              bg-teal-50
-              text-teal-800
-              text-xs
-              sm:text-sm
-              font-bold
-              flex
-              items-center
-              gap-2
-              cursor-pointer
-              shrink-0
-            "
-          >
-
-            <HelpCircle className="w-5 h-5" />
-
-            <span className="hidden sm:inline">
-              {showGlossary
-                ? 'Hide guide'
-                : 'Ayurveda guide'}
+      {/* --------------------------------------------------
+          COMPACT HEADER
+      --------------------------------------------------- */}
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+              {t('screen3.stepLabel', 'Step 2 · Care Selection')}
             </span>
-
-          </button>
-
-        </div>
-
-        {/* --------------------------------------------------
-            TRACK
-        --------------------------------------------------- */}
-
-        <div className="grid grid-cols-2 gap-3 mb-5">
-
-          <button
-            type="button"
-            onClick={() =>
-              handleTrackChange('AYUSH')
-            }
-            className={`
-              min-h-[94px]
-              rounded-2xl
-              border-2
-              p-4
-              text-left
-              cursor-pointer
-              transition
-              ${
-                selectedTrack === 'AYUSH'
-                  ? 'border-teal-700 bg-teal-50'
-                  : 'border-slate-200 bg-white'
-              }
-            `}
-          >
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">
-                🌿
-              </div>
-
-              <div>
-
-                <p className="font-black text-slate-900">
-                  AYUSH
-                </p>
-
-                <p className="text-xs text-slate-500 mt-1">
-                  आयुष चिकित्सा
-                </p>
-
-              </div>
-
-            </div>
-
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              handleTrackChange(
-                'ALLOPATHY'
-              )
-            }
-            className={`
-              min-h-[94px]
-              rounded-2xl
-              border-2
-              p-4
-              text-left
-              cursor-pointer
-              transition
-              ${
-                selectedTrack ===
-                'ALLOPATHY'
-                  ? 'border-teal-700 bg-teal-50'
-                  : 'border-slate-200 bg-white'
-              }
-            `}
-          >
-
-            <div className="flex items-center gap-3">
-
-              <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-                🩺
-              </div>
-
-              <div>
-
-                <p className="font-black text-slate-900">
-                  Allopathy
-                </p>
-
-                <p className="text-xs text-slate-500 mt-1">
-                  एलोपैथी चिकित्सा
-                </p>
-
-              </div>
-
-            </div>
-
-          </button>
-
-        </div>
-
-        {/* --------------------------------------------------
-            AYURVEDIC GLOSSARY
-        --------------------------------------------------- */}
-
-        {showGlossary && (
-          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
-
-            <div className="flex items-start justify-between gap-4">
-
-              <div className="flex items-start gap-3">
-
-                <Leaf className="w-5 h-5 text-amber-700 mt-0.5" />
-
-                <div>
-
-                  <p className="font-black text-amber-950">
-                    Ayurveda terms explained
-                  </p>
-
-                  <p className="text-xs text-amber-800 mt-1">
-                    आसान भाषा में आयुर्वेदिक शब्द
-                  </p>
-
-                </div>
-
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowGlossary(false)
-                }
-                className="w-10 h-10 flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-5 h-5 text-amber-700" />
-              </button>
-
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-              {AYURVEDIC_TERMS.map(
-                (item) => (
-                  <div
-                    key={item.term}
-                    className="bg-white rounded-xl border border-amber-200 p-4"
-                  >
-
-                    <p className="font-black text-slate-900">
-                      {item.term}{' '}
-                      <span className="font-bold text-teal-700">
-                        ({item.hindi})
-                      </span>
-                    </p>
-
-                    <p className="mt-1 text-sm font-bold text-teal-800">
-                      {item.plain}
-                    </p>
-
-                    <p className="text-xs text-slate-500 mt-1">
-                      {item.plainHindi}
-                    </p>
-
-                    <p className="text-xs text-slate-600 mt-3 leading-5">
-                      {item.description}
-                    </p>
-
-                  </div>
-                )
-              )}
-
-            </div>
-
+            <h1 className="text-lg sm:text-xl font-black text-slate-900">
+              {t('screen3.title', 'Choose your department')}
+            </h1>
           </div>
-        )}
+          <p className="text-xs text-slate-500 mt-0.5">
+            {t('screen3.subtitle', 'Select between holistic Ayush therapy or modern clinical care')}
+          </p>
+        </div>
 
-        {/* --------------------------------------------------
-            DEPARTMENT GRID
-        --------------------------------------------------- */}
+        <div className="flex items-center gap-2">
+          <AudioButton
+            textToRead={audioPrompt}
+            label={t('nav.listen', isHindi ? 'सुनें' : 'Listen')}
+            className="min-h-[36px] py-1 text-xs"
+          />
 
-        <section>
+          <button
+            type="button"
+            onClick={() => setShowGlossary((prev) => !prev)}
+            className="h-9 px-3 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <HelpCircle className="w-4 h-4" />
+            <span className="hidden sm:inline">{showGlossary ? 'Hide Guide' : 'Ayurveda Guide'}</span>
+          </button>
+        </div>
+      </div>
 
-          <div className="mb-3">
-
-            <h2 className="text-base font-black text-slate-900">
-              Select department
-            </h2>
-
-            <p className="text-xs text-slate-500 mt-1">
-              संबंधित विभाग चुनें
+      {/* --------------------------------------------------
+          TRACK SWITCHER (AYUSH vs ALLOPATHY)
+      --------------------------------------------------- */}
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => handleTrackChange('AYUSH')}
+          className={`h-11 rounded-xl border-2 px-3 flex items-center gap-2.5 cursor-pointer transition text-left ${
+            selectedTrack === 'AYUSH'
+              ? 'border-teal-700 bg-teal-50 text-teal-900 shadow-xs'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+          }`}
+        >
+          <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800 shrink-0">
+            <Leaf className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-xs sm:text-sm text-slate-900 truncate">
+              {t('screen3.trackAyush', 'AYUSH Integrative Care')}
             </p>
+            <p className="text-[10px] text-slate-500 truncate">
+              {t('screen3.trackAyushDesc', 'Ayurveda, Yoga, Unani, Siddha, Homeo')}
+            </p>
+          </div>
+        </button>
 
+        <button
+          type="button"
+          onClick={() => handleTrackChange('ALLOPATHY')}
+          className={`h-11 rounded-xl border-2 px-3 flex items-center gap-2.5 cursor-pointer transition text-left ${
+            selectedTrack === 'ALLOPATHY'
+              ? 'border-teal-700 bg-teal-50 text-teal-900 shadow-xs'
+              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+          }`}
+        >
+          <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center text-teal-800 shrink-0">
+            <Stethoscope className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-xs sm:text-sm text-slate-900 truncate">
+              {t('screen3.trackAllopathy', 'Allopathy Modern Medicine')}
+            </p>
+            <p className="text-[10px] text-slate-500 truncate">
+              {t('screen3.trackAllopathyDesc', 'General Medicine, Cardio, Ortho, Peds')}
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {/* --------------------------------------------------
+          TWO-COLUMN ATM LAYOUT: DEPARTMENTS + DOCTOR ROUTING
+      --------------------------------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.9fr] gap-3 items-start flex-1 min-h-0">
+
+        {/* LEFT: 6 Department Cards in 3x2 Grid */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-black text-slate-800">
+              {t('screen3.deptLabel', 'Select OPD Department')}
+            </h2>
+            <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+              {departments.length} Available
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-
-            {departments.map(
-              (department) => {
-
-                const selected =
-                  selectedDepartment?.id ===
-                  department.id;
-
+          {isLoadingDepartments ? (
+            <SkeletonDepartmentGrid />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {departments.map((department) => {
+                const selected = selectedDepartment?.id === department.id;
                 return (
                   <button
                     key={department.id}
                     type="button"
-                    onClick={() =>
-                      handleDepartmentChange(
-                        department
-                      )
-                    }
-                    className={`
-                      min-h-[132px]
-                      rounded-2xl
-                      border-2
-                      p-4
-                      text-left
-                      cursor-pointer
-                      transition
-                      ${
-                        selected
-                          ? 'border-teal-700 bg-teal-50'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }
-                    `}
+                    onClick={() => handleDepartmentChange(department)}
+                    className={`h-[74px] rounded-xl border-2 p-2 text-left cursor-pointer transition flex flex-col justify-between ${
+                      selected
+                        ? 'border-teal-700 bg-teal-50 text-teal-900 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                    }`}
                   >
-
-                    <div className="flex items-start justify-between gap-3">
-
-                      <span className="text-2xl">
-                        {department.icon}
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-xs leading-tight truncate">
+                        {isHindi ? department.hi : department.name}
                       </span>
-
                       {selected && (
-                        <span className="w-7 h-7 rounded-full bg-teal-700 text-white flex items-center justify-center">
-                          <Check className="w-4 h-4" />
+                        <span className="w-4 h-4 rounded-full bg-teal-700 text-white flex items-center justify-center shrink-0">
+                          <Check className="w-2.5 h-2.5" />
                         </span>
                       )}
-
                     </div>
-
-                    <p className="mt-3 font-black text-slate-900">
-                      {department.name}
+                    <p className="text-[10px] font-bold text-teal-700 truncate">
+                      {isHindi ? department.name : department.hi}
                     </p>
-
-                    <p className="text-xs font-bold text-teal-700 mt-1">
-                      {department.hi}
-                    </p>
-
-                    <p className="text-xs text-slate-500 mt-2">
+                    <p className="text-[10px] text-slate-400 truncate">
                       {department.parallel}
                     </p>
-
                   </button>
                 );
-              }
-            )}
-
-          </div>
-
-        </section>
-
-        {/* --------------------------------------------------
-            DOCTOR SELECTION
-        --------------------------------------------------- */}
-
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-
-            <div>
-
-              <div className="flex items-center gap-2">
-
-                <UserRound className="w-5 h-5 text-teal-700" />
-
-                <h2 className="font-black text-slate-900">
-                  Consult a specific doctor
-                </h2>
-
-              </div>
-
-              <p className="text-xs text-slate-500 mt-1">
-                किसी विशेष डॉक्टर को चुनें (वैकल्पिक)
-              </p>
-
+              })}
             </div>
-
-            <div className="relative w-full sm:w-64">
-
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-
-              <input
-                value={doctorSearch}
-                onChange={(event) =>
-                  setDoctorSearch(
-                    event.target.value
-                  )
-                }
-                placeholder="Search doctor"
-                className="
-                  w-full
-                  min-h-[50px]
-                  pl-10
-                  pr-3
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-slate-50
-                  text-sm
-                  outline-none
-                  focus:border-teal-700
-                "
-              />
-
-            </div>
-
-          </div>
-
-          <div className="mt-4 space-y-3">
-
-            {departmentDoctors.length === 0 && (
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 text-center">
-
-                <p className="text-sm font-bold text-slate-700">
-                  No doctor found for this department.
-                </p>
-
-                <p className="text-xs text-slate-500 mt-1">
-                  You can continue with the department's general OPD.
-                </p>
-
-              </div>
-            )}
-
-            {departmentDoctors.map(
-              (doctor) => {
-
-                const selected =
-                  selectedDoctor?.id ===
-                  doctor.id;
-
-                return (
-                  <button
-                    key={doctor.id}
-                    type="button"
-                    onClick={() =>
-                      handleDoctorSelect(
-                        doctor
-                      )
-                    }
-                    className={`
-                      w-full
-                      min-h-[104px]
-                      rounded-xl
-                      border-2
-                      p-4
-                      text-left
-                      flex
-                      items-start
-                      gap-4
-                      cursor-pointer
-                      transition
-                      ${
-                        selected
-                          ? 'border-teal-700 bg-teal-50'
-                          : 'border-slate-200 bg-white'
-                      }
-                    `}
-                  >
-
-                    <div className="w-11 h-11 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
-
-                      <Stethoscope className="w-5 h-5 text-teal-700" />
-
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-
-                      <div className="flex flex-wrap items-center gap-2">
-
-                        <p className="font-black text-slate-900">
-                          {doctor.name}
-                        </p>
-
-                        {doctor.availableToday && (
-                          <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black">
-                            AVAILABLE TODAY
-                          </span>
-                        )}
-
-                      </div>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {doctor.qualification}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-
-                        <span className="flex items-center gap-1 text-xs text-slate-600">
-                          <Clock3 className="w-3.5 h-3.5" />
-                          {doctor.timing}
-                        </span>
-
-                        <span className="flex items-center gap-1 text-xs text-slate-600">
-                          <CalendarDays className="w-3.5 h-3.5" />
-                          {doctor.days.join(', ')}
-                        </span>
-
-                      </div>
-
-                      {!doctor.availableToday &&
-                        doctor.nextAvailable && (
-                          <p className="mt-2 text-xs font-bold text-amber-700">
-                            Next available: {doctor.nextAvailable}
-                          </p>
-                        )}
-
-                    </div>
-
-                    {selected && (
-                      <div className="w-7 h-7 rounded-full bg-teal-700 text-white flex items-center justify-center shrink-0">
-
-                        <Check className="w-4 h-4" />
-
-                      </div>
-                    )}
-
-                  </button>
-                );
-              }
-            )}
-
-          </div>
-
-          {/* General OPD option */}
-
-          {selectedDoctor && (
-            <button
-              type="button"
-              onClick={clearDoctor}
-              className="mt-3 min-h-[48px] px-3 text-xs font-bold text-slate-500 hover:text-teal-700 cursor-pointer"
-            >
-              Continue without a specific doctor
-            </button>
           )}
+        </div>
 
-        </section>
+        {/* RIGHT: Doctor Selection & Continue */}
+        <div className="flex flex-col gap-2 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+              <UserRound className="w-4 h-4 text-teal-700" />
+              <span>{t('screen3.doctorLabel', 'Consult Specific Doctor')}</span>
+            </div>
+            <span className="text-[10px] text-slate-400">Optional</span>
+          </div>
 
-        {/* --------------------------------------------------
-            SUMMARY
-        --------------------------------------------------- */}
+          <KioskInput
+            id="doctor-search"
+            value={doctorSearch}
+            onChange={setDoctorSearch}
+            placeholder={t('screen3.searchDoctor', 'Search doctor...')}
+            label="Search Doctor"
+            prefixIcon={Search}
+            inputClassName="h-8 text-xs py-0.5"
+          />
 
-        <div className="mt-5 rounded-xl bg-slate-50 border border-slate-200 p-4">
+          {/* Quick Doctor Choices */}
+          <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-0.5">
+            {isLoadingDoctors ? (
+              <SkeletonDoctorList />
+            ) : (
+              <>
+                {/* General OPD Option */}
+                <button
+                  type="button"
+                  onClick={clearDoctor}
+                  className={`h-11 rounded-xl border p-2 text-left flex items-center justify-between cursor-pointer transition ${
+                    !selectedDoctor
+                      ? 'border-teal-700 bg-teal-50/70 text-teal-900 font-bold'
+                      : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-black leading-tight truncate">
+                      {t('screen3.noDoctor', 'Any Available Duty Doctor (Fastest OPD)')}
+                    </p>
+                    <p className="text-[10px] text-emerald-700 font-semibold">Immediate queue allocation</p>
+                  </div>
+                  {!selectedDoctor && (
+                    <span className="w-4 h-4 rounded-full bg-teal-700 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-2.5 h-2.5" />
+                    </span>
+                  )}
+                </button>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm">
+                {/* Filtered Doctor List */}
+                {departmentDoctors.slice(0, 2).map((doctor) => {
+                  const selected = selectedDoctor?.id === doctor.id;
+                  return (
+                    <button
+                      key={doctor.id}
+                      type="button"
+                      onClick={() => handleDoctorSelect(doctor)}
+                      className={`h-11 rounded-xl border p-2 text-left flex items-center justify-between cursor-pointer transition ${
+                        selected
+                          ? 'border-teal-700 bg-teal-50 text-teal-900 font-bold'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold truncate leading-tight">{doctor.name}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{doctor.experience}</p>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-bold shrink-0">
+                        {doctor.opdRoom}
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </div>
 
-            <span className="font-black text-slate-800">
-              Selected:
+          {/* Selected Summary Pill */}
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-2 flex items-center gap-1.5 text-xs">
+            <span className="font-black text-slate-700 text-[11px]">Care:</span>
+            <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-[11px]">
+              {selectedTrack}
             </span>
-
-            <span className="px-3 py-1.5 rounded-full bg-white border border-slate-200 font-bold">
-              {selectedTrack === 'AYUSH'
-                ? 'AYUSH'
-                : 'Allopathy'}
+            <ChevronRight className="w-3 h-3 text-slate-400" />
+            <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200 font-bold text-[11px] truncate max-w-[120px]">
+              {selectedDepartment?.name || 'General OPD'}
             </span>
-
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-
-            <span className="px-3 py-1.5 rounded-full bg-white border border-slate-200 font-bold">
-              {selectedDepartment.name}
-            </span>
-
             {selectedDoctor && (
               <>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-
-                <span className="px-3 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-bold">
+                <ChevronRight className="w-3 h-3 text-slate-400" />
+                <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-bold text-[11px] truncate max-w-[100px]">
                   {selectedDoctor.name}
                 </span>
               </>
             )}
-
           </div>
 
-        </div>
-
-        {/* --------------------------------------------------
-            CONTINUE
-        --------------------------------------------------- */}
-
-        <button
-          type="button"
-          onClick={handleContinue}
-          className="
-            mt-5
-            w-full
-            min-h-[78px]
-            rounded-2xl
-            bg-teal-700
-            hover:bg-teal-800
-            text-white
-            px-6
-            flex
-            items-center
-            justify-between
-            cursor-pointer
-            transition
-            kiosk-focus
-          "
-        >
-
-          <span className="text-left">
-
-            <span className="block text-lg font-black">
-              Continue
-            </span>
-
-            <span className="block text-xs text-teal-100 mt-1">
-              लक्षणों की जानकारी देने के लिए आगे बढ़ें
-            </span>
-
-          </span>
-
-          <ArrowRight className="w-6 h-6" />
-
-        </button>
-
-        {/* Audio helper */}
-
-        <div className="mt-4 flex justify-center">
-
-          <AudioButton
-            textToRead={audioPrompt}
-            label={
-              language === 'hi'
-                ? 'निर्देश सुनें'
-                : 'Listen to instructions'
-            }
-          />
-
+          {/* Action Continue Button */}
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="w-full h-11 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black flex items-center justify-between px-4 cursor-pointer transition text-sm shadow-xs"
+          >
+            <span>{t('nav.continue', 'Continue to Symptoms Intake')}</span>
+            <ArrowRight className="w-5 h-5" />
+          </button>
         </div>
 
       </div>
+
+      {/* --------------------------------------------------
+          GLOSSARY MODAL
+      --------------------------------------------------- */}
+      {showGlossary && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 space-y-3 shadow-xl border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-black text-slate-900 text-sm">Ayurvedic Clinical Concepts</h3>
+              <button
+                type="button"
+                onClick={() => setShowGlossary(false)}
+                className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid gap-2 max-h-60 overflow-y-auto pr-1">
+              {AYURVEDIC_TERMS.map((item) => (
+                <div key={item.term} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="font-bold text-xs text-teal-900">{item.term} ({item.hindi})</div>
+                  <div className="text-[11px] text-slate-600 mt-0.5">{item.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
