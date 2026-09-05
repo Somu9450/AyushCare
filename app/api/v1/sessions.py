@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.config import Settings, get_settings
 from app.infrastructure import redis_client
 from app.infrastructure.audit_log import AuditEventType, log_audit_event
+from app.infrastructure.storage import delete_session_files
 from app.models.session import (
     CreateSessionRequest,
     SessionResponse,
@@ -121,8 +122,8 @@ async def close_session(session_id: str) -> None:
     if not data:
         raise HTTPException(status_code=404, detail="Session not found.")
 
-    data["status"] = SessionStatus.CLOSED.value
-    await redis_client.set_value(f"session:{session_id}", data, ttl_seconds=300)
+    await redis_client.delete_key(f"session:{session_id}")
+    await delete_session_files(session_id)
 
     await log_audit_event(
         AuditEventType.SESSION_CLOSED,
