@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 import structlog
-from sqlalchemy import Column, DateTime, String, Text, Integer, Boolean, JSON, func, text
+from sqlalchemy import Column, DateTime, String, Text, Integer, Boolean, JSON, func
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
