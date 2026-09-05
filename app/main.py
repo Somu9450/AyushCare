@@ -59,8 +59,8 @@ def create_app() -> FastAPI:
             "medical document intelligence, clinical summary generation, "
             "and FHIR interoperability."
         ),
-        docs_url="/docs" if not settings.is_production else None,
-        redoc_url="/redoc" if not settings.is_production else None,
+        docs_url="/docs" if settings.enable_docs else None,
+        redoc_url="/redoc" if settings.enable_docs else None,
         lifespan=lifespan,
     )
 
