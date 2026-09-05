@@ -1,0 +1,476 @@
+"""Conversation Engine — Module A core service.
+
+Orchestrates the adaptive, LLM-driven clinical interview:
+1. Manages conversation state (current phase, topics covered).
+2. Generates contextually appropriate next questions via the LLM.
+3. Processes patient answers (text, touch, or speech).
+4. Runs real-time red-flag detection after every answer.
+5. Tracks progress through clinical sections.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Any, Optional
+
+import structlog
+
+from app.ai.asr_service import ASRService
+from app.ai.llm_service import LLMService
+from app.ai.tts_service import TTSService
+from app.ai.prompts.history_taking import (
+    build_system_prompt,
+    build_next_question_prompt,
+    build_emergency_screen_prompt,
+)
+from app.domain.clinical_protocol import (
+    ClinicalSection,
+    STANDARD_SECTIONS,
+    AYUSH_EXTENSION_SECTIONS,
+    SECTION_PROTOCOLS,
+)
+from app.domain.red_flags import evaluate_all_rules
+from app.models.conversation import (
+    AIQuestion,
+    Choice,
+    ConversationPhase,
+    ConversationState,
+    ConversationTurnResponse,
+    QuestionType,
+    RedFlagAlert,
+)
+
+logger = structlog.get_logger(__name__)
+
+
+class ConversationError(Exception):
+    """Raised when the conversation engine encounters an error."""
+
+
+class ConversationEngine:
+    """Adaptive LLM-driven clinical interview engine."""
+
+    def __init__(
+        self,
+        llm: LLMService,
+        asr: ASRService,
+        tts: TTSService,
+    ) -> None:
+        self._llm = llm
+        self._asr = asr
+        self._tts = tts
+
+    async def start_conversation(
+        self,
+        session_id: str,
+        language: str = "en",
+        intake_pathway: str = "general",
+    ) -> ConversationState:
+        """Initialize a new clinical interview and return the first question.
+
+        Returns:
+            Initial ConversationState with the emergency screening question.
+        """
+        logger.info(
+            "conversation_starting",
+            session_id=session_id,
+            language=language,
+            pathway=intake_pathway,
+        )
+
+        # Generate the initial emergency screening question via LLM
+        system_prompt = build_system_prompt(language, intake_pathway)
+        user_prompt = build_emergency_screen_prompt(language)
+
+        try:
+            response = await self._llm.generate_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.2,
+            )
+            first_question = self._parse_question_response(response)
+        except Exception as e:
+            logger.error("conversation_start_failed", error=str(e))
+            # Fallback to a hardcoded first question
+            first_question = AIQuestion(
+                question_id="emergency_screen_1",
+                phase=ConversationPhase.EMERGENCY_SCREEN,
+                prompt="Are you experiencing any of the following emergency symptoms: severe chest pain, difficulty breathing, unconsciousness, heavy bleeding, sudden weakness, or seizures?",
+                question_type=QuestionType.CHOICE,
+                options=[
+                    Choice(value="none", label="None of these"),
+                    Choice(value="chest_pain", label="Severe chest pain"),
+                    Choice(value="breathing", label="Difficulty breathing"),
+                    Choice(value="unconscious", label="Fainting/unconsciousness"),
+                    Choice(value="bleeding", label="Heavy bleeding"),
+                    Choice(value="weakness", label="Sudden weakness"),
+                    Choice(value="seizure", label="Seizures"),
+                ],
+                clinical_context="Emergency screening must be performed before any clinical interview.",
+            )
+
+        return ConversationState(
+            session_id=session_id,
+            phase=ConversationPhase.EMERGENCY_SCREEN,
+            current_question=first_question,
+            answered_questions=[],
+            red_flags=[],
+            progress_percent=0.0,
+            is_complete=False,
+        )
+
+    async def process_answer(
+        self,
+        state: ConversationState,
+        answer: str,
+        question_id: str,
+        language: str = "en",
+        intake_pathway: str = "general",
+        input_mode: str = "text",
+        asr_confidence: Optional[float] = None,
+    ) -> ConversationTurnResponse:
+        """Process a patient's answer and generate the next question.
+
+        Args:
+            state: Current conversation state.
+            answer: Patient's answer text.
+            question_id: ID of the question being answered.
+            language: Patient's language.
+            intake_pathway: 'general' or 'ayush'.
+            input_mode: 'text', 'touch', or 'speech'.
+            asr_confidence: Speech recognition confidence (if speech input).
+
+        Returns:
+            ConversationTurnResponse with the next question and any red flags.
+        """
+        logger.info(
+            "processing_answer",
+            session_id=state.session_id,
+            question_id=question_id,
+            phase=state.phase.value,
+            input_mode=input_mode,
+        )
+
+        # Record the answer
+        answered_entry = {
+            "question_id": question_id,
+            "question": state.current_question.prompt if state.current_question else "",
+            "answer": answer,
+            "input_mode": input_mode,
+            "asr_confidence": asr_confidence,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        state.answered_questions.append(answered_entry)
+
+        # Run deterministic red-flag check
+        answer_map = self._build_answer_map(state.answered_questions)
+        new_rules = evaluate_all_rules(answer_map)
+        new_flags = []
+        existing_ids = {f.id for f in state.red_flags}
+        for rule in new_rules:
+            if rule.id not in existing_ids:
+                flag = RedFlagAlert(
+                    id=rule.id,
+                    level=rule.severity.value,
+                    title=rule.title,
+                    patient_message=rule.patient_message,
+                    patient_message_local=rule.patient_message_hi,
+                    evidence=[answer],
+                )
+                new_flags.append(flag)
+                state.red_flags.append(flag)
+
+        # Determine next phase
+        next_phase = self._determine_next_phase(state, intake_pathway)
+
+        # Check if interview is complete
+        if next_phase == ConversationPhase.COMPLETED:
+            return ConversationTurnResponse(
+                answer_confirmed=answer,
+                next_question=None,
+                red_flags=new_flags,
+                phase=ConversationPhase.COMPLETED,
+                progress_percent=100.0,
+                is_complete=True,
+            )
+
+        # Update phase if it changed
+        if next_phase != state.phase:
+            state.phase = next_phase
+
+        # Generate next question via LLM
+        topics_covered = self._extract_topics(state.answered_questions, state.phase)
+        system_prompt = build_system_prompt(language, intake_pathway)
+        user_prompt = build_next_question_prompt(
+            phase=state.phase.value,
+            conversation_history=state.answered_questions,
+            language=language,
+            topics_covered=topics_covered,
+        )
+
+        try:
+            response = await self._llm.generate_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.3,
+            )
+            next_question = self._parse_question_response(response)
+
+            # Check if LLM indicates section is complete
+            if response.get("section_complete"):
+                next_phase = self._advance_phase(state.phase, intake_pathway)
+                if next_phase == ConversationPhase.COMPLETED:
+                    return ConversationTurnResponse(
+                        answer_confirmed=answer,
+                        next_question=None,
+                        red_flags=new_flags,
+                        phase=ConversationPhase.COMPLETED,
+                        progress_percent=100.0,
+                        is_complete=True,
+                    )
+                state.phase = next_phase
+                next_question.phase = next_phase
+
+            # Check for LLM-detected red flags
+            llm_flags = response.get("red_flags_detected", [])
+            for rf in llm_flags:
+                if rf.get("id") and rf["id"] not in existing_ids:
+                    flag = RedFlagAlert(
+                        id=rf["id"],
+                        level=rf.get("level", "urgent"),
+                        title=rf.get("title", ""),
+                        patient_message=rf.get("patient_message", ""),
+                        evidence=rf.get("evidence", []),
+                    )
+                    new_flags.append(flag)
+                    state.red_flags.append(flag)
+
+        except Exception as e:
+            logger.error("next_question_generation_failed", error=str(e))
+            # Fallback generic question for the current phase
+            next_question = AIQuestion(
+                question_id=f"{state.phase.value}_{len(state.answered_questions)}",
+                phase=state.phase,
+                prompt="Please tell me more about your current health concern.",
+                question_type=QuestionType.TEXT,
+                clinical_context="Fallback question due to LLM error.",
+            )
+
+        state.current_question = next_question
+
+        # Calculate progress
+        progress = self._calculate_progress(state, intake_pathway)
+
+        return ConversationTurnResponse(
+            answer_confirmed=answer,
+            next_question=next_question,
+            red_flags=new_flags,
+            phase=state.phase,
+            progress_percent=progress,
+            is_complete=False,
+        )
+
+    async def transcribe_speech(
+        self,
+        audio_bytes: bytes,
+        language: str = "en",
+    ) -> dict:
+        """Transcribe speech input and return text + confidence.
+
+        Returns:
+            dict with 'text', 'confidence', 'quality'.
+        """
+        quality = await self._asr.assess_audio_quality(audio_bytes)
+        if quality["status"] == "poor":
+            return {
+                "text": "",
+                "confidence": 0.0,
+                "quality": quality,
+            }
+
+        result = await self._asr.transcribe(audio_bytes, language)
+        return {
+            "text": result["text"],
+            "confidence": result["confidence"],
+            "quality": quality,
+        }
+
+    async def synthesize_question(
+        self,
+        text: str,
+        language: str = "en",
+    ) -> dict:
+        """Convert a question to speech for the patient.
+
+        Returns:
+            dict with 'audio_base64', 'encoding'.
+        """
+        from app.ai.tts_service import TTSError
+        try:
+            return await self._tts.synthesize(text, language)
+        except TTSError:
+            return {"audio_base64": "", "encoding": "MP3", "error": "TTS unavailable"}
+
+    # ── Internal Helpers ─────────────────────────────────────────────────
+
+    def _parse_question_response(self, response: dict) -> AIQuestion:
+        """Parse LLM JSON response into an AIQuestion model."""
+        options = None
+        if response.get("options"):
+            options = [
+                Choice(
+                    value=opt.get("value", ""),
+                    label=opt.get("label", ""),
+                    label_local=opt.get("label_local"),
+                )
+                for opt in response["options"]
+            ]
+
+        # Map phase string to enum
+        phase_str = response.get("phase", "chief_complaint")
+        try:
+            phase = ConversationPhase(phase_str)
+        except ValueError:
+            phase = ConversationPhase.CHIEF_COMPLAINT
+
+        return AIQuestion(
+            question_id=response.get("question_id", f"q_{uuid.uuid4().hex[:8]}"),
+            phase=phase,
+            prompt=response.get("prompt", ""),
+            prompt_local=response.get("prompt_local"),
+            helper=response.get("helper"),
+            question_type=QuestionType(response.get("question_type", "text")),
+            options=options,
+            is_follow_up=response.get("is_follow_up", False),
+            clinical_context=response.get("clinical_context"),
+        )
+
+    def _build_answer_map(self, answered: list[dict]) -> dict:
+        """Build a flat answer map for red-flag rule evaluation."""
+        result: dict[str, Any] = {}
+        for entry in answered:
+            qid = entry.get("question_id", "")
+            # Extract the field name from question_id (e.g., "hpi_3" -> use as key)
+            result[qid] = entry.get("answer", "")
+
+            # Also map known semantic fields
+            question_text = entry.get("question", "").lower()
+            answer_text = entry.get("answer", "")
+
+            if "emergency" in question_text:
+                result["emergency_symptoms"] = answer_text
+            elif "chief complaint" in question_text or "main problem" in question_text:
+                result["chief_complaint"] = answer_text
+            elif "severity" in question_text or "scale" in question_text:
+                try:
+                    result["pain_severity"] = int(answer_text)
+                except (ValueError, TypeError):
+                    pass
+            elif "radiation" in question_text or "spread" in question_text:
+                result["radiation"] = answer_text
+            elif "associated" in question_text or "other symptoms" in question_text:
+                result["associated_symptoms"] = answer_text
+            elif "breathless" in question_text or "breathing" in question_text:
+                result["breathlessness_severity"] = answer_text
+            elif "mental" in question_text or "mood" in question_text:
+                result["mental_health"] = answer_text
+            elif "temperature" in question_text or "fever" in question_text:
+                try:
+                    result["fever_temperature"] = float(answer_text)
+                except (ValueError, TypeError):
+                    pass
+
+        return result
+
+    def _determine_next_phase(
+        self, state: ConversationState, intake_pathway: str
+    ) -> ConversationPhase:
+        """Determine if we should stay in the current phase or advance."""
+        # The LLM drives phase advancement through its section_complete flag.
+        # This method handles edge cases like emergency escalation.
+        current = state.phase
+
+        # If emergency was confirmed, stop the interview
+        if current == ConversationPhase.EMERGENCY_SCREEN:
+            last_answer = state.answered_questions[-1].get("answer", "").lower() if state.answered_questions else ""
+            if any(kw in last_answer for kw in ["none", "no", "nothing"]):
+                return ConversationPhase.CHIEF_COMPLAINT
+            # If they selected an emergency symptom, the red-flag system handles it
+            # but we still advance to chief complaint for triage info
+            return ConversationPhase.CHIEF_COMPLAINT
+
+        return current
+
+    def _advance_phase(
+        self, current: ConversationPhase, intake_pathway: str
+    ) -> ConversationPhase:
+        """Get the next phase after the current one is complete."""
+        all_sections = list(STANDARD_SECTIONS)
+        if intake_pathway == "ayush":
+            all_sections.extend(AYUSH_EXTENSION_SECTIONS)
+
+        # Map ConversationPhase to ClinicalSection
+        phase_to_section = {
+            ConversationPhase.EMERGENCY_SCREEN: ClinicalSection.EMERGENCY_SCREEN,
+            ConversationPhase.CHIEF_COMPLAINT: ClinicalSection.CHIEF_COMPLAINT,
+            ConversationPhase.HPI: ClinicalSection.HPI,
+            ConversationPhase.PAST_MEDICAL: ClinicalSection.PAST_MEDICAL,
+            ConversationPhase.PAST_SURGICAL: ClinicalSection.PAST_SURGICAL,
+            ConversationPhase.DRUG_ALLERGY: ClinicalSection.DRUG_ALLERGY,
+            ConversationPhase.FAMILY_HISTORY: ClinicalSection.FAMILY_HISTORY,
+            ConversationPhase.PERSONAL_HISTORY: ClinicalSection.PERSONAL_HISTORY,
+            ConversationPhase.REVIEW_OF_SYSTEMS: ClinicalSection.REVIEW_OF_SYSTEMS,
+            ConversationPhase.AYUSH_DASHAVIDHA: ClinicalSection.AYUSH_DASHAVIDHA,
+            ConversationPhase.AYUSH_AHARA_VIHARA: ClinicalSection.AYUSH_AHARA_VIHARA,
+        }
+
+        current_section = phase_to_section.get(current)
+        if current_section and current_section in all_sections:
+            idx = all_sections.index(current_section)
+            if idx + 1 < len(all_sections):
+                next_section = all_sections[idx + 1]
+                # Map back to ConversationPhase
+                section_to_phase = {v: k for k, v in phase_to_section.items()}
+                return section_to_phase.get(next_section, ConversationPhase.COMPLETED)
+
+        return ConversationPhase.COMPLETED
+
+    def _extract_topics(
+        self, answered: list[dict], phase: ConversationPhase
+    ) -> list[str]:
+        """Extract covered topics for the current phase."""
+        topics = []
+        for entry in answered:
+            qid = entry.get("question_id", "")
+            if phase.value in qid:
+                # Use the clinical_context or question text as topic
+                topics.append(qid)
+        return topics
+
+    def _calculate_progress(
+        self, state: ConversationState, intake_pathway: str
+    ) -> float:
+        """Calculate interview progress percentage."""
+        all_phases = [
+            ConversationPhase.EMERGENCY_SCREEN,
+            ConversationPhase.CHIEF_COMPLAINT,
+            ConversationPhase.HPI,
+            ConversationPhase.PAST_MEDICAL,
+            ConversationPhase.PAST_SURGICAL,
+            ConversationPhase.DRUG_ALLERGY,
+            ConversationPhase.FAMILY_HISTORY,
+            ConversationPhase.PERSONAL_HISTORY,
+            ConversationPhase.REVIEW_OF_SYSTEMS,
+        ]
+        if intake_pathway == "ayush":
+            all_phases.extend([
+                ConversationPhase.AYUSH_DASHAVIDHA,
+                ConversationPhase.AYUSH_AHARA_VIHARA,
+            ])
+
+        total = len(all_phases)
+        if state.phase in all_phases:
+            current_idx = all_phases.index(state.phase)
+            return round((current_idx / total) * 100, 1)
+        return 0.0
