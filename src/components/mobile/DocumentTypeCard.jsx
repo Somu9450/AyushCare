@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Circle,
 } from "lucide-react";
+import { useLanguage } from "../../i18n/translations";
 
 const ICON_MAP = {
   FileText,
@@ -15,16 +16,28 @@ const ICON_MAP = {
   FolderHeart,
 };
 
+const SUBTITLE_HI = {
+  prescription: "पिछली मुलाकातों की डॉक्टर पर्ची अथवा ओपीडी पर्ची",
+  lab_report: "रक्त, मूत्र, रेडियोलॉजी या अन्य नैदानिक जांच रिपोर्ट",
+  discharge_summary: "अस्पताल में भर्ती, प्रक्रिया अथवा सर्जरी के डिस्चार्ज दस्तावेज",
+  other: "टीकाकरण कार्ड, मेडिकल प्रमाण पत्र अथवा रेफरल पर्ची",
+};
+
 /**
  * DocumentTypeCard
- * Large touch-friendly selection card with icon, title, Hindi translation, and clear selection badge.
+ * Large touch-friendly selection card with icon, title, and clear selection badge.
+ * Shows strictly one language (English OR Hindi) based on active language setting.
  */
 export const DocumentTypeCard = ({
   type,
   isSelected,
   onSelect,
 }) => {
+  const { isHindi } = useLanguage();
   const IconComponent = ICON_MAP[type.iconName] || FileText;
+
+  const displayTitle = isHindi ? (type.hi || type.title) : type.title;
+  const displaySubtitle = isHindi ? (SUBTITLE_HI[type.id] || type.subtitle) : type.subtitle;
 
   return (
     <button
@@ -50,18 +63,11 @@ export const DocumentTypeCard = ({
 
         {/* Text Content */}
         <div className="min-w-0">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <h3 className="text-base font-bold text-slate-900 leading-tight">
-              {type.title}
-            </h3>
-            {type.hi && (
-              <span className="text-xs font-semibold text-teal-800 bg-teal-100/70 px-1.5 py-0.5 rounded leading-none">
-                {type.hi}
-              </span>
-            )}
-          </div>
+          <h3 className="text-base font-bold text-slate-900 leading-tight">
+            {displayTitle}
+          </h3>
           <p className="text-xs text-slate-500 mt-1 leading-snug line-clamp-2">
-            {type.subtitle}
+            {displaySubtitle}
           </p>
         </div>
       </div>

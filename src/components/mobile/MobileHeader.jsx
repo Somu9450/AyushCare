@@ -15,7 +15,12 @@ export const MobileHeader = ({
   subtitle,
   dark = false,
 }) => {
-  const { currentScreen, prevScreen } = useMobileStore();
+  const {
+    currentScreen,
+    prevScreen,
+    selectedLanguage,
+    setSelectedLanguage,
+  } = useMobileStore();
 
   const handleBack = () => {
     if (onBack) {
@@ -59,10 +64,10 @@ export const MobileHeader = ({
             ) : (
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-black tracking-wider text-teal-800">
-                  AYUSHCARE
+                  {selectedLanguage === "hi" ? "आयुषकेयर" : "AYUSHCARE"}
                 </span>
-                <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
-                  COMPANION
+                <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 uppercase">
+                  {selectedLanguage === "hi" ? "साथी" : "COMPANION"}
                 </span>
               </div>
             )}
@@ -74,22 +79,41 @@ export const MobileHeader = ({
           </div>
         </div>
 
-        {/* Right Element or Kiosk Connection Indicator */}
+        {/* Right Element or Kiosk Connection Indicator & Language Switcher */}
         <div className="shrink-0 flex items-center gap-2">
           {rightElement ? (
             rightElement
           ) : (
-            <div
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight ${
-                dark
-                  ? "bg-teal-950/80 text-teal-300 border border-teal-800"
-                  : "bg-teal-50 text-teal-800 border border-teal-200"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="hidden xs:inline">Connected</span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
+            <>
+              {/* Universal Language Switcher Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedLanguage(selectedLanguage === "hi" ? "en" : "hi")}
+                aria-label="Toggle Language"
+                className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 cursor-pointer border shadow-2xs active:scale-95 ${
+                  selectedLanguage === "hi"
+                    ? "bg-teal-800 text-white border-teal-900"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300"
+                }`}
+                title={selectedLanguage === "hi" ? "Switch to English" : "हिन्दी में बदलें"}
+              >
+                <span>{selectedLanguage === "hi" ? "हिन्दी" : "EN"}</span>
+              </button>
+
+              <div
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight ${
+                  dark
+                    ? "bg-teal-950/80 text-teal-300 border border-teal-800"
+                    : "bg-teal-50 text-teal-800 border border-teal-200"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="hidden xs:inline">
+                  {selectedLanguage === "hi" ? "संबद्ध" : "Connected"}
+                </span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+            </>
           )}
         </div>
       </div>

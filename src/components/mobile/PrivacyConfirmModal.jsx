@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertTriangle, Lock, Unlock, ShieldAlert, X, AlertCircle } from "lucide-react";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * PrivacyConfirmModal
@@ -13,13 +14,16 @@ export const PrivacyConfirmModal = ({
   title,
   message,
   confirmText,
-  cancelText = "Cancel",
+  cancelText,
   onConfirm,
   onCancel,
   variant = "warning", // "warning" | "danger" | "primary"
   icon: CustomIcon,
 }) => {
+  const { isHindi } = useLanguage();
   if (!isOpen) return null;
+
+  const defaultCancel = cancelText || (isHindi ? "रद्द करें" : "Cancel");
 
   const getVariantStyles = () => {
     switch (variant) {
@@ -94,7 +98,11 @@ export const PrivacyConfirmModal = ({
         {/* Non-destructive reminder note */}
         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500 leading-snug flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
-          <span>This product setting does not delete any of your saved records.</span>
+          <span>
+            {isHindi
+              ? "यह सेटिंग आपके किसी भी सहेजे गए रिकॉर्ड को नष्ट या डिलीट नहीं करती है।"
+              : "This product setting does not delete any of your saved records."}
+          </span>
         </div>
 
         {/* Action Buttons */}
@@ -104,7 +112,7 @@ export const PrivacyConfirmModal = ({
             onClick={onCancel}
             className="min-h-[48px] px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition active:scale-[0.98] cursor-pointer"
           >
-            {cancelText}
+            {defaultCancel}
           </button>
 
           <button

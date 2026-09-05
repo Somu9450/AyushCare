@@ -9,13 +9,14 @@ import {
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
+import { useLanguage } from "../../i18n/translations";
 
 const ANALYSIS_STEPS = [
-  { id: 0, label: "Image Captured" },
-  { id: 1, label: "Image Enhanced" },
-  { id: 2, label: "Reading Text" },
-  { id: 3, label: "Understanding Medical Information" },
-  { id: 4, label: "Extracting Important Details" },
+  { id: 0, labelEn: "Image Captured", labelHi: "छवि कैप्चर हुई" },
+  { id: 1, labelEn: "Image Enhanced", labelHi: "छवि संवर्धित हुई" },
+  { id: 2, labelEn: "Reading Text", labelHi: "पाठ पढ़ा जा रहा है" },
+  { id: 3, labelEn: "Understanding Medical Information", labelHi: "चिकित्सा जानकारी समझी जा रही है" },
+  { id: 4, labelEn: "Extracting Important Details", labelHi: "आवश्यक विवरण निकाले जा रहे हैं" },
 ];
 
 /**
@@ -29,13 +30,19 @@ export const M5_DocumentAnalysis = () => {
     runAnalysisSimulation,
     setScreen,
     capturedDocuments,
+    documentSets,
   } = useMobileStore();
+  const { isHindi } = useLanguage();
 
   const totalPages = capturedDocuments?.length || 1;
+  const activeSets = (documentSets || []).filter((s) => s.pages && s.pages.length > 0);
+  const setsSummary =
+    activeSets.length > 1
+      ? activeSets.map((s) => `${s.title} (${s.pages.length}${isHindi ? "पृ" : "p"})`).join(" & ")
+      : "";
 
   useEffect(() => {
     // Start automated progress simulation
-    // TODO: Replace simulated processing with backend OCR/document-processing API.
     runAnalysisSimulation(() => {
       // Transition to Extracted Information (M6) upon completion
       setTimeout(() => {
@@ -44,11 +51,55 @@ export const M5_DocumentAnalysis = () => {
     });
   }, [runAnalysisSimulation, setScreen]);
 
+  const getHeaderTitle = () => {
+    if (activeSets.length > 1) {
+      return isHindi
+        ? `${activeSets.length} दस्तावेज़ सेट संसाधित हो रहे हैं (${totalPages} पृष्ठ)`
+        : `Processing ${activeSets.length} Document Sets (${totalPages} Pages)`;
+    }
+    if (totalPages > 1) {
+      return isHindi
+        ? `${totalPages} दस्तावेज़ संसाधित हो रहे हैं`
+        : `Processing ${totalPages} Documents`;
+    }
+    return isHindi ? "दस्तावेज़ संसाधित हो रहा है" : "Processing Document";
+  };
+
+  const getMainHeading = () => {
+    if (activeSets.length > 1) {
+      return isHindi
+        ? `${activeSets.length} दस्तावेज़ सेट पढ़े जा रहे हैं (${totalPages} पृष्ठ)`
+        : `Reading ${activeSets.length} Document Sets (${totalPages} pages)`;
+    }
+    if (totalPages > 1) {
+      return isHindi
+        ? `आपके दस्तावेज़ पढ़े जा रहे हैं (${totalPages} पृष्ठ)`
+        : `Reading your documents (${totalPages} pages)`;
+    }
+    return isHindi ? "आपका दस्तावेज़ पढ़ा जा रहा है" : "Reading your document";
+  };
+
+  const getSubheading = () => {
+    if (setsSummary) {
+      return isHindi
+        ? `एआई इनसे चिकित्सा जानकारी निकाल रहा है: ${setsSummary}`
+        : `AI is extracting medical information from: ${setsSummary}`;
+    }
+    if (totalPages > 1) {
+      return isHindi
+        ? `एआई सभी ${totalPages} पृष्ठों से चिकित्सा जानकारी निकाल रहा है`
+        : `AI is extracting medical information from all ${totalPages} captured pages`;
+    }
+    return isHindi
+      ? "एआई दस्तावेज़ से आवश्यक चिकित्सा जानकारी निकाल रहा है"
+      : "AI is extracting medical information from the document";
+  };
+
   return (
     <div className="min-h-full flex flex-col justify-between bg-slate-50">
       {/* Header */}
       <MobileHeader
-        title={totalPages > 1 ? `Processing ${totalPages} Documents` : "Processing Document"}
+        title={getHeaderTitle()}
         showBack={false}
       />
 
@@ -65,10 +116,10 @@ export const M5_DocumentAnalysis = () => {
         {/* Headings */}
         <div className="space-y-1.5">
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {totalPages > 1 ? `Reading your documents (${totalPages} pages)` : "Reading your document"}
+            {getMainHeading()}
           </h2>
           <p className="text-xs text-slate-500 max-w-xs mx-auto">
-            AI is extracting medical information from {totalPages > 1 ? `all ${totalPages} captured pages` : "the document"}
+            {getSubheading()}
           </p>
         </div>
 
@@ -78,6 +129,7 @@ export const M5_DocumentAnalysis = () => {
             const isCompleted = analysisStep > step.id;
             const isCurrent = analysisStep === step.id;
             const isPending = analysisStep < step.id;
+            const label = isHindi ? step.labelHi : step.labelEn;
 
             return (
               <div
@@ -112,7 +164,7 @@ export const M5_DocumentAnalysis = () => {
                         : "text-slate-400"
                     }`}
                   >
-                    {step.label}
+                    {label}
                   </p>
                 </div>
               </div>
@@ -123,7 +175,11 @@ export const M5_DocumentAnalysis = () => {
         {/* Clinical Safe Subtext */}
         <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-1.5 justify-center">
           <Shield className="w-3.5 h-3.5 text-slate-400" />
-          <span>This may take a few seconds · Private & Secure</span>
+          <span>
+            {isHindi
+              ? "इसमें कुछ सेकंड लग सकते हैं · निजी व सुरक्षित"
+              : "This may take a few seconds · Private & Secure"}
+          </span>
         </div>
       </main>
 

@@ -6,19 +6,17 @@ import {
   ShieldCheck,
   Lock,
   LogOut,
-  Languages,
   Sliders,
-  Info,
   Building2,
   ChevronRight,
   HeartPulse,
   MonitorCheck,
   AlertTriangle,
-  Sparkles,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
+import useLanguage from "../../i18n/translations";
 
 export const MoreScreen = () => {
   const {
@@ -31,6 +29,7 @@ export const MoreScreen = () => {
     accessibilitySettings,
   } = useMobileStore();
 
+  const { t, isHindi } = useLanguage();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const patient = session.patient || {};
   const isKioskConnected = kioskSession?.status === "CONNECTED";
@@ -49,9 +48,21 @@ export const MoreScreen = () => {
     logoutPatient();
   };
 
+  const displayName = isHindi
+    ? (patient.hindiName || patient.name || "मरीज़")
+    : (patient.name || "Patient Name");
+
+  const genderDisplay = isHindi
+    ? (patient.gender === "Female" ? "महिला" : "पुरुष")
+    : (patient.gender || "Male");
+
+  const textSizeDisplay = isHindi
+    ? (accessibilitySettings.textSize === "xlarge" ? "अति विशाल" : accessibilitySettings.textSize === "large" ? "बड़ा" : "सामान्य")
+    : (accessibilitySettings.textSize || "Default");
+
   return (
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
-      <MobileHeader title="More & Settings" showBack={false} />
+      <MobileHeader title={t("more_title")} showBack={false} />
 
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-3xl lg:max-w-4xl mx-auto w-full space-y-5">
         {/* Patient ABHA Digital Profile Card (Tap to View Full Profile) */}
@@ -66,20 +77,17 @@ export const MoreScreen = () => {
               </div>
               <div>
                 <h3 className="text-lg font-black leading-tight flex items-center gap-1.5">
-                  <span>{patient.name || "Patient Name"}</span>
+                  <span>{displayName}</span>
                   <ChevronRight className="w-4 h-4 text-teal-300 opacity-60 group-hover:opacity-100 transition" />
                 </h3>
-                {patient.hindiName && (
-                  <p className="text-xs text-teal-200 mt-0.5">{patient.hindiName}</p>
-                )}
                 <p className="text-xs text-teal-100 font-medium mt-0.5">
-                  {patient.age} Yrs · {patient.gender} · {patient.bloodGroup || "B+"}
+                  {patient.age} {isHindi ? "वर्ष" : "Yrs"} · {genderDisplay} · {patient.bloodGroup || "B+"}
                 </p>
               </div>
             </div>
 
             <span className="text-[10px] font-black uppercase bg-teal-700/80 px-2 py-0.5 rounded border border-teal-500/40">
-              ABDM Verified
+              {isHindi ? "डिजिटल सत्यापित" : "ABDM Verified"}
             </span>
           </div>
 
@@ -87,7 +95,7 @@ export const MoreScreen = () => {
           <div className="p-3 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-between">
             <div>
               <span className="text-[9px] uppercase tracking-wider text-teal-200 font-bold block">
-                ABHA Number
+                {isHindi ? "आभा संख्या" : "ABHA Number"}
               </span>
               <span className="text-sm font-mono font-bold tracking-wider text-white">
                 {getMaskedAbha(patient.abhaNumber)}
@@ -97,8 +105,10 @@ export const MoreScreen = () => {
           </div>
 
           <div className="text-[11px] text-teal-200/80 flex items-center justify-between">
-            <span>District: {patient.district || "Central Delhi"}, {patient.state || "Delhi"}</span>
-            <span className="underline font-bold text-white">View Profile →</span>
+            <span>
+              {isHindi ? "जिला" : "District"}: {isHindi ? (patient.hindiDistrict || patient.district || "मध्य दिल्ली") : (patient.district || "Central Delhi")}, {isHindi ? "दिल्ली" : (patient.state || "Delhi")}
+            </span>
+            <span className="underline font-bold text-white">{t("more_profile_card_view")}</span>
           </div>
         </div>
 
@@ -125,28 +135,28 @@ export const MoreScreen = () => {
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Hospital Kiosk Connection
+                {t("more_kiosk_conn_title")}
               </p>
               <p className="text-sm font-bold text-slate-900">
                 {isKioskConnected
-                  ? kioskSession?.hospitalName || "MediKiosk Demo Hospital"
-                  : "Not Connected to Kiosk"}
+                  ? (isHindi ? (kioskSession?.hindiHospitalName || "मेडीकियोस्क अस्पताल") : (kioskSession?.hospitalName || "MediKiosk Demo Hospital"))
+                  : (isHindi ? "कियोस्क से कनेक्ट नहीं है" : "Not Connected to Kiosk")}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 font-mono">
                 {isKioskConnected
-                  ? `Terminal: ${kioskSession?.terminalId || "KIOSK-03"}`
-                  : "Tap to scan kiosk QR"}
+                  ? `${isHindi ? "टर्मिनल" : "Terminal"}: ${kioskSession?.terminalId || "KIOSK-03"}`
+                  : (isHindi ? "कियोस्क क्यूआर स्कैन करने के लिए टैप करें" : "Tap to scan kiosk QR")}
               </p>
             </div>
           </div>
 
           {isKioskConnected ? (
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0">
-              Active ✓
+              {isHindi ? "सक्रिय ✓" : "Active ✓"}
             </span>
           ) : (
             <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
-              Connect →
+              {isHindi ? "कनेक्ट करें →" : "Connect →"}
             </span>
           )}
         </div>
@@ -164,9 +174,9 @@ export const MoreScreen = () => {
                 <User className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900">Patient Identity & Profile</span>
+                <span className="font-bold text-slate-900">{t("more_menu_profile")}</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Demographics, masked health identifiers, and contact details
+                  {t("more_menu_profile_sub")}
                 </p>
               </div>
             </div>
@@ -185,16 +195,16 @@ export const MoreScreen = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900">Privacy & Data Control</span>
+                  <span className="font-bold text-slate-900">{t("more_menu_privacy")}</span>
                   {isHealthHistoryLocked && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
                       <Lock className="w-2.5 h-2.5" />
-                      <span>Restricted</span>
+                      <span>{isHindi ? "प्रतिबंधित" : "Restricted"}</span>
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Manage how your health information is shared and accessed
+                  {t("more_menu_privacy_sub")}
                 </p>
               </div>
             </div>
@@ -212,9 +222,11 @@ export const MoreScreen = () => {
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900">Settings & Accessibility</span>
+                <span className="font-bold text-slate-900">{t("more_menu_settings")}</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Language ({selectedLanguage === "hi" ? "हिन्दी" : "English"}), text scale ({accessibilitySettings.textSize}), high contrast
+                  {isHindi
+                    ? `भाषा (हिन्दी), टेक्स्ट आकार (${textSizeDisplay}), उच्च कंट्रास्ट`
+                    : `Language (English), text scale (${textSizeDisplay}), high contrast`}
                 </p>
               </div>
             </div>
@@ -232,9 +244,11 @@ export const MoreScreen = () => {
                 <MonitorCheck className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900">Active Kiosk Sessions</span>
+                <span className="font-bold text-slate-900">{t("more_menu_sessions")}</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {isKioskConnected ? "1 hospital terminal connected" : "No active kiosk session"}
+                  {isKioskConnected
+                    ? (isHindi ? "1 अस्पताल टर्मिनल कनेक्टेड" : "1 hospital terminal connected")
+                    : (isHindi ? "कोई सक्रिय कियोस्क सत्र नहीं" : "No active kiosk session")}
                 </p>
               </div>
             </div>
@@ -252,9 +266,9 @@ export const MoreScreen = () => {
                 <HeartPulse className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900">My Health Summary</span>
+                <span className="font-bold text-slate-900">{t("more_menu_summary")}</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Consolidated clinical history with Hindi voice support
+                  {t("more_menu_summary_sub")}
                 </p>
               </div>
             </div>
@@ -272,9 +286,9 @@ export const MoreScreen = () => {
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-slate-900">Medical Chronological Timeline</span>
+                <span className="font-bold text-slate-900">{t("more_menu_timeline")}</span>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Timeline of consultations, diagnoses, and documents
+                  {t("more_menu_timeline_sub")}
                 </p>
               </div>
             </div>
@@ -290,7 +304,7 @@ export const MoreScreen = () => {
             className="w-full min-h-[50px] p-3 rounded-2xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-800 font-bold text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
-            <span>Switch Patient / Log Out</span>
+            <span>{t("more_btn_logout")}</span>
           </button>
         </div>
       </main>
@@ -309,10 +323,10 @@ export const MoreScreen = () => {
 
             <div className="space-y-1.5">
               <h3 className="text-lg font-black text-slate-900">
-                Log out of MediKiosk?
+                {t("settings_logout_confirm_title")}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Your local mobile session will be signed out. Your saved health records, visits, appointments, and privacy settings will not be deleted.
+                {t("settings_logout_confirm_sub")}
               </p>
             </div>
 
@@ -322,14 +336,14 @@ export const MoreScreen = () => {
                 onClick={() => setShowLogoutModal(false)}
                 className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmLogout}
                 className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-sm"
               >
-                Log Out
+                {t("settings_btn_confirm_logout")}
               </button>
             </div>
           </div>

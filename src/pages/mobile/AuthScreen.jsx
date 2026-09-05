@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   IdCard,
   Fingerprint,
@@ -7,11 +7,9 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  Lock,
-  Sparkles,
   Info,
-  RefreshCw,
   QrCode,
+  Globe,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import {
@@ -24,41 +22,12 @@ import {
   verifyMobileOtp,
 } from "../../services/authService";
 import PrimaryButton from "../../components/mobile/PrimaryButton";
-import SecondaryButton from "../../components/mobile/SecondaryButton";
 import BottomActionBar from "../../components/mobile/BottomActionBar";
-
-const TABS = [
-  {
-    id: AUTH_METHODS.ABHA,
-    title: "ABHA Number",
-    subtitle: "14-digit Health ID",
-    icon: IdCard,
-    length: 14,
-    placeholder: "e.g. 91-4432-8812-9012",
-    demoValue: "91443288129012",
-  },
-  {
-    id: AUTH_METHODS.AADHAAR,
-    title: "Aadhaar Card",
-    subtitle: "12-digit UID",
-    icon: Fingerprint,
-    length: 12,
-    placeholder: "e.g. 7288 9123 0144",
-    demoValue: "728891230144",
-  },
-  {
-    id: AUTH_METHODS.MOBILE,
-    title: "Mobile Number",
-    subtitle: "10-digit Phone",
-    icon: Phone,
-    length: 10,
-    placeholder: "e.g. 98765 43210",
-    demoValue: "9876543210",
-  },
-];
+import useLanguage from "../../i18n/translations";
 
 export const AuthScreen = () => {
   const { setScreen, setVerifiedPatient } = useMobileStore();
+  const { t, isHindi, toggleLanguage } = useLanguage();
 
   const [activeTab, setActiveTab] = useState(AUTH_METHODS.ABHA);
   const [identifier, setIdentifier] = useState("");
@@ -69,6 +38,36 @@ export const AuthScreen = () => {
   const [transactionData, setTransactionData] = useState(null);
 
   const otpInputsRef = useRef([]);
+
+  const TABS = [
+    {
+      id: AUTH_METHODS.ABHA,
+      title: isHindi ? "आभा संख्या" : "ABHA Number",
+      subtitle: isHindi ? "14-अंकों का हेल्थ आईडी" : "14-digit Health ID",
+      icon: IdCard,
+      length: 14,
+      placeholder: isHindi ? "उदा. 91-4432-8812-9012" : "e.g. 91-4432-8812-9012",
+      demoValue: "91443288129012",
+    },
+    {
+      id: AUTH_METHODS.AADHAAR,
+      title: isHindi ? "आधार कार्ड" : "Aadhaar Card",
+      subtitle: isHindi ? "12-अंकों का यूआईडी" : "12-digit UID",
+      icon: Fingerprint,
+      length: 12,
+      placeholder: isHindi ? "उदा. 7288 9123 0144" : "e.g. 7288 9123 0144",
+      demoValue: "728891230144",
+    },
+    {
+      id: AUTH_METHODS.MOBILE,
+      title: isHindi ? "मोबाइल नंबर" : "Mobile Number",
+      subtitle: isHindi ? "10-अंकों का फ़ोन" : "10-digit Phone",
+      icon: Phone,
+      length: 10,
+      placeholder: isHindi ? "उदा. 98765 43210" : "e.g. 98765 43210",
+      demoValue: "9876543210",
+    },
+  ];
 
   const currentTabConfig = TABS.find((t) => t.id === activeTab);
 
@@ -84,7 +83,6 @@ export const AuthScreen = () => {
   const formatDisplayValue = (raw) => {
     if (!raw) return "";
     if (activeTab === AUTH_METHODS.ABHA) {
-      // Format as 12-3456-7890-1234
       const parts = [];
       if (raw.length > 0) parts.push(raw.slice(0, 2));
       if (raw.length > 2) parts.push(raw.slice(2, 6));
@@ -93,7 +91,6 @@ export const AuthScreen = () => {
       return parts.join("-");
     }
     if (activeTab === AUTH_METHODS.AADHAAR) {
-      // Format as 1234 5678 9012
       const parts = [];
       for (let i = 0; i < raw.length; i += 4) {
         parts.push(raw.slice(i, i + 4));
@@ -112,7 +109,11 @@ export const AuthScreen = () => {
   // Request OTP handler
   const handleSendOtp = async () => {
     if (identifier.length !== currentTabConfig.length) {
-      setError(`Please enter a valid ${currentTabConfig.length}-digit ${currentTabConfig.title}`);
+      setError(
+        isHindi
+          ? `कृपया वैध ${currentTabConfig.length}-अंकों का ${currentTabConfig.title} दर्ज करें`
+          : `Please enter a valid ${currentTabConfig.length}-digit ${currentTabConfig.title}`
+      );
       return;
     }
 
@@ -132,18 +133,16 @@ export const AuthScreen = () => {
       setTransactionData(res);
       setStep("OTP");
       setOtp(["", "", "", "", "", ""]);
-      // Focus first OTP field
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 100);
     } catch (err) {
-      setError("Failed to generate OTP. Please try again.");
+      setError(isHindi ? "ओटीपी भेजने में विफल। कृपया पुनः प्रयास करें।" : "Failed to generate OTP. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle single OTP digit input
   const handleOtpDigitChange = (index, value) => {
     const digit = value.replace(/\D/g, "").slice(-1);
     const newOtp = [...otp];
@@ -151,20 +150,17 @@ export const AuthScreen = () => {
     setOtp(newOtp);
     setError("");
 
-    // Auto advance
     if (digit && index < 5) {
       otpInputsRef.current[index + 1]?.focus();
     }
   };
 
-  // Handle backspace in OTP
   const handleOtpKeyDown = (index, e) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpInputsRef.current[index - 1]?.focus();
     }
   };
 
-  // Handle pasting full 6 digits
   const handleOtpPaste = (e) => {
     e.preventDefault();
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
@@ -179,11 +175,10 @@ export const AuthScreen = () => {
     }
   };
 
-  // Verify OTP handler
   const handleVerifyOtp = async () => {
     const fullOtp = otp.join("");
     if (fullOtp.length !== 6) {
-      setError("Please enter the complete 6-digit OTP");
+      setError(isHindi ? "कृपया पूरा 6-अंकों का ओटीपी दर्ज करें" : "Please enter the complete 6-digit OTP");
       return;
     }
 
@@ -202,25 +197,22 @@ export const AuthScreen = () => {
 
       if (res.success && res.patient) {
         setVerifiedPatient(res.patient);
-        // Login successful -> navigate to M1
         setScreen(SCREENS.M1);
       } else {
-        setError("Invalid OTP. Please try again.");
+        setError(isHindi ? "अमान्य ओटीपी। कृपया पुनः प्रयास करें।" : "Invalid OTP. Please try again.");
       }
     } catch (err) {
-      setError("Authentication failed. Please verify the OTP.");
+      setError(isHindi ? "प्रमाणीकरण विफल। कृपया ओटीपी जांचें।" : "Authentication failed. Please verify the OTP.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fill sample demo data for quick testing
   const handleFillDemo = () => {
     setIdentifier(currentTabConfig.demoValue);
     setError("");
   };
 
-  // Fill sample 6-digit OTP
   const handleFillDemoOtp = () => {
     setOtp(["1", "2", "3", "4", "5", "6"]);
     setError("");
@@ -237,18 +229,30 @@ export const AuthScreen = () => {
             </div>
             <div>
               <span className="text-sm font-black tracking-wider text-teal-800">
-                AYUSHCARE
+                {t("app_name")}
               </span>
               <span className="text-[10px] ml-2 font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-                PATIENT PORTAL
+                {t("patient_portal")}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-            <span className="hidden xs:inline">ABDM / UIDAI Compliant</span>
-            <span className="xs:hidden">Secure</span>
+          <div className="flex items-center gap-2">
+            {/* Functional Language Toggle */}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              aria-label={isHindi ? "Switch to English" : "हिन्दी में बदलें"}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 active:scale-95 transition cursor-pointer shadow-2xs"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>{isHindi ? "हिन्दी" : "EN"}</span>
+            </button>
+
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
+              <span>{isHindi ? "डिजिटल स्वास्थ्य अनुपालित" : "ABDM Compliant"}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -260,20 +264,20 @@ export const AuthScreen = () => {
             {/* Step 1 Title */}
             <div className="space-y-1.5">
               <span className="text-[11px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 px-2.5 py-0.5 rounded-full">
-                Step 1 of 2 · Patient Authentication
+                {t("auth_step_badge")}
               </span>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                Log in to AyushCare
+                {t("auth_title")}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                Connect your health records securely via ABHA, Aadhaar, or your registered mobile number.
+                {t("auth_subtitle")}
               </p>
             </div>
 
             {/* 3-Method Tabs */}
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Select Login Method
+                {isHindi ? "लॉगिन विधि चुनें" : "Select Login Method"}
               </p>
               <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-slate-200/70 border border-slate-200">
                 {TABS.map((tab) => {
@@ -314,9 +318,9 @@ export const AuthScreen = () => {
                   <button
                     type="button"
                     onClick={handleFillDemo}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition"
+                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition cursor-pointer"
                   >
-                    Use Sample {currentTabConfig.title}
+                    {isHindi ? "नमूना भरें" : `Use Sample ${currentTabConfig.title}`}
                   </button>
                 </div>
 
@@ -345,16 +349,12 @@ export const AuthScreen = () => {
               <div className="p-3 rounded-2xl bg-teal-50/80 border border-teal-200/60 text-xs text-teal-900 flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  A 6-digit OTP will be sent to the mobile number registered with your{" "}
-                  <strong>{currentTabConfig.title}</strong>. For prototype testing, entering any 6-digit number will authenticate you.
+                  {t("auth_notice")}
                 </p>
               </div>
             </div>
 
-            {/* PATH B: KIOSK QR AUTO-CONNECT (Prompt 5) */}
-            {/* TODO: In production, kiosk QR should reference a secure short-lived session. */}
-            {/* TODO: Patient identity/session authorization must be validated server-side. */}
-            {/* TODO: Never trust patient identity or medical data supplied directly by QR. */}
+            {/* PATH B: KIOSK QR AUTO-CONNECT */}
             <div className="p-4 rounded-3xl bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/80 shadow-xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-teal-800 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -363,17 +363,17 @@ export const AuthScreen = () => {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h4 className="text-[10px] font-black uppercase tracking-wider text-teal-800">
-                      At Hospital?
+                      {t("auth_at_hospital")}
                     </h4>
                     <span className="text-[9px] font-bold bg-teal-200/70 text-teal-900 px-1.5 py-0.2 rounded">
-                      Fast Track
+                      {t("auth_fast_track_badge")}
                     </span>
                   </div>
                   <p className="text-xs font-bold text-slate-900">
-                    Scan Kiosk QR to Auto-Connect
+                    {t("auth_scan_kiosk_qr")}
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Skip login and link companion session directly
+                    {t("auth_skip_login_sub")}
                   </p>
                 </div>
               </div>
@@ -382,7 +382,7 @@ export const AuthScreen = () => {
                 onClick={() => setScreen(SCREENS.KIOSK_CONNECT)}
                 className="px-3 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shrink-0 shadow-xs active:scale-95"
               >
-                <span>Scan QR</span>
+                <span>{t("auth_btn_scan_qr")}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -394,16 +394,16 @@ export const AuthScreen = () => {
               <button
                 type="button"
                 onClick={() => setStep("INPUT")}
-                className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 mb-1"
+                className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 mb-1 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Change {currentTabConfig.title}</span>
+                <span>{isHindi ? "वापस बदलें" : `Change ${currentTabConfig.title}`}</span>
               </button>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                Enter 6-Digit OTP
+                {t("auth_otp_title")}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                We sent a 6-digit one-time password to your registered mobile number:{" "}
+                {t("auth_otp_subtitle")}{" "}
                 <strong className="text-slate-800">{transactionData?.maskedMobile || "+91 ******3210"}</strong>.
               </p>
             </div>
@@ -413,14 +413,14 @@ export const AuthScreen = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    One-Time Password
+                    {isHindi ? "वन-टाइम पासवर्ड (ओटीपी)" : "One-Time Password"}
                   </label>
                   <button
                     type="button"
                     onClick={handleFillDemoOtp}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition"
+                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition cursor-pointer"
                   >
-                    Autofill (123456)
+                    {t("auth_otp_autofill")}
                   </button>
                 </div>
 
@@ -449,14 +449,14 @@ export const AuthScreen = () => {
               </div>
 
               <div className="pt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100">
-                <span>Didn't receive OTP?</span>
+                <span>{t("auth_didnt_receive")}</span>
                 <button
                   type="button"
                   onClick={handleSendOtp}
                   disabled={loading}
                   className="font-bold text-teal-700 hover:text-teal-900 cursor-pointer disabled:opacity-50"
                 >
-                  Resend OTP
+                  {t("auth_resend_otp")}
                 </button>
               </div>
             </div>
@@ -473,7 +473,7 @@ export const AuthScreen = () => {
             disabled={identifier.length !== currentTabConfig.length}
             icon={ArrowRight}
           >
-            Get 6-Digit OTP →
+            {t("auth_btn_get_otp")}
           </PrimaryButton>
         ) : (
           <PrimaryButton
@@ -482,7 +482,7 @@ export const AuthScreen = () => {
             disabled={otp.join("").length !== 6}
             icon={CheckCircle2}
           >
-            Verify & Proceed to AyushCare
+            {t("auth_btn_verify")}
           </PrimaryButton>
         )}
       </BottomActionBar>

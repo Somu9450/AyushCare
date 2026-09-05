@@ -3,21 +3,19 @@ import {
   CalendarDays,
   Clock,
   MapPin,
-  Stethoscope,
   ChevronRight,
-  CheckCircle2,
   FileText,
-  AlertCircle,
-  Plus,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import { mockAppointments } from "../../data/mockData";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import AppointmentDetailsModal from "../../components/mobile/AppointmentDetailsModal";
+import useLanguage from "../../i18n/translations";
 
 export const AppointmentsScreen = () => {
-  const { setSelectedAppointment, setScreen } = useMobileStore();
+  const { setSelectedAppointment } = useMobileStore();
+  const { t, isHindi } = useLanguage();
   const [activeTab, setActiveTab] = useState("UPCOMING"); // "UPCOMING" | "PAST"
 
   const upcomingList = mockAppointments.upcoming || [];
@@ -27,7 +25,7 @@ export const AppointmentsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
       {/* Header */}
       <MobileHeader
-        title="My Appointments"
+        title={t("apt_title")}
         showBack={true}
       />
 
@@ -36,10 +34,12 @@ export const AppointmentsScreen = () => {
         {/* Intro */}
         <div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-            Consultations & Visits
+            {t("apt_title")}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Track your live OPD queue token, upcoming doctor check-ins, and past prescriptions.
+            {isHindi
+              ? "अपना लाइव ओपीडी कतार टोकन, आगामी डॉक्टर परामर्श और पिछले पर्चे ट्रैक करें।"
+              : "Track your live OPD queue token, upcoming doctor check-ins, and past prescriptions."}
           </p>
         </div>
 
@@ -55,7 +55,7 @@ export const AppointmentsScreen = () => {
             }`}
           >
             <CalendarDays className="w-4 h-4" />
-            <span>Upcoming ({upcomingList.length})</span>
+            <span>{isHindi ? `आगामी (${upcomingList.length})` : `Upcoming (${upcomingList.length})`}</span>
           </button>
 
           <button
@@ -68,7 +68,7 @@ export const AppointmentsScreen = () => {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Past History ({pastList.length})</span>
+            <span>{isHindi ? `पिछला इतिहास (${pastList.length})` : `Past History (${pastList.length})`}</span>
           </button>
         </div>
 
@@ -93,16 +93,16 @@ export const AppointmentsScreen = () => {
                       </span>
                       {apt.isToday && (
                         <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          Today's Visit · In Queue
+                          {isHindi ? "आज की मुलाकात · कतार में" : "Today's Visit · In Queue"}
                         </span>
                       )}
                     </div>
 
                     <h3 className="text-base font-bold text-slate-900 leading-snug">
-                      {apt.doctorName}
+                      {isHindi ? (apt.hindiDoctorName || apt.doctorName) : apt.doctorName}
                     </h3>
                     <p className="text-xs text-slate-500 font-medium">
-                      {apt.specialty}
+                      {isHindi ? (apt.hindiSpecialty || apt.specialty) : apt.specialty}
                     </p>
                   </div>
 
@@ -116,14 +116,14 @@ export const AppointmentsScreen = () => {
                   </div>
                   <div className="flex items-center gap-1.5 font-semibold text-slate-800">
                     <MapPin className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-                    <span>{apt.room}</span>
+                    <span>{isHindi ? `कक्ष ${apt.room?.replace(/\D/g, '') || apt.room}` : apt.room}</span>
                   </div>
                 </div>
 
                 {apt.isToday && apt.estimatedWaitTime && (
                   <div className="mt-2.5 p-2 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-between text-xs text-teal-950 font-bold">
-                    <span>Queue Status: {apt.queuePosition} patients ahead</span>
-                    <span className="text-[11px] font-normal text-teal-800">Est. {apt.estimatedWaitTime}</span>
+                    <span>{isHindi ? `कतार स्थिति: आपके आगे ${apt.queuePosition} मरीज़` : `Queue Status: ${apt.queuePosition} patients ahead`}</span>
+                    <span className="text-[11px] font-normal text-teal-800">{isHindi ? `अनुमानित: ${apt.estimatedWaitTime}` : `Est. ${apt.estimatedWaitTime}`}</span>
                   </div>
                 )}
               </div>
@@ -152,15 +152,15 @@ export const AppointmentsScreen = () => {
                     </div>
 
                     <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      {apt.doctorName}
+                      {isHindi ? (apt.hindiDoctorName || apt.doctorName) : apt.doctorName}
                     </h3>
                     <p className="text-xs font-semibold text-teal-800">
-                      {apt.diagnosis}
+                      {isHindi ? (apt.hindiDiagnosis || apt.diagnosis) : apt.diagnosis}
                     </p>
                   </div>
 
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                    Completed
+                    {isHindi ? "पूर्ण" : "Completed"}
                   </span>
                 </div>
 
@@ -171,9 +171,9 @@ export const AppointmentsScreen = () => {
                 )}
 
                 <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                  <span>Document: {apt.prescriptionDocument}</span>
+                  <span>{isHindi ? "दस्तावेज़" : "Document"}: {apt.prescriptionDocument}</span>
                   <span className="font-bold text-teal-700 hover:text-teal-900 flex items-center gap-0.5">
-                    View <ChevronRight className="w-3.5 h-3.5" />
+                    {isHindi ? "देखें" : "View"} <ChevronRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
               </div>

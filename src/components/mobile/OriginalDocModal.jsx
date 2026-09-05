@@ -2,6 +2,7 @@ import React from "react";
 import { X, FileText, Download, ZoomIn } from "lucide-react";
 import DocumentPreview from "./DocumentPreview";
 import useMobileStore from "../../store/useMobileStore";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * OriginalDocModal
@@ -10,6 +11,7 @@ import useMobileStore from "../../store/useMobileStore";
 export const OriginalDocModal = () => {
   const { isOriginalDocModalOpen, setOriginalDocModalOpen, capturedDocument } =
     useMobileStore();
+  const { isHindi } = useLanguage();
 
   if (!isOriginalDocModalOpen) return null;
 
@@ -30,10 +32,10 @@ export const OriginalDocModal = () => {
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold truncate text-slate-100">
-                {capturedDocument?.fileName || "Original Prescription"}
+                {capturedDocument?.fileName || (isHindi ? "मूल पर्ची / दस्तावेज़" : "Original Prescription")}
               </h3>
               <p className="text-[11px] text-slate-400">
-                Source Document · High Resolution Scan
+                {isHindi ? "मूल दस्तावेज़ · उच्च रिज़ॉल्यूशन स्कैन" : "Source Document · High Resolution Scan"}
               </p>
             </div>
           </div>
@@ -41,7 +43,7 @@ export const OriginalDocModal = () => {
           <button
             type="button"
             onClick={() => setOriginalDocModalOpen(false)}
-            aria-label="Close Original Document"
+            aria-label={isHindi ? "दस्तावेज़ बंद करें" : "Close Original Document"}
             className="w-9 h-9 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -62,8 +64,14 @@ export const OriginalDocModal = () => {
           </div>
 
           <div className="mt-3 p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 flex items-center justify-between">
-            <span>OCR Status: <strong>Extracted 3 medicines, 1 diagnosis</strong></span>
-            <span className="text-[11px] text-teal-400 font-semibold">100% Match</span>
+            <span>
+              {isHindi
+                ? "ओसीआर स्थिति: 3 दवाएं, 1 निदान निकाला गया"
+                : "OCR Status: Extracted 3 medicines, 1 diagnosis"}
+            </span>
+            <span className="text-[11px] text-teal-400 font-semibold">
+              {isHindi ? "100% मेल" : "100% Match"}
+            </span>
           </div>
         </div>
 
@@ -74,7 +82,7 @@ export const OriginalDocModal = () => {
             onClick={() => setOriginalDocModalOpen(false)}
             className="w-full min-h-[46px] rounded-xl bg-[#006666] hover:bg-[#005454] active:bg-[#004747] text-white font-bold text-sm cursor-pointer transition"
           >
-            Done Viewing
+            {isHindi ? "समीक्षा संपन्न" : "Done Viewing"}
           </button>
         </div>
       </div>

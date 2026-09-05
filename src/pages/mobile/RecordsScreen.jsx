@@ -3,7 +3,6 @@ import {
   FileText,
   UploadCloud,
   Clock,
-  Eye,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -12,7 +11,6 @@ import {
   Building2,
   FileSpreadsheet,
   FolderHeart,
-  FileCheck,
   Stethoscope,
   RotateCcw,
   Lock,
@@ -21,17 +19,8 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import OriginalDocModal from "../../components/mobile/OriginalDocModal";
+import useLanguage from "../../i18n/translations";
 
-/**
- * MEDICAL RECORDS HOME SCREEN
- * Central patient repository for uploaded, digitized, and synced medical records.
- * Features:
- * - Category summary cards (Prescriptions, Lab Reports, Discharge Summaries, Other Records)
- * - Chronological document view grouped by month
- * - Visit linkage indicators
- * - Processing status badges (Processed, Needs Review, Processing, Confirmed)
- * - Prominent Upload Document entry point leading to the existing upload flow
- */
 export const RecordsScreen = () => {
   const {
     medicalRecords,
@@ -42,6 +31,8 @@ export const RecordsScreen = () => {
     prevScreen,
     isHealthHistoryLocked,
   } = useMobileStore();
+
+  const { t, isHindi } = useLanguage();
 
   // Category counts
   const categoryCounts = useMemo(() => {
@@ -64,28 +55,28 @@ export const RecordsScreen = () => {
   const categories = [
     {
       id: "prescription",
-      title: "Prescriptions",
+      title: t("records_cat_prescription"),
       count: categoryCounts.prescription,
       icon: FileText,
       color: "teal",
     },
     {
       id: "lab_report",
-      title: "Lab Reports",
+      title: t("records_cat_lab_report"),
       count: categoryCounts.lab_report,
       icon: FileSpreadsheet,
       color: "blue",
     },
     {
       id: "discharge_summary",
-      title: "Discharge Summaries",
+      title: t("records_cat_discharge"),
       count: categoryCounts.discharge_summary,
       icon: Building2,
       color: "emerald",
     },
     {
       id: "other",
-      title: "Other Medical Records",
+      title: isHindi ? "अन्य चिकित्सीय रिकॉर्ड" : "Other Medical Records",
       count: categoryCounts.other,
       icon: FolderHeart,
       color: "amber",
@@ -104,14 +95,14 @@ export const RecordsScreen = () => {
   const groupedRecords = useMemo(() => {
     const groups = {};
     filteredRecords.forEach((rec) => {
-      const monthGroup = rec.monthGroup || "RECENT";
+      const monthGroup = rec.monthGroup || (isHindi ? "हाल ही में" : "RECENT");
       if (!groups[monthGroup]) {
         groups[monthGroup] = [];
       }
       groups[monthGroup].push(rec);
     });
     return groups;
-  }, [filteredRecords]);
+  }, [filteredRecords, isHindi]);
 
   const handleOpenDocument = (doc) => {
     setSelectedMedicalRecord(doc);
@@ -133,35 +124,35 @@ export const RecordsScreen = () => {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
             <CheckCircle2 className="w-3 h-3 text-teal-700" />
-            <span>Confirmed</span>
+            <span>{isHindi ? "सत्यापित" : "Confirmed"}</span>
           </span>
         );
       case "NEEDS_REVIEW":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
             <AlertCircle className="w-3 h-3 text-amber-600" />
-            <span>Needs Review</span>
+            <span>{isHindi ? "समीक्षा आवश्यक" : "Needs Review"}</span>
           </span>
         );
       case "PROCESSING":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
             <Clock className="w-3 h-3 text-blue-600 animate-spin" />
-            <span>Processing</span>
+            <span>{isHindi ? "प्रक्रिया जारी" : "Processing"}</span>
           </span>
         );
       case "FAILED":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
             <AlertCircle className="w-3 h-3 text-rose-600" />
-            <span>Failed</span>
+            <span>{isHindi ? "विफल" : "Failed"}</span>
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            <span>Processed</span>
+            <span>{isHindi ? "प्रसंस्कृत" : "Processed"}</span>
           </span>
         );
     }
@@ -171,7 +162,7 @@ export const RecordsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
       {/* Mobile Header with brand status */}
       <MobileHeader
-        title="Medical Records"
+        title={t("records_title")}
         showBack={true}
         onBack={prevScreen}
       />
@@ -182,34 +173,32 @@ export const RecordsScreen = () => {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-              Medical Records
+              {t("records_title")}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-              Your prescriptions, reports and other medical documents.
+              {isHindi ? "आपके पर्चे, रिपोर्ट और अन्य चिकित्सीय दस्तावेज़।" : "Your prescriptions, reports and other medical documents."}
             </p>
           </div>
 
           {isHealthHistoryLocked && (
             <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
               <Lock className="w-3 h-3 text-amber-700" />
-              <span>Sharing restricted</span>
+              <span>{isHindi ? "साझाकरण प्रतिबंधित" : "Sharing restricted"}</span>
             </span>
           )}
         </div>
 
-        {/* -------------------------------------------------------------
-            PROMINENT DOCUMENT UPLOAD CTA BANNER
-        -------------------------------------------------------------- */}
+        {/* PROMINENT DOCUMENT UPLOAD CTA BANNER */}
         <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-teal-800 to-teal-950 text-white shadow-md flex items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200 bg-teal-700/60 px-2 py-0.5 rounded">
-              Digitize & Analyze
+              {isHindi ? "डिजिटाइज़ एवं विश्लेषण" : "Digitize & Analyze"}
             </span>
             <h3 className="text-base sm:text-lg font-black leading-tight text-white">
-              Upload Medical Document
+              {isHindi ? "चिकित्सीय दस्तावेज़ अपलोड करें" : "Upload Medical Document"}
             </h3>
             <p className="text-xs text-teal-100/90 leading-snug">
-              Scan prescriptions or upload lab test PDFs to fast-track your consultation.
+              {isHindi ? "पर्चे स्कैन करें या लैब टेस्ट पीडीएफ अपलोड करें।" : "Scan prescriptions or upload lab test PDFs to fast-track your consultation."}
             </p>
           </div>
 
@@ -219,17 +208,15 @@ export const RecordsScreen = () => {
             className="shrink-0 h-11 px-4 rounded-2xl bg-white text-teal-950 hover:bg-teal-50 active:scale-95 font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-sm"
           >
             <UploadCloud className="w-4 h-4 text-teal-800" />
-            <span>Upload</span>
+            <span>{isHindi ? "अपलोड" : "Upload"}</span>
           </button>
         </div>
 
-        {/* -------------------------------------------------------------
-            RECORD CATEGORY CARDS
-        -------------------------------------------------------------- */}
+        {/* RECORD CATEGORY CARDS */}
         <section aria-label="Record Categories" className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Categories
+              {isHindi ? "श्रेणियां" : "Categories"}
             </h3>
             {selectedRecordCategory !== "ALL" && (
               <button
@@ -238,7 +225,7 @@ export const RecordsScreen = () => {
                 className="text-xs font-bold text-teal-800 hover:text-teal-950 flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>Show All</span>
+                <span>{isHindi ? "सभी दिखाएं" : "Show All"}</span>
               </button>
             )}
           </div>
@@ -289,7 +276,7 @@ export const RecordsScreen = () => {
                       {cat.title}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      {cat.count} {cat.count === 1 ? "record" : "records"}
+                      {cat.count} {isHindi ? "रिकॉर्ड" : (cat.count === 1 ? "record" : "records")}
                     </p>
                   </div>
                 </button>
@@ -298,15 +285,13 @@ export const RecordsScreen = () => {
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            ALL RECORDS VIEW (Chronological list grouped by month)
-        -------------------------------------------------------------- */}
+        {/* ALL RECORDS VIEW */}
         <section aria-label="All Records" className="space-y-4 pt-1">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               {selectedRecordCategory === "ALL"
-                ? "All Records"
-                : `${categories.find((c) => c.id === selectedRecordCategory)?.title || "Filtered"} Records`}{" "}
+                ? (isHindi ? "सभी रिकॉर्ड" : "All Records")
+                : `${categories.find((c) => c.id === selectedRecordCategory)?.title || (isHindi ? "फ़िल्टर किए गए" : "Filtered")} ${isHindi ? "रिकॉर्ड" : "Records"}`}{" "}
               ({filteredRecords.length})
             </h3>
 
@@ -316,7 +301,7 @@ export const RecordsScreen = () => {
               className="text-xs font-bold text-teal-800 hover:text-teal-950 cursor-pointer flex items-center gap-1"
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Timeline →</span>
+              <span>{isHindi ? "समयरेखा →" : "Timeline →"}</span>
             </button>
           </div>
 
@@ -327,10 +312,10 @@ export const RecordsScreen = () => {
                 <FileText className="w-7 h-7" />
               </div>
               <h4 className="text-base font-bold text-slate-900">
-                No medical records yet.
+                {isHindi ? "अभी तक कोई चिकित्सीय रिकॉर्ड नहीं।" : "No medical records yet."}
               </h4>
               <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                Your uploaded prescriptions and reports will appear here.
+                {isHindi ? "आपके अपलोड किए गए पर्चे और रिपोर्ट यहाँ प्रदर्शित होंगी।" : "Your uploaded prescriptions and reports will appear here."}
               </p>
               <button
                 type="button"
@@ -338,7 +323,7 @@ export const RecordsScreen = () => {
                 className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-teal-800 hover:bg-teal-900 transition cursor-pointer"
               >
                 <UploadCloud className="w-3.5 h-3.5" />
-                <span>Upload First Document</span>
+                <span>{isHindi ? "पहला दस्तावेज़ अपलोड करें" : "Upload First Document"}</span>
               </button>
             </div>
           ) : (
@@ -371,7 +356,7 @@ export const RecordsScreen = () => {
                         {/* Top: Type Badge & Status */}
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 uppercase tracking-wide">
-                            {doc.typeLabel || doc.type}
+                            {isHindi ? (doc.type === "prescription" ? "पर्चे" : doc.type === "lab_report" ? "लैब रिपोर्ट" : doc.typeLabel || doc.type) : (doc.typeLabel || doc.type)}
                           </span>
                           {renderStatusBadge(doc.status)}
                         </div>
@@ -391,11 +376,11 @@ export const RecordsScreen = () => {
                           </div>
                         </div>
 
-                        {/* Visit Association Link (if present) */}
+                        {/* Visit Association Link */}
                         {doc.visitId && (
                           <div className="pt-1.5 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-teal-800 font-semibold">
                             <Stethoscope className="w-3 h-3 text-teal-700 shrink-0" />
-                            <span>Linked to Visit Encounter</span>
+                            <span>{isHindi ? "मुलाकात से लिंक किया गया" : "Linked to Visit Encounter"}</span>
                           </div>
                         )}
 
@@ -403,7 +388,7 @@ export const RecordsScreen = () => {
                         <div className="pt-1 flex items-center justify-between text-xs text-slate-400 border-t border-slate-100">
                           <span>{doc.fileSize || "1.4 MB"}</span>
                           <span className="font-bold text-teal-800 group-hover:text-teal-950 flex items-center gap-0.5 transition-transform group-hover:translate-x-0.5">
-                            <span>View</span>
+                            <span>{isHindi ? "देखें" : "View"}</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </span>
                         </div>
@@ -419,7 +404,7 @@ export const RecordsScreen = () => {
         {/* DPDP Compliance Notice */}
         <div className="p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-teal-800 shrink-0" />
-          <span>All documents are securely encrypted and linked with ABDM Health Locker.</span>
+          <span>{isHindi ? "सभी दस्तावेज़ सुरक्षित रूप से एन्क्रिप्टेड हैं और आभा हेल्थ लॉकर से जुड़े हैं।" : "All documents are securely encrypted and linked with ABDM Health Locker."}</span>
         </div>
       </main>
 

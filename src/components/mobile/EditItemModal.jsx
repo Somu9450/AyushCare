@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Check, Edit3 } from "lucide-react";
 import useMobileStore from "../../store/useMobileStore";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * EditItemModal
@@ -9,6 +10,7 @@ import useMobileStore from "../../store/useMobileStore";
 export const EditItemModal = () => {
   const { editingEntity, setEditingEntity, updateMedicine, updateDiagnosis } =
     useMobileStore();
+  const { isHindi } = useLanguage();
 
   const [name, setName] = useState("");
   const [dosage, setDosage] = useState("");
@@ -44,6 +46,8 @@ export const EditItemModal = () => {
     setEditingEntity(null);
   };
 
+  const isMedicine = editingEntity.type === "medicine";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150"
@@ -60,9 +64,13 @@ export const EditItemModal = () => {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 leading-tight">
-                {editingEntity.type === "medicine" ? "Edit Medication" : "Edit Diagnosis"}
+                {isMedicine
+                  ? (isHindi ? "दवा संपादित करें" : "Edit Medication")
+                  : (isHindi ? "निदान संपादित करें" : "Edit Diagnosis")}
               </h3>
-              <p className="text-[11px] text-slate-500">Correct OCR reading</p>
+              <p className="text-[11px] text-slate-500">
+                {isHindi ? "ओसीआर पठन सुधारें" : "Correct OCR reading"}
+              </p>
             </div>
           </div>
           <button
@@ -77,7 +85,9 @@ export const EditItemModal = () => {
         <form onSubmit={handleSave} className="space-y-3.5">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              {editingEntity.type === "medicine" ? "Medicine Name & Strength" : "Diagnosis Title"}
+              {isMedicine
+                ? (isHindi ? "दवा का नाम व मात्रा" : "Medicine Name & Strength")
+                : (isHindi ? "निदान शीर्षक" : "Diagnosis Title")}
             </label>
             <input
               type="text"
@@ -85,35 +95,35 @@ export const EditItemModal = () => {
               onChange={(e) => setName(e.target.value)}
               required
               className="w-full h-12 px-3.5 rounded-xl border border-slate-300 text-sm font-semibold focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none"
-              placeholder="e.g. Paracetamol 650 mg"
+              placeholder={isHindi ? "उदा. पैरासिटामोल 650 mg" : "e.g. Paracetamol 650 mg"}
             />
           </div>
 
-          {editingEntity.type === "medicine" && (
+          {isMedicine && (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Dosage
+                    {isHindi ? "खुराक" : "Dosage"}
                   </label>
                   <input
                     type="text"
                     value={dosage}
                     onChange={(e) => setDosage(e.target.value)}
                     className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none"
-                    placeholder="e.g. 650 mg"
+                    placeholder={isHindi ? "उदा. 650 mg" : "e.g. 650 mg"}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Schedule / Timing
+                    {isHindi ? "समय / अनुसूची" : "Schedule / Timing"}
                   </label>
                   <input
                     type="text"
                     value={schedule}
                     onChange={(e) => setSchedule(e.target.value)}
                     className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm font-semibold focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-none"
-                    placeholder="e.g. BD · Twice daily"
+                    placeholder={isHindi ? "उदा. दिन में दो बार" : "e.g. BD · Twice daily"}
                   />
                 </div>
               </div>
@@ -126,14 +136,14 @@ export const EditItemModal = () => {
               onClick={() => setEditingEntity(null)}
               className="flex-1 min-h-[48px] rounded-xl border border-slate-300 font-bold text-sm text-slate-700 hover:bg-slate-50 transition"
             >
-              Cancel
+              {isHindi ? "रद्द करें" : "Cancel"}
             </button>
             <button
               type="submit"
               className="flex-1 min-h-[48px] rounded-xl bg-[#006666] hover:bg-[#005454] active:bg-[#004747] text-white font-bold text-sm transition flex items-center justify-center gap-2"
             >
               <Check className="w-4 h-4" />
-              Save Correction
+              {isHindi ? "सुधार सहेजें" : "Save Correction"}
             </button>
           </div>
         </form>

@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertCircle, ShieldAlert, Info } from "lucide-react";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * WarningBanner
@@ -11,10 +12,17 @@ import { AlertCircle, ShieldAlert, Info } from "lucide-react";
  */
 export const WarningBanner = ({
   variant = "warning", // 'warning' | 'info' | 'caution'
-  title = "Please verify highlighted information.",
+  title,
   children,
   className = "",
 }) => {
+  const { isHindi } = useLanguage();
+
+  const defaultTitle = title || (isHindi ? "कृपया हाइलाइट की गई जानकारी सत्यापित करें।" : "Please verify highlighted information.");
+  const defaultMessage = isHindi
+    ? "हम केवल दस्तावेज़ पठन को सही कर रहे हैं। यह कोई चिकित्सीय निर्णय नहीं है।"
+    : "We are only correcting document reading. This is not a clinical decision.";
+
   const styles = {
     warning: {
       container: "bg-amber-50/90 border-amber-300 text-amber-900",
@@ -42,12 +50,12 @@ export const WarningBanner = ({
     >
       {current.icon}
       <div className="text-xs leading-relaxed min-w-0">
-        {title && <p className={`${current.titleColor} text-sm mb-0.5`}>{title}</p>}
+        {defaultTitle && <p className={`${current.titleColor} text-sm mb-0.5`}>{defaultTitle}</p>}
         {children ? (
           <div className="space-y-1">{children}</div>
         ) : (
           <p className="opacity-90">
-            We are only correcting document reading. This is not a clinical decision.
+            {defaultMessage}
           </p>
         )}
       </div>

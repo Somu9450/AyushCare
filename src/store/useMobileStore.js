@@ -7,9 +7,9 @@ import {
   mockDefaultDocument,
   mockMedicalRecords,
   mockPrivacyData,
-} from "../data/mockData";
-import { analyzeDocumentOCR } from "../services/documentService";
-import { sendSummaryToDoctor } from "../services/summaryService";
+} from "../data/mockData.js";
+import { analyzeDocumentOCR } from "../services/documentService.js";
+import { sendSummaryToDoctor } from "../services/summaryService.js";
 
 export const SCREENS = {
   AUTH: "AUTH", // Patient Authentication (ABHA / Aadhaar / Mobile OTP)
@@ -211,11 +211,201 @@ export const useMobileStore = create((set, get) => ({
   },
 
   /* -------------------------------------------------------------------------- */
-  /* DOCUMENT SELECTION & CAPTURE                                               */
+  /* DOCUMENT SELECTION, CAPTURE & SET CLUSTERING                               */
   /* -------------------------------------------------------------------------- */
   selectedDocumentType: "prescription",
   capturedDocument: { ...mockDefaultDocument },
   capturedDocuments: [{ ...mockDefaultDocument }],
+
+  // Document Sets / Clusters: group pages into sets (e.g., Blood Report - 3 pages, CT Scan - 4 pages)
+  documentSets: [
+    {
+      id: "set_default",
+      title: "Prescription / OPD Slip",
+      type: "prescription",
+      pages: [{ ...mockDefaultDocument, id: "page_init_01", pageNumber: 1, parentSetId: "set_default", parentSetTitle: "Prescription / OPD Slip" }],
+    },
+  ],
+  activeSetId: "set_default",
+  retargetPageForRetake: null, // { setId, pageId, pageIndex, pageTitle }
+
+  setActiveSetId: (id) => set({ activeSetId: id }),
+  setRetargetPageForRetake: (target) => set({ retargetPageForRetake: target }),
+
+  createDocumentSet: (title = "New Document Report", type = "lab_report") => {
+    const newId = `set_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const newSet = {
+      id: newId,
+      title,
+      type,
+      pages: [],
+    };
+    set((state) => ({
+      documentSets: [...state.documentSets, newSet],
+      activeSetId: newId,
+    }));
+    return newId;
+  },
+
+  deleteDocumentSet: (setId) => {
+    set((state) => {
+      if (state.documentSets.length <= 1) {
+        const resetSet = {
+          id: "set_default",
+          title: "Prescription / OPD Slip",
+          type: "prescription",
+          pages: [],
+        };
+        return {
+          documentSets: [resetSet],
+          activeSetId: "set_default",
+          capturedDocuments: [],
+          capturedDocument: { ...mockDefaultDocument },
+        };
+      }
+      const remaining = state.documentSets.filter((s) => s.id !== setId);
+      const allPages = remaining.flatMap((s) => s.pages);
+      return {
+        documentSets: remaining,
+        activeSetId: remaining[0]?.id || "set_default",
+        capturedDocuments: allPages,
+        capturedDocument: allPages[0] || { ...mockDefaultDocument },
+      };
+    });
+  },
+
+  updateDocumentSetTitle: (setId, newTitle, newType) => {
+    set((state) => ({
+      documentSets: state.documentSets.map((s) =>
+        s.id === setId
+          ? {
+              ...s,
+              title: newTitle || s.title,
+              type: newType || s.type,
+              pages: s.pages.map((p) => ({ ...p, parentSetTitle: newTitle || s.title })),
+            }
+          : s
+      ),
+    }));
+  },
+
+  addPageToSet: (setId, pageData) => {
+    set((state) => {
+      const targetSetId = setId || state.activeSetId || state.documentSets[0]?.id;
+      const updatedSets = state.documentSets.map((s) => {
+        if (s.id !== targetSetId) return s;
+        const pageNumber = s.pages.length + 1;
+        const formattedPage = {
+          ...mockDefaultDocument,
+          ...pageData,
+          id: pageData.id || `page_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          pageNumber,
+          parentSetId: s.id,
+          parentSetTitle: s.title,
+          documentType: s.type || state.selectedDocumentType || "prescription",
+        };
+        return {
+          ...s,
+          pages: [...s.pages, formattedPage],
+        };
+      });
+      const allPages = updatedSets.flatMap((s) => s.pages);
+      return {
+        documentSets: updatedSets,
+        capturedDocuments: allPages,
+        capturedDocument: allPages[0] || { ...mockDefaultDocument },
+      };
+    });
+  },
+
+  replacePageInSet: (setId, pageId, newPageData) => {
+    set((state) => {
+      const updatedSets = state.documentSets.map((s) => {
+        if (s.id !== setId) return s;
+        return {
+          ...s,
+          pages: s.pages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  ...newPageData,
+                  id: p.id,
+                  pageNumber: p.pageNumber,
+                  parentSetId: s.id,
+                  parentSetTitle: s.title,
+                }
+              : p
+          ),
+        };
+      });
+      const allPages = updatedSets.flatMap((s) => s.pages);
+      return {
+        documentSets: updatedSets,
+        capturedDocuments: allPages,
+        capturedDocument: allPages[0] || { ...mockDefaultDocument },
+        retargetPageForRetake: null, // Clear retarget state
+      };
+    });
+  },
+
+  removePageFromSet: (setId, pageId) => {
+    set((state) => {
+      const updatedSets = state.documentSets.map((s) => {
+        if (s.id !== setId) return s;
+        const remainingPages = s.pages
+          .filter((p) => p.id !== pageId)
+          .map((p, idx) => ({ ...p, pageNumber: idx + 1 }));
+        return {
+          ...s,
+          pages: remainingPages,
+        };
+      });
+      const allPages = updatedSets.flatMap((s) => s.pages);
+      return {
+        documentSets: updatedSets,
+        capturedDocuments: allPages,
+        capturedDocument: allPages[0] || { ...mockDefaultDocument },
+      };
+    });
+  },
+
+  movePageBetweenSets: (fromSetId, toSetId, pageId) => {
+    set((state) => {
+      const fromSet = state.documentSets.find((s) => s.id === fromSetId);
+      const targetPage = fromSet?.pages.find((p) => p.id === pageId);
+      if (!targetPage) return state;
+
+      const updatedSets = state.documentSets.map((s) => {
+        if (s.id === fromSetId) {
+          return {
+            ...s,
+            pages: s.pages
+              .filter((p) => p.id !== pageId)
+              .map((p, idx) => ({ ...p, pageNumber: idx + 1 })),
+          };
+        }
+        if (s.id === toSetId) {
+          const newPage = {
+            ...targetPage,
+            pageNumber: s.pages.length + 1,
+            parentSetId: s.id,
+            parentSetTitle: s.title,
+          };
+          return {
+            ...s,
+            pages: [...s.pages, newPage],
+          };
+        }
+        return s;
+      });
+      const allPages = updatedSets.flatMap((s) => s.pages);
+      return {
+        documentSets: updatedSets,
+        capturedDocuments: allPages,
+        capturedDocument: allPages[0] || { ...mockDefaultDocument },
+      };
+    });
+  },
   
   setSelectedDocumentType: (typeId) => {
     set({ selectedDocumentType: typeId });
@@ -280,6 +470,16 @@ export const useMobileStore = create((set, get) => ({
     set({
       capturedDocuments: [],
       capturedDocument: { ...mockDefaultDocument },
+      documentSets: [
+        {
+          id: "set_default",
+          title: "Prescription / OPD Slip",
+          type: "prescription",
+          pages: [],
+        },
+      ],
+      activeSetId: "set_default",
+      retargetPageForRetake: null,
     });
   },
 
@@ -350,59 +550,117 @@ export const useMobileStore = create((set, get) => ({
       confidence: "HIGH",
     };
 
-    // Auto-create persistent medical record entries for all captured documents
-    const docList =
-      state.capturedDocuments && state.capturedDocuments.length > 0
-        ? state.capturedDocuments
-        : [state.capturedDocument];
+    // Auto-create persistent medical record entries for all captured document sets
+    const setsWithPages = (state.documentSets || []).filter((s) => s.pages && s.pages.length > 0);
+    let newRecords = [];
 
-    const newRecords = docList.map((doc, idx) => {
-      const newDocId = `DOC-${Date.now().toString().slice(-4)}${docList.length > 1 ? `-${idx + 1}` : ""}`;
-      const pageSuffix = docList.length > 1 ? ` (Page ${idx + 1} of ${docList.length})` : "";
-      return {
-        id: newDocId,
-        type: state.selectedDocumentType || "prescription",
-        typeLabel:
-          state.selectedDocumentType === "lab_report"
-            ? "Lab Report"
-            : state.selectedDocumentType === "discharge_summary"
-            ? "Discharge Summary"
-            : state.selectedDocumentType === "other"
-            ? "Other Medical Record"
-            : "Prescription",
-        title: doc.fileName ? `${doc.fileName.replace(/\.[^/.]+$/, "")}${pageSuffix}.pdf` : `Document${pageSuffix}.pdf`,
-        date: new Date().toISOString().split("T")[0],
-        displayDate: doc.date || "Today",
-        monthGroup: "RECENT",
-        source: doc.clinic || "Civil Hospital OPD",
-        doctor: doc.doctor || "Consulting Physician",
-        clinic: doc.clinic || "OPD Desk",
-        status: "CONFIRMED",
-        statusLabel: "Confirmed",
-        visitId: "VISIT-001", // Associated with current active hospital session
-        sessionId: state.session.sessionId,
-        fileSize: doc.fileSize || "1.4 MB",
-        dataUrl: doc.dataUrl,
-        pageNumber: idx + 1,
-        totalPages: docList.length,
-        extractedInformation: {
-          medicines: verifiedMedicines,
-          diagnosis: [verifiedDiagnosis],
-          prescriptionDate:
-            state.extractedData.prescriptionDate || doc.date || "Today",
-        },
-      };
-    });
+    if (setsWithPages.length > 0) {
+      setsWithPages.forEach((docSet) => {
+        const setPages = docSet.pages;
+        const setRecords = setPages.map((doc, idx) => {
+          const newDocId = `DOC-${Date.now().toString().slice(-4)}-${docSet.id.slice(-4)}-${idx + 1}`;
+          const pageSuffix = setPages.length > 1 ? ` (Page ${idx + 1} of ${setPages.length})` : "";
+          const typeLabel =
+            docSet.type === "lab_report"
+              ? "Lab Report"
+              : docSet.type === "discharge_summary"
+              ? "Discharge Summary"
+              : docSet.type === "other"
+              ? "Other Medical Record"
+              : "Prescription";
+
+          return {
+            id: newDocId,
+            type: docSet.type || state.selectedDocumentType || "prescription",
+            typeLabel,
+            title: `${docSet.title}${pageSuffix}.pdf`,
+            date: new Date().toISOString().split("T")[0],
+            displayDate: doc.date || "Today",
+            monthGroup: "RECENT",
+            source: doc.clinic || "Civil Hospital OPD",
+            doctor: doc.doctor || "Consulting Physician",
+            clinic: doc.clinic || "OPD Desk",
+            status: "CONFIRMED",
+            statusLabel: "Confirmed",
+            visitId: "VISIT-001",
+            sessionId: state.session.sessionId,
+            fileSize: doc.fileSize || "1.4 MB",
+            dataUrl: doc.dataUrl,
+            pageNumber: idx + 1,
+            totalPages: setPages.length,
+            documentSetName: docSet.title,
+            extractedInformation: {
+              medicines: verifiedMedicines,
+              diagnosis: [verifiedDiagnosis],
+              prescriptionDate:
+                state.extractedData.prescriptionDate || doc.date || "Today",
+            },
+          };
+        });
+        newRecords.push(...setRecords);
+      });
+    } else {
+      const docList =
+        state.capturedDocuments && state.capturedDocuments.length > 0
+          ? state.capturedDocuments
+          : [state.capturedDocument];
+
+      newRecords = docList.map((doc, idx) => {
+        const newDocId = `DOC-${Date.now().toString().slice(-4)}${docList.length > 1 ? `-${idx + 1}` : ""}`;
+        const pageSuffix = docList.length > 1 ? ` (Page ${idx + 1} of ${docList.length})` : "";
+        return {
+          id: newDocId,
+          type: state.selectedDocumentType || "prescription",
+          typeLabel:
+            state.selectedDocumentType === "lab_report"
+              ? "Lab Report"
+              : state.selectedDocumentType === "discharge_summary"
+              ? "Discharge Summary"
+              : state.selectedDocumentType === "other"
+              ? "Other Medical Record"
+              : "Prescription",
+          title: doc.fileName ? `${doc.fileName.replace(/\.[^/.]+$/, "")}${pageSuffix}.pdf` : `Document${pageSuffix}.pdf`,
+          date: new Date().toISOString().split("T")[0],
+          displayDate: doc.date || "Today",
+          monthGroup: "RECENT",
+          source: doc.clinic || "Civil Hospital OPD",
+          doctor: doc.doctor || "Consulting Physician",
+          clinic: doc.clinic || "OPD Desk",
+          status: "CONFIRMED",
+          statusLabel: "Confirmed",
+          visitId: "VISIT-001",
+          sessionId: state.session.sessionId,
+          fileSize: doc.fileSize || "1.4 MB",
+          dataUrl: doc.dataUrl,
+          pageNumber: idx + 1,
+          totalPages: docList.length,
+          extractedInformation: {
+            medicines: verifiedMedicines,
+            diagnosis: [verifiedDiagnosis],
+            prescriptionDate:
+              state.extractedData.prescriptionDate || doc.date || "Today",
+          },
+        };
+      });
+    }
 
     const primaryRecord = newRecords[0];
+    const totalSetsCount = setsWithPages.length;
+    const totalPagesCount = newRecords.length;
 
     // Auto-create medical timeline entry
     const newTimelineEntry = {
       id: `tl_${Date.now()}`,
       year: "2026",
       timeLabel: "TODAY",
-      title: `${primaryRecord.typeLabel} processed${docList.length > 1 ? ` (${docList.length} pages)` : ""}`,
-      subtitle: `${primaryRecord.title} · ${verifiedDiagnosis.name || "Medical record"}`,
+      title:
+        totalSetsCount > 1
+          ? `${totalSetsCount} Document Sets Processed (${totalPagesCount} pages)`
+          : `${primaryRecord.typeLabel} processed${totalPagesCount > 1 ? ` (${totalPagesCount} pages)` : ""}`,
+      subtitle:
+        totalSetsCount > 1
+          ? setsWithPages.map((s) => `${s.title} (${s.pages.length}p)`).join(", ")
+          : `${primaryRecord.title} · ${verifiedDiagnosis.name || "Medical record"}`,
       source: primaryRecord.typeLabel,
       sourceType: "DOCUMENT",
       badgeColor: "teal",

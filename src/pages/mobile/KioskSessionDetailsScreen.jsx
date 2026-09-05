@@ -7,18 +7,14 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   XCircle,
   ExternalLink,
-  Info,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
-
-// TODO: Replace mock kiosk session validation with backend API.
-// TODO: Connect to real hospital kiosk session service for teardown.
+import useLanguage from "../../i18n/translations";
 
 export const KioskSessionDetailsScreen = () => {
   const {
@@ -28,6 +24,8 @@ export const KioskSessionDetailsScreen = () => {
     isHealthHistoryLocked,
   } = useMobileStore();
 
+  const { t, isHindi } = useLanguage();
+
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
@@ -36,7 +34,7 @@ export const KioskSessionDetailsScreen = () => {
   const handleEndSession = () => {
     disconnectKioskSession();
     setShowConfirmModal(false);
-    setToastMessage("Session ended");
+    setToastMessage(isHindi ? "सत्र समाप्त हुआ" : "Session ended");
     setTimeout(() => {
       setToastMessage("");
     }, 3000);
@@ -46,7 +44,7 @@ export const KioskSessionDetailsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
       {/* Header */}
       <MobileHeader
-        title="Kiosk Session"
+        title={t("kiosk_session_title")}
         showBack={true}
         onBack={() => setScreen(SCREENS.M1)}
       />
@@ -79,7 +77,7 @@ export const KioskSessionDetailsScreen = () => {
                   isActive ? "text-teal-200" : "text-slate-500"
                 }`}
               >
-                Hospital Terminal
+                {t("kiosk_terminal_heading")}
               </span>
             </div>
 
@@ -90,16 +88,16 @@ export const KioskSessionDetailsScreen = () => {
                   : "bg-slate-100 text-slate-500 border-slate-200"
               }`}
             >
-              {isActive ? "● Session Active" : "Disconnected / Ended"}
+              {isActive ? t("kiosk_status_active") : t("kiosk_status_ended")}
             </span>
           </div>
 
           <div className="space-y-1">
             <h2 className={`text-2xl font-black ${isActive ? "text-white" : "text-slate-900"}`}>
-              {kioskSession?.kioskName || "Hospital OPD Kiosk"}
+              {kioskSession?.kioskName || (isHindi ? "अस्पताल ओपीडी कियोस्क" : "Hospital OPD Kiosk")}
             </h2>
             <p className={`text-xs font-mono ${isActive ? "text-teal-200/80" : "text-slate-500"}`}>
-              Terminal: {kioskSession?.terminalId || "KIOSK-DELHI-OPD-03"} · Reference: {kioskSession?.sessionToken || "MK-2026-0905-ABC123"}
+              {isHindi ? "टर्मिनल" : "Terminal"}: {kioskSession?.terminalId || "KIOSK-03"} · {isHindi ? "संदर्भ" : "Reference"}: {kioskSession?.sessionToken || "MK-2026-0905"}
             </p>
           </div>
         </div>
@@ -107,31 +105,33 @@ export const KioskSessionDetailsScreen = () => {
         {/* Detailed Metadata Card */}
         <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-            Session Details
+            {t("kiosk_details_heading")}
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold uppercase text-[10px]">
-                Hospital Name
+                {t("kiosk_hospital_name")}
               </span>
               <p className="font-bold text-slate-800 text-sm">
-                {kioskSession?.hospitalName || "MediKiosk Demo Hospital"}
+                {isHindi
+                  ? (kioskSession?.hindiHospitalName || "मेडीकियोस्क अस्पताल")
+                  : (kioskSession?.hospitalName || "MediKiosk Demo Hospital")}
               </p>
             </div>
 
             <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold uppercase text-[10px]">
-                Department
+                {t("kiosk_department")}
               </span>
               <p className="font-bold text-slate-800 text-sm">
-                {kioskSession?.department || "General OPD"}
+                {isHindi ? "सामान्य ओपीडी" : (kioskSession?.department || "General OPD")}
               </p>
             </div>
 
             <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold uppercase text-[10px]">
-                Connected Time
+                {t("kiosk_connected_time")}
               </span>
               <p className="font-bold text-slate-800 text-sm">
                 {kioskSession?.connectedAt || "05 Sep 2026 · 10:30 AM"}
@@ -140,7 +140,7 @@ export const KioskSessionDetailsScreen = () => {
 
             <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold uppercase text-[10px]">
-                Session Expires
+                {t("kiosk_session_expires")}
               </span>
               <p className="font-bold text-slate-800 text-sm">
                 {kioskSession?.expiresAt || "05 Sep 2026 · 11:00 AM"}
@@ -150,10 +150,10 @@ export const KioskSessionDetailsScreen = () => {
 
           <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
             <span className="text-slate-400 font-bold uppercase text-[10px]">
-              Location & Floor
+              {t("kiosk_location")}
             </span>
             <p className="font-bold text-slate-800 mt-0.5">
-              {kioskSession?.location || "Civil Hospital Waiting Lobby, Ground Floor"}
+              {isHindi ? "नागरिक अस्पताल प्रतीक्षालय, भूतल" : (kioskSession?.location || "Civil Hospital Waiting Lobby, Ground Floor")}
             </p>
           </div>
         </div>
@@ -164,7 +164,7 @@ export const KioskSessionDetailsScreen = () => {
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-teal-700" />
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                Information Sharing Governance
+                {t("kiosk_privacy_gov")}
               </h3>
             </div>
             <button
@@ -172,7 +172,7 @@ export const KioskSessionDetailsScreen = () => {
               onClick={() => setScreen(SCREENS.PRIVACY)}
               className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
             >
-              <span>Manage</span>
+              <span>{t("kiosk_manage")}</span>
               <ExternalLink className="w-3 h-3" />
             </button>
           </div>
@@ -192,11 +192,11 @@ export const KioskSessionDetailsScreen = () => {
             <div className="text-xs space-y-1">
               <p className="font-bold">
                 {isHealthHistoryLocked
-                  ? "Health history sharing: Restricted"
-                  : "Health history sharing: Allowed"}
+                  ? t("kiosk_sharing_restricted")
+                  : t("kiosk_sharing_allowed")}
               </p>
               <p className="text-slate-600 leading-relaxed text-[11px]">
-                Controlled strictly by your Privacy & Data settings. The kiosk can only access records permitted under your active consents.
+                {t("kiosk_sharing_sub")}
               </p>
             </div>
           </div>
@@ -211,7 +211,7 @@ export const KioskSessionDetailsScreen = () => {
               className="w-full min-h-[50px] p-3 rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs active:scale-[0.99]"
             >
               <XCircle className="w-4 h-4" />
-              <span>End Kiosk Session</span>
+              <span>{t("kiosk_btn_end_session")}</span>
             </button>
           ) : (
             <button
@@ -219,7 +219,7 @@ export const KioskSessionDetailsScreen = () => {
               onClick={() => setScreen(SCREENS.KIOSK_CONNECT)}
               className="w-full min-h-[50px] p-3 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs active:scale-[0.99]"
             >
-              <span>Connect to Kiosk Again</span>
+              <span>{t("kiosk_btn_connect_again")}</span>
             </button>
           )}
 
@@ -228,7 +228,7 @@ export const KioskSessionDetailsScreen = () => {
             onClick={() => setScreen(SCREENS.M1)}
             className="w-full min-h-[44px] text-xs font-bold text-slate-500 hover:text-slate-800 text-center cursor-pointer"
           >
-            Back to Patient Home
+            {t("kiosk_btn_back_home")}
           </button>
         </div>
       </main>
@@ -247,10 +247,10 @@ export const KioskSessionDetailsScreen = () => {
 
             <div className="space-y-1.5">
               <h3 className="text-lg font-black text-slate-900">
-                End this kiosk session?
+                {t("kiosk_end_confirm_title")}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Ending the session will disconnect your mobile app from the hospital kiosk. Your saved health records, visits, and appointments will not be deleted.
+                {t("kiosk_end_confirm_sub")}
               </p>
             </div>
 
@@ -260,14 +260,14 @@ export const KioskSessionDetailsScreen = () => {
                 onClick={() => setShowConfirmModal(false)}
                 className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
                 onClick={handleEndSession}
                 className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-sm"
               >
-                End Session
+                {t("kiosk_btn_end_session")}
               </button>
             </div>
           </div>

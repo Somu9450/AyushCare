@@ -13,6 +13,7 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import PrimaryButton from "../../components/mobile/PrimaryButton";
 import BottomActionBar from "../../components/mobile/BottomActionBar";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * M7 — MEDICAL TIMELINE
@@ -20,6 +21,7 @@ import BottomActionBar from "../../components/mobile/BottomActionBar";
  */
 export const M7_MedicalTimeline = () => {
   const { timeline, setScreen, prevScreen } = useMobileStore();
+  const { isHindi } = useLanguage();
 
   const handleContinue = () => {
     setScreen(SCREENS.M8);
@@ -29,7 +31,7 @@ export const M7_MedicalTimeline = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50">
       {/* Header */}
       <MobileHeader
-        title="Medical Timeline"
+        title={isHindi ? "चिकित्सा समयरेखा" : "Medical Timeline"}
         showBack={true}
         onBack={prevScreen}
       />
@@ -40,14 +42,16 @@ export const M7_MedicalTimeline = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-black tracking-wider uppercase bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
-              Chronological Record
+              {isHindi ? "क्रमबद्ध रिकॉर्ड" : "Chronological Record"}
             </span>
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-            Medical Timeline
+            {isHindi ? "चिकित्सा समयरेखा" : "Medical Timeline"}
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Your combined health journey: past records, uploaded documents, and today's hospital visit.
+            {isHindi
+              ? "आपकी समग्र स्वास्थ्य यात्रा: पिछले रिकॉर्ड, अपलोड किए गए दस्तावेज़ और आज की अस्पताल मुलाकात।"
+              : "Your combined health journey: past records, uploaded documents, and today's hospital visit."}
           </p>
         </div>
 
@@ -57,7 +61,10 @@ export const M7_MedicalTimeline = () => {
           <div className="absolute left-[11px] top-3 bottom-4 w-0.5 bg-slate-200"></div>
 
           {timeline.map((item, index) => {
-            const isToday = item.timeLabel === "TODAY";
+            const isToday = item.timeLabel === "TODAY" || item.timeLabel === "आज";
+            const displayTimeLabel = isHindi
+              ? (item.timeLabel === "TODAY" ? "आज" : item.timeLabel)
+              : (item.timeLabel === "आज" ? "TODAY" : item.timeLabel);
 
             return (
               <div key={item.id || index} className="relative group">
@@ -89,12 +96,13 @@ export const M7_MedicalTimeline = () => {
                           : "bg-slate-100 text-slate-700"
                       }`}
                     >
-                      {item.timeLabel}
+                      {displayTimeLabel}
                     </span>
 
                     {/* Source label */}
                     <span className="text-[11px] font-semibold text-slate-400">
-                      Source: <span className="text-slate-600 font-bold">{item.source}</span>
+                      {isHindi ? "स्रोत: " : "Source: "}
+                      <span className="text-slate-600 font-bold">{item.source}</span>
                     </span>
                   </div>
 
@@ -123,14 +131,18 @@ export const M7_MedicalTimeline = () => {
         {/* Informational reassurance */}
         <div className="p-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-500 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-teal-800 shrink-0" />
-          <span>Timeline is compiled to assist doctor review during consultation.</span>
+          <span>
+            {isHindi
+              ? "परामर्श के दौरान डॉक्टर की समीक्षा में सहायता हेतु यह समयरेखा संकलित की गई है।"
+              : "Timeline is compiled to assist doctor review during consultation."}
+          </span>
         </div>
       </main>
 
       {/* Bottom Action Bar */}
       <BottomActionBar>
         <PrimaryButton onClick={handleContinue} icon={ArrowRight}>
-          View Your Summary
+          {isHindi ? "स्वास्थ्य सारांश देखें" : "View Your Summary"}
         </PrimaryButton>
       </BottomActionBar>
     </div>

@@ -6,39 +6,21 @@ import {
   Stethoscope,
   Sparkles,
   CheckCircle2,
-  Clock,
   AlertCircle,
   FileText,
   ChevronDown,
   ChevronUp,
   ChevronRight,
   Activity,
-  HeartPulse,
-  Thermometer,
-  ShieldCheck,
   Pill,
   Info,
-  MapPin,
-  FileSpreadsheet,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import { mockVisits } from "../../data/mockData";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
+import useLanguage from "../../i18n/translations";
 
-/**
- * VISIT DETAILS SCREEN
- * Comprehensive historical record of a single completed healthcare visit encounter.
- * Distinct from scheduled appointment details:
- * - Patient-reported symptoms ("What You Reported")
- * - Neutral clinical history (collapsible)
- * - Recorded medicines with neutral historical notice
- * - Recorded vitals (or "Not recorded for this visit")
- * - Associated visit documents (visual cards)
- * - Doctor & department cards
- * - Neutral visit summary
- * - AYUSH support (Prakriti, Agni, Kostha with explanations)
- */
 export const VisitDetailsScreen = () => {
   const {
     selectedVisit,
@@ -48,6 +30,7 @@ export const VisitDetailsScreen = () => {
     setSelectedMedicalRecord,
     setActiveNavTab,
   } = useMobileStore();
+  const { t, isHindi } = useLanguage();
   const [isClinicalHistoryOpen, setIsClinicalHistoryOpen] = useState(true);
 
   // Fallback to first mock visit if none selected directly
@@ -56,20 +39,22 @@ export const VisitDetailsScreen = () => {
   const isAyush = visit.type === "AYUSH";
   const Icon = isAyush ? Sparkles : Stethoscope;
 
+  const doctorName = isHindi ? (visit.hindiDoctor || visit.doctor) : visit.doctor;
+  const hospitalName = isHindi ? (visit.hindiHospital || visit.hospital) : visit.hospital;
+  const departmentName = isHindi ? (visit.hindiDepartment || visit.department) : visit.department;
+
   return (
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
       {/* Mobile Header with back arrow */}
       <MobileHeader
-        title="Visit Details"
+        title={isHindi ? "मुलाकात विवरण" : "Visit Details"}
         showBack={true}
         onBack={prevScreen}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* -------------------------------------------------------------
-            1. VISIT OVERVIEW CARD
-        -------------------------------------------------------------- */}
+        {/* 1. VISIT OVERVIEW CARD */}
         <section
           aria-label="Visit Overview"
           className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4"
@@ -85,7 +70,7 @@ export const VisitDetailsScreen = () => {
 
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>{visit.status || "Visit completed"}</span>
+              <span>{isHindi ? "मुलाकात पूर्ण" : (visit.status || "Visit completed")}</span>
             </div>
           </div>
 
@@ -93,7 +78,7 @@ export const VisitDetailsScreen = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
-                {visit.department}
+                {departmentName}
               </span>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
@@ -103,30 +88,30 @@ export const VisitDetailsScreen = () => {
                 }`}
               >
                 <Icon className="w-3 h-3" />
-                <span>{visit.typeLabel || visit.type}</span>
+                <span>{isAyush ? (isHindi ? "आयुष" : "AYUSH") : (isHindi ? "एलोपैथी" : "Allopathy")}</span>
               </span>
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
-              {visit.doctor}
+              {doctorName}
             </h2>
 
             <div className="flex items-center gap-2 text-xs text-slate-500 pt-0.5">
               <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
-              <span>{visit.hospital}</span>
+              <span>{hospitalName}</span>
               {visit.room && (
                 <>
                   <span>·</span>
-                  <span className="font-medium text-slate-700">{visit.room}</span>
+                  <span className="font-medium text-slate-700">
+                    {isHindi ? `कक्ष ${visit.room.replace(/\D/g, '') || visit.room}` : visit.room}
+                  </span>
                 </>
               )}
             </div>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            2. PATIENT-REPORTED SYMPTOMS ("What You Reported")
-        -------------------------------------------------------------- */}
+        {/* 2. PATIENT-REPORTED SYMPTOMS */}
         <section
           aria-label="What You Reported"
           className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
@@ -134,14 +119,13 @@ export const VisitDetailsScreen = () => {
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>What You Reported</span>
+              <span>{isHindi ? "मरीज़ द्वारा बताए गए लक्षण" : "What You Reported"}</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-medium">
-              Intake information
+              {isHindi ? "पंजीकरण जानकारी" : "Intake information"}
             </span>
           </div>
 
-          {/* Symptoms Tags */}
           <div className="space-y-2.5">
             <div className="flex flex-wrap gap-2">
               {visit.symptoms?.map((symptom, idx) => (
@@ -154,35 +138,34 @@ export const VisitDetailsScreen = () => {
               ))}
             </div>
 
-            {/* Duration & Severity */}
             <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Duration
+                  {isHindi ? "अवधि" : "Duration"}
                 </span>
                 <span className="text-sm font-black text-slate-800 mt-0.5 block">
-                  {visit.duration || "Recorded in notes"}
+                  {visit.duration || (isHindi ? "नोट्स में दर्ज" : "Recorded in notes")}
                 </span>
               </div>
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Severity
+                  {isHindi ? "गंभीरता" : "Severity"}
                 </span>
                 <span className="text-sm font-black text-slate-800 mt-0.5 block">
-                  {visit.severity || "Moderate"}
+                  {isHindi ? (visit.severity === "Severe" ? "तीव्र" : visit.severity === "Mild" ? "हल्की" : "मध्यम") : (visit.severity || "Moderate")}
                 </span>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-400 leading-snug italic pt-1">
-              Recorded as reported by patient during check-in; not an automated diagnostic conclusion.
+              {isHindi
+                ? "चेक-इन के समय मरीज़ द्वारा दर्ज किया गया विवरण; यह कोई स्वचालित निदान नहीं है।"
+                : "Recorded as reported by patient during check-in; not an automated diagnostic conclusion."}
             </p>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            3. CLINICAL HISTORY (Collapsible Section)
-        -------------------------------------------------------------- */}
+        {/* 3. CLINICAL HISTORY */}
         <section
           aria-label="Clinical History"
           className="rounded-3xl bg-white border border-slate-200/90 shadow-xs overflow-hidden"
@@ -195,7 +178,7 @@ export const VisitDetailsScreen = () => {
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-teal-800 shrink-0" />
               <h3 className="text-sm font-black text-slate-900">
-                Clinical History
+                {isHindi ? "चिकित्सीय इतिहास" : "Clinical History"}
               </h3>
             </div>
             {isClinicalHistoryOpen ? (
@@ -209,16 +192,16 @@ export const VisitDetailsScreen = () => {
             <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-slate-100 space-y-3 text-xs">
               <div>
                 <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block">
-                  Presenting complaint
+                  {isHindi ? "मुख्य शिकायत" : "Presenting complaint"}
                 </span>
                 <p className="text-slate-800 font-semibold mt-0.5">
-                  {visit.clinicalHistory?.complaint || "Discussion of reported symptoms"}
+                  {visit.clinicalHistory?.complaint || (isHindi ? "बताए गए लक्षणों पर परामर्श" : "Discussion of reported symptoms")}
                 </p>
               </div>
 
               <div>
                 <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block">
-                  Duration
+                  {isHindi ? "अवधि" : "Duration"}
                 </span>
                 <p className="text-slate-800 font-semibold mt-0.5">
                   {visit.clinicalHistory?.duration || visit.duration}
@@ -228,7 +211,7 @@ export const VisitDetailsScreen = () => {
               {visit.clinicalHistory?.additionalInfo && (
                 <div>
                   <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block">
-                    Additional information
+                    {isHindi ? "अतिरिक्त जानकारी" : "Additional information"}
                   </span>
                   <p className="text-slate-700 leading-relaxed mt-0.5">
                     {visit.clinicalHistory.additionalInfo}
@@ -237,15 +220,15 @@ export const VisitDetailsScreen = () => {
               )}
 
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
-                Historical documentation compiled during doctor consultation.
+                {isHindi
+                  ? "डॉक्टर परामर्श के दौरान संकलित ऐतिहासिक विवरण।"
+                  : "Historical documentation compiled during doctor consultation."}
               </div>
             </div>
           )}
         </section>
 
-        {/* -------------------------------------------------------------
-            4. AYUSH CONSULTATION SPECIFICS (If AYUSH Visit)
-        -------------------------------------------------------------- */}
+        {/* 4. AYUSH CONSULTATION SPECIFICS */}
         {isAyush && visit.ayushDetails && (
           <section
             aria-label="AYUSH Consultation Details"
@@ -254,7 +237,7 @@ export const VisitDetailsScreen = () => {
             <div className="flex items-center gap-2 border-b border-amber-200/80 pb-2.5">
               <Sparkles className="w-4 h-4 text-amber-800 shrink-0" />
               <h3 className="text-sm font-black text-amber-950">
-                AYUSH Consultation Assessment
+                {isHindi ? "आयुष परामर्श मूल्यांकन" : "AYUSH Consultation Assessment"}
               </h3>
             </div>
 
@@ -264,7 +247,7 @@ export const VisitDetailsScreen = () => {
                 <div className="p-3 rounded-2xl bg-white border border-amber-200/80 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-950">
-                      Prakriti (Constitutional Body Type)
+                      {isHindi ? "प्रकृति (शारीरिक संरचना)" : "Prakriti (Constitutional Body Type)"}
                     </span>
                     <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                       {visit.ayushDetails.prakriti.value}
@@ -281,7 +264,7 @@ export const VisitDetailsScreen = () => {
                 <div className="p-3 rounded-2xl bg-white border border-amber-200/80 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-950">
-                      Agni (Digestive Strength)
+                      {isHindi ? "अग्नि (पाचन शक्ति)" : "Agni (Digestive Strength)"}
                     </span>
                     <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                       {visit.ayushDetails.agni.value}
@@ -298,7 +281,7 @@ export const VisitDetailsScreen = () => {
                 <div className="p-3 rounded-2xl bg-white border border-amber-200/80 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-950">
-                      Kostha (Bowel Habit)
+                      {isHindi ? "कोष्ठ (मल त्याग प्रवृत्ति)" : "Kostha (Bowel Habit)"}
                     </span>
                     <span className="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                       {visit.ayushDetails.kostha.value}
@@ -313,9 +296,7 @@ export const VisitDetailsScreen = () => {
           </section>
         )}
 
-        {/* -------------------------------------------------------------
-            5. MEDICINES
-        -------------------------------------------------------------- */}
+        {/* 5. MEDICINES */}
         <section
           aria-label="Medicines"
           className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
@@ -323,10 +304,10 @@ export const VisitDetailsScreen = () => {
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <Pill className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>Medicines</span>
+              <span>{isHindi ? "दवाइयां" : "Medicines"}</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-medium">
-              {visit.medications?.length || 0} recorded
+              {isHindi ? `${visit.medications?.length || 0} दर्ज` : `${visit.medications?.length || 0} recorded`}
             </span>
           </div>
 
@@ -346,25 +327,25 @@ export const VisitDetailsScreen = () => {
                     </p>
                   </div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0">
-                    Encounter Rx
+                    {isHindi ? "परामर्श पर्चा" : "Encounter Rx"}
                   </span>
                 </div>
               ))
             ) : (
               <p className="text-xs text-slate-500 italic py-2">
-                No medications recorded for this visit.
+                {isHindi ? "इस मुलाकात के लिए कोई दवा दर्ज नहीं है।" : "No medications recorded for this visit."}
               </p>
             )}
 
             <p className="text-[11px] text-slate-400 leading-snug italic pt-1">
-              Historical information recorded during consultation. Not an active prescription recommendation.
+              {isHindi
+                ? "परामर्श के दौरान दर्ज ऐतिहासिक विवरण। यह कोई सक्रिय डॉक्टर सिफारिश नहीं है।"
+                : "Historical information recorded during consultation. Not an active prescription recommendation."}
             </p>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            6. VITALS
-        -------------------------------------------------------------- */}
+        {/* 6. VITALS */}
         <section
           aria-label="Vitals"
           className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
@@ -372,10 +353,10 @@ export const VisitDetailsScreen = () => {
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <Activity className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>Vitals</span>
+              <span>{isHindi ? "वाइटल्स / जीवन लक्षण" : "Vitals"}</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-medium">
-              Recorded at triage / OPD
+              {isHindi ? "ओपीडी में दर्ज" : "Recorded at triage / OPD"}
             </span>
           </div>
 
@@ -383,7 +364,7 @@ export const VisitDetailsScreen = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Blood Pressure
+                  {isHindi ? "रक्तचाप" : "Blood Pressure"}
                 </span>
                 <span className="text-sm font-black text-slate-900 mt-0.5 block">
                   {visit.vitals.bp}
@@ -392,7 +373,7 @@ export const VisitDetailsScreen = () => {
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Pulse
+                  {isHindi ? "नाड़ी दर" : "Pulse"}
                 </span>
                 <span className="text-sm font-black text-slate-900 mt-0.5 block">
                   {visit.vitals.pulse}
@@ -410,7 +391,7 @@ export const VisitDetailsScreen = () => {
 
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                  Temperature
+                  {isHindi ? "तापमान" : "Temperature"}
                 </span>
                 <span className="text-sm font-black text-slate-900 mt-0.5 block">
                   {visit.vitals.temperature}
@@ -419,14 +400,12 @@ export const VisitDetailsScreen = () => {
             </div>
           ) : (
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-              Vitals: Not recorded for this visit.
+              {isHindi ? "वाइटल्स: इस मुलाकात के लिए दर्ज नहीं।" : "Vitals: Not recorded for this visit."}
             </div>
           )}
         </section>
 
-        {/* -------------------------------------------------------------
-            7. DOCUMENTS ASSOCIATED WITH VISIT
-        -------------------------------------------------------------- */}
+        {/* 7. DOCUMENTS ASSOCIATED WITH VISIT */}
         <section
           aria-label="Documents from this visit"
           className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
@@ -434,18 +413,18 @@ export const VisitDetailsScreen = () => {
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <FileText className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>Documents from this visit</span>
+              <span>{isHindi ? "इस मुलाकात के दस्तावेज़" : "Documents from this visit"}</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-medium">
-              {visit.documents?.length || 0} attached
+              {isHindi ? `${visit.documents?.length || 0} संलग्न` : `${visit.documents?.length || 0} attached`}
             </span>
           </div>
 
           <div className="space-y-2">
             {visit.documents && visit.documents.length > 0 ? (
               visit.documents.map((docItem, idx) => {
-                const docTitle = typeof docItem === "string" ? docItem : (docItem?.fileName || docItem?.name || docItem?.title || "Medical_Document.pdf");
-                const docType = typeof docItem === "string" ? "Prescription" : (docItem?.type || "Prescription");
+                const docTitle = typeof docItem === "string" ? docItem : (docItem?.fileName || docItem?.name || docItem?.title || (isHindi ? "चिकित्सीय_दस्तावेज़.pdf" : "Medical_Document.pdf"));
+                const docType = typeof docItem === "string" ? (isHindi ? "पर्चे" : "Prescription") : (docItem?.type || (isHindi ? "पर्चे" : "Prescription"));
                 const docDate = typeof docItem === "string" ? (visit?.date || "Recent") : (docItem?.date || visit?.date || "Recent");
                 const isLab = String(docType).toLowerCase().includes("lab");
 
@@ -474,7 +453,7 @@ export const VisitDetailsScreen = () => {
                               {
                                 value:
                                   visit?.clinicalHistory?.complaint ||
-                                  "Clinical consultation note",
+                                  (isHindi ? "चिकित्सीय परामर्श नोट" : "Clinical consultation note"),
                               },
                             ],
                           },
@@ -501,7 +480,7 @@ export const VisitDetailsScreen = () => {
                     </div>
 
                     <span className="font-bold text-teal-800 flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
-                      <span>View Record</span>
+                      <span>{isHindi ? "रिकॉर्ड देखें" : "View Record"}</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
@@ -509,14 +488,14 @@ export const VisitDetailsScreen = () => {
               })
             ) : (
               <p className="text-xs text-slate-500 italic py-2">
-                No documents attached to this visit.
+                {isHindi ? "इस मुलाकात से कोई दस्तावेज़ संलग्न नहीं है।" : "No documents attached to this visit."}
               </p>
             )}
           </div>
 
           {/* View All Records Action */}
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-400">All health documents</span>
+            <span className="text-slate-400">{isHindi ? "सभी स्वास्थ्य दस्तावेज़" : "All health documents"}</span>
             <button
               type="button"
               onClick={() => {
@@ -525,14 +504,12 @@ export const VisitDetailsScreen = () => {
               }}
               className="font-bold text-teal-800 hover:text-teal-950 flex items-center gap-1 cursor-pointer"
             >
-              <span>View All Records →</span>
+              <span>{isHindi ? "सभी रिकॉर्ड देखें →" : "View All Records →"}</span>
             </button>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            8. DOCTOR / DEPARTMENT INFORMATION
-        -------------------------------------------------------------- */}
+        {/* 8. DOCTOR / DEPARTMENT INFORMATION */}
         <section
           aria-label="Doctor and Department Information"
           className="grid grid-cols-1 sm:grid-cols-2 gap-3"
@@ -540,33 +517,31 @@ export const VisitDetailsScreen = () => {
           {/* Doctor Card */}
           <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1 text-xs">
             <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Doctor
+              {isHindi ? "चिकित्सक" : "Doctor"}
             </span>
             <p className="text-sm font-black text-slate-900 leading-tight">
-              {visit.doctor}
+              {doctorName}
             </p>
             <p className="text-[11px] text-teal-800 font-medium">
-              {visit.department}
+              {departmentName}
             </p>
           </div>
 
           {/* Hospital & Room Card */}
           <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1 text-xs">
             <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Hospital & Facility
+              {isHindi ? "अस्पताल व परिसर" : "Hospital & Facility"}
             </span>
             <p className="text-sm font-black text-slate-900 leading-tight">
-              {visit.hospital}
+              {hospitalName}
             </p>
             <p className="text-[11px] text-slate-500 font-medium">
-              {visit.room || "Outpatient Department"}
+              {visit.room || (isHindi ? "बाह्य रोगी विभाग (ओपीडी)" : "Outpatient Department")}
             </p>
           </div>
         </section>
 
-        {/* -------------------------------------------------------------
-            9. VISIT SUMMARY
-        -------------------------------------------------------------- */}
+        {/* 9. VISIT SUMMARY */}
         <section
           aria-label="Visit Summary"
           className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-2"
@@ -574,17 +549,19 @@ export const VisitDetailsScreen = () => {
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
             <Info className="w-4 h-4 text-teal-800 shrink-0" />
             <h3 className="text-sm font-black text-slate-900">
-              Visit Summary
+              {isHindi ? "मुलाकात सारांश" : "Visit Summary"}
             </h3>
           </div>
 
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
             {visit.summary ||
-              "This visit included discussion of the patient's reported symptoms and review of available medical information."}
+              (isHindi
+                ? "इस मुलाकात में मरीज़ के लक्षणों पर चर्चा और उपलब्ध चिकित्सीय जानकारी की समीक्षा की गई।"
+                : "This visit included discussion of the patient's reported symptoms and review of available medical information.")}
           </p>
 
           <p className="text-[11px] text-slate-400 leading-snug italic pt-1">
-            Historical encounter summary for patient reference.
+            {isHindi ? "मरीज़ संदर्भ हेतु ऐतिहासिक मुलाकात सारांश।" : "Historical encounter summary for patient reference."}
           </p>
         </section>
 
@@ -596,7 +573,7 @@ export const VisitDetailsScreen = () => {
             className="w-full h-12 rounded-2xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-xs"
           >
             <ArrowLeft className="w-4 h-4 text-slate-600" />
-            <span>Back to My Visits</span>
+            <span>{isHindi ? "मेरी मुलाकातों पर वापस जाएं" : "Back to My Visits"}</span>
           </button>
         </div>
       </main>

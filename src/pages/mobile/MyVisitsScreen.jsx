@@ -6,8 +6,6 @@ import {
   ChevronRight,
   CheckCircle2,
   Building2,
-  Clock,
-  Filter,
   FileQuestion,
   RotateCcw,
   Lock,
@@ -16,17 +14,8 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import { mockVisits } from "../../data/mockData";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
+import useLanguage from "../../i18n/translations";
 
-/**
- * MY VISITS SCREEN
- * Healthcare visit history (actual encounters with doctors, distinct from scheduled appointments).
- * Features:
- * - Clean chronological grouping (Year -> Month)
- * - Filtering: All, Allopathy, AYUSH
- * - Rich, comfortable mobile cards
- * - Empty state handling
- * - Tappable navigation to Visit Details
- */
 export const MyVisitsScreen = () => {
   const {
     visitFilter,
@@ -37,11 +26,13 @@ export const MyVisitsScreen = () => {
     isHealthHistoryLocked,
   } = useMobileStore();
 
+  const { t, isHindi } = useLanguage();
+
   // Filter options
   const filterTabs = [
-    { id: "ALL", label: "All" },
-    { id: "ALLOPATHY", label: "Allopathy" },
-    { id: "AYUSH", label: "AYUSH" },
+    { id: "ALL", label: t("visits_tab_all") },
+    { id: "ALLOPATHY", label: t("visits_tab_allopathy") },
+    { id: "AYUSH", label: t("visits_tab_ayush") },
   ];
 
   // Filtered visits
@@ -60,7 +51,7 @@ export const MyVisitsScreen = () => {
     const groups = {};
     filteredVisits.forEach((visit) => {
       const year = visit.year || "2026";
-      const month = visit.month || "Recent";
+      const month = visit.month || (isHindi ? "हाल ही में" : "Recent");
       if (!groups[year]) {
         groups[year] = {};
       }
@@ -70,7 +61,7 @@ export const MyVisitsScreen = () => {
       groups[year][month].push(visit);
     });
     return groups;
-  }, [filteredVisits]);
+  }, [filteredVisits, isHindi]);
 
   const handleSelectVisit = (visit) => {
     setSelectedVisit(visit);
@@ -81,7 +72,7 @@ export const MyVisitsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
       {/* Mobile Header with brand status */}
       <MobileHeader
-        title="My Visits"
+        title={t("visits_title")}
         showBack={true}
         onBack={prevScreen}
       />
@@ -92,22 +83,22 @@ export const MyVisitsScreen = () => {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-              My Visits
+              {t("visits_title")}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-              Your previous healthcare visits and consultation history.
+              {isHindi ? "आपकी पिछली स्वास्थ्य मुलाकातें एवं परामर्श इतिहास।" : "Your previous healthcare visits and consultation history."}
             </p>
           </div>
 
           {isHealthHistoryLocked && (
             <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
               <Lock className="w-3 h-3 text-amber-700" />
-              <span>Sharing restricted</span>
+              <span>{isHindi ? "साझाकरण प्रतिबंधित" : "Sharing restricted"}</span>
             </span>
           )}
         </div>
 
-        {/* Visit Filters (Horizontally scrollable if needed) */}
+        {/* Visit Filters */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
           {filterTabs.map((tab) => {
             const isSelected = visitFilter === tab.id;
@@ -136,10 +127,10 @@ export const MyVisitsScreen = () => {
               <FileQuestion className="w-7 h-7" />
             </div>
             <h3 className="text-base font-bold text-slate-900">
-              No visits found
+              {t("visits_empty")}
             </h3>
             <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-              Your previous healthcare visits will appear here.
+              {isHindi ? "आपकी पिछली स्वास्थ्य मुलाकातें यहाँ प्रदर्शित होंगी।" : "Your previous healthcare visits will appear here."}
             </p>
             <button
               type="button"
@@ -147,7 +138,7 @@ export const MyVisitsScreen = () => {
               className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Show All Visits</span>
+              <span>{t("visits_tab_all")}</span>
             </button>
           </div>
         ) : (
@@ -199,7 +190,7 @@ export const MyVisitsScreen = () => {
 
                               <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>{visit.status}</span>
+                                <span>{isHindi ? "मुलाकात पूर्ण" : (visit.status || "Completed")}</span>
                               </div>
                             </div>
 
@@ -208,7 +199,7 @@ export const MyVisitsScreen = () => {
                               <div className="space-y-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
-                                    {visit.department}
+                                    {isHindi ? (visit.hindiDepartment || visit.department) : visit.department}
                                   </span>
                                   {/* Visit Type Badge */}
                                   <span
@@ -219,21 +210,21 @@ export const MyVisitsScreen = () => {
                                     }`}
                                   >
                                     <Icon className="w-3 h-3" />
-                                    <span>{visit.typeLabel || visit.type}</span>
+                                    <span>{isAyush ? (isHindi ? "आयुष" : "AYUSH") : (isHindi ? "एलोपैथी" : "Allopathy")}</span>
                                   </span>
                                 </div>
 
                                 <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
-                                  {visit.doctor}
+                                  {isHindi ? (visit.hindiDoctor || visit.doctor) : visit.doctor}
                                 </h3>
 
                                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                                   <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span>{visit.hospital}</span>
+                                  <span>{isHindi ? (visit.hindiHospital || visit.hospital) : visit.hospital}</span>
                                   {visit.room && (
                                     <>
                                       <span>·</span>
-                                      <span>{visit.room}</span>
+                                      <span>{isHindi ? `कक्ष ${visit.room.replace(/\D/g, '') || visit.room}` : visit.room}</span>
                                     </>
                                   )}
                                 </div>
@@ -243,10 +234,12 @@ export const MyVisitsScreen = () => {
                             {/* Card Footer: Action */}
                             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                               <span className="text-slate-400">
-                                {visit.documents?.length || 0} document{visit.documents?.length === 1 ? "" : "s"} attached
+                                {isHindi
+                                  ? `${visit.documents?.length || 0} दस्तावेज़ संलग्न`
+                                  : `${visit.documents?.length || 0} document${visit.documents?.length === 1 ? "" : "s"} attached`}
                               </span>
                               <span className="font-bold text-teal-800 group-hover:text-teal-950 flex items-center gap-1 transition-transform group-hover:translate-x-0.5">
-                                <span>View Visit</span>
+                                <span>{isHindi ? "मुलाकात देखें" : "View Visit"}</span>
                                 <ChevronRight className="w-4 h-4" />
                               </span>
                             </div>

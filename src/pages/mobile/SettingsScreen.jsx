@@ -18,9 +18,7 @@ import {
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
-
-// TODO: Expand supported languages and connect to backend/patient language preference.
-// TODO: Replace mock kiosk session validation with backend API.
+import { useLanguage } from "../../i18n/translations";
 
 export const SettingsScreen = () => {
   const {
@@ -34,6 +32,7 @@ export const SettingsScreen = () => {
     isHealthHistoryLocked,
   } = useMobileStore();
 
+  const { t, isHindi } = useLanguage();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleToggleHighContrast = () => {
@@ -67,7 +66,7 @@ export const SettingsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
       {/* Header */}
       <MobileHeader
-        title="Settings & Preferences"
+        title={t("settings_title")}
         showBack={true}
         onBack={() => setScreen(SCREENS.MORE)}
       />
@@ -82,11 +81,11 @@ export const SettingsScreen = () => {
           <div className="flex items-center gap-2">
             <Languages className="w-5 h-5 text-teal-700" />
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Language / भाषा
+              {t("settings_lang_heading")}
             </h3>
           </div>
           <p className="text-xs text-slate-500">
-            Choose your preferred language for consultations and application guidance.
+            {t("settings_lang_sub")}
           </p>
 
           <div className="grid grid-cols-2 gap-2.5 pt-1">
@@ -101,7 +100,9 @@ export const SettingsScreen = () => {
             >
               <div>
                 <span className="text-sm font-bold block">English</span>
-                <span className="text-[10px] text-slate-400">Default (System)</span>
+                <span className="text-[10px] text-slate-400">
+                  {isHindi ? "सिस्टम मानक" : "Standard"}
+                </span>
               </div>
               {selectedLanguage === "en" && (
                 <div className="w-5 h-5 rounded-full bg-teal-800 text-white flex items-center justify-center">
@@ -121,7 +122,9 @@ export const SettingsScreen = () => {
             >
               <div>
                 <span className="text-sm font-bold block">हिन्दी</span>
-                <span className="text-[10px] text-slate-400">Hindi Voice & Text</span>
+                <span className="text-[10px] text-slate-400">
+                  {isHindi ? "आवाज़ व पाठ" : "Voice & Text"}
+                </span>
               </div>
               {selectedLanguage === "hi" && (
                 <div className="w-5 h-5 rounded-full bg-teal-800 text-white flex items-center justify-center">
@@ -141,11 +144,11 @@ export const SettingsScreen = () => {
             <div className="flex items-center gap-2">
               <Sliders className="w-5 h-5 text-teal-700" />
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                Accessibility
+                {t("settings_access_heading")}
               </h3>
             </div>
             <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              Live Scaled
+              {isHindi ? "सक्रिय स्केल" : "Live Scaled"}
             </span>
           </div>
 
@@ -154,7 +157,7 @@ export const SettingsScreen = () => {
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-700 flex items-center gap-1.5">
                 <Type className="w-4 h-4 text-slate-500" />
-                Text Size
+                {t("settings_text_size")}
               </span>
               <span className="text-[11px] font-mono text-slate-500 capitalize">
                 {accessibilitySettings.textSize}
@@ -163,9 +166,9 @@ export const SettingsScreen = () => {
 
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: "default", label: "Default" },
-                { id: "large", label: "Large" },
-                { id: "xlarge", label: "Extra Large" },
+                { id: "default", label: t("settings_text_default") },
+                { id: "large", label: t("settings_text_large") },
+                { id: "xlarge", label: t("settings_text_xlarge") },
               ].map((opt) => (
                 <button
                   key={opt.id}
@@ -188,10 +191,10 @@ export const SettingsScreen = () => {
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Eye className="w-4 h-4 text-slate-500" />
-                High Contrast
+                {t("settings_high_contrast")}
               </span>
               <p className="text-[11px] text-slate-500">
-                Increases visual clarity and sharpens borders
+                {t("settings_high_contrast_sub")}
               </p>
             </div>
             <button
@@ -220,10 +223,10 @@ export const SettingsScreen = () => {
                 ) : (
                   <VolumeX className="w-4 h-4 text-slate-400" />
                 )}
-                Audio Assistance
+                {t("settings_audio_assist")}
               </span>
               <p className="text-[11px] text-slate-500">
-                Enables Hindi speech reading of health summaries
+                {t("settings_audio_assist_sub")}
               </p>
             </div>
             <button
@@ -247,10 +250,10 @@ export const SettingsScreen = () => {
           <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-slate-800">
-                Reduce Motion
+                {t("settings_reduce_motion")}
               </span>
               <p className="text-[11px] text-slate-500">
-                Minimizes screen transitions and animations
+                {t("settings_reduce_motion_sub")}
               </p>
             </div>
             <button
@@ -284,10 +287,10 @@ export const SettingsScreen = () => {
               </div>
               <div>
                 <span className="font-bold text-slate-900 block">
-                  Privacy & Data Control
+                  {t("more_menu_privacy")}
                 </span>
                 <span className="text-xs text-slate-500">
-                  Manage consent grants, audit access logs, and data locking
+                  {t("more_menu_privacy_sub")}
                 </span>
               </div>
             </div>
@@ -305,7 +308,7 @@ export const SettingsScreen = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900">Active Kiosk Session</span>
+                  <span className="font-bold text-slate-900">{t("more_menu_sessions")}</span>
                   <span
                     className={`text-[10px] font-black uppercase px-2 py-0.2 rounded-full border ${
                       kioskSession?.status === "CONNECTED"
@@ -313,11 +316,17 @@ export const SettingsScreen = () => {
                         : "bg-slate-100 text-slate-500 border-slate-200"
                     }`}
                   >
-                    {kioskSession?.status === "CONNECTED" ? "Connected ✓" : "Inactive"}
+                    {kioskSession?.status === "CONNECTED"
+                      ? isHindi
+                        ? "संबद्ध ✓"
+                        : "Connected ✓"
+                      : isHindi
+                      ? "निष्क्रिय"
+                      : "Inactive"}
                   </span>
                 </div>
                 <span className="text-xs text-slate-500">
-                  {kioskSession?.kioskName || "Hospital OPD Kiosk"}
+                  {kioskSession?.kioskName || (isHindi ? "अस्पताल ओपीडी कियोस्क" : "Hospital OPD Kiosk")}
                 </span>
               </div>
             </div>
@@ -333,24 +342,21 @@ export const SettingsScreen = () => {
           <div className="flex items-center gap-2">
             <Info className="w-5 h-5 text-teal-700" />
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              About MediKiosk / AyushCare
+              {t("settings_about_heading")}
             </h3>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5 text-xs text-slate-600">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-900 text-sm">
-                AyushCare / MediKiosk
+                {t("app_name")} / MediKiosk
               </span>
               <span className="text-[11px] font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                 v1.0.0
               </span>
             </div>
             <p className="text-slate-500">
-              Patient Health Companion & Kiosk Integration Prototype for Smart India Hackathon (SIH) 2026.
-            </p>
-            <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-200/60">
-              Compliant with ABDM architectural patterns (FHIR, LOINC, SNOMED CT). Running in mock simulation mode.
+              {t("settings_about_sub")}
             </p>
           </div>
         </section>
@@ -363,7 +369,7 @@ export const SettingsScreen = () => {
             className="w-full min-h-[50px] p-3 rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-xs"
           >
             <LogOut className="w-4 h-4" />
-            <span>Log Out of MediKiosk</span>
+            <span>{t("settings_btn_logout")}</span>
           </button>
         </div>
       </main>
@@ -382,10 +388,10 @@ export const SettingsScreen = () => {
 
             <div className="space-y-1.5">
               <h3 className="text-lg font-black text-slate-900">
-                Log out of MediKiosk?
+                {t("settings_logout_confirm_title")}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Your local mobile session will be signed out. Your saved health records, visits, appointments, and privacy settings will not be deleted.
+                {t("settings_logout_confirm_sub")}
               </p>
             </div>
 
@@ -395,14 +401,14 @@ export const SettingsScreen = () => {
                 onClick={() => setShowLogoutModal(false)}
                 className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmLogout}
                 className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-sm"
               >
-                Log Out
+                {t("settings_btn_confirm_logout")}
               </button>
             </div>
           </div>

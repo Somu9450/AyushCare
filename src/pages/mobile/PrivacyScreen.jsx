@@ -24,6 +24,7 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import PrivacyConfirmModal from "../../components/mobile/PrivacyConfirmModal";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * PrivacyScreen — "Privacy & Data Control"
@@ -44,6 +45,7 @@ export const PrivacyScreen = () => {
     setScreen,
     prevScreen,
   } = useMobileStore();
+  const { isHindi } = useLanguage();
 
   // Confirmation Modals State
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
@@ -62,13 +64,13 @@ export const PrivacyScreen = () => {
   const handleConfirmLock = () => {
     setHealthHistoryLocked(true);
     setIsLockModalOpen(false);
-    showToast("Health history locked");
+    showToast(isHindi ? "स्वास्थ्य इतिहास लॉक किया गया" : "Health history locked");
   };
 
   const handleConfirmUnlock = () => {
     setHealthHistoryLocked(false);
     setIsUnlockModalOpen(false);
-    showToast("Health history unlocked");
+    showToast(isHindi ? "स्वास्थ्य इतिहास अनलॉक किया गया" : "Health history unlocked");
   };
 
   // End Session Handler
@@ -76,7 +78,7 @@ export const PrivacyScreen = () => {
     if (sessionToEnd) {
       endSession(sessionToEnd.id);
       setSessionToEnd(null);
-      showToast("Session ended");
+      showToast(isHindi ? "सत्र समाप्त हुआ" : "Session ended");
     }
   };
 
@@ -89,7 +91,7 @@ export const PrivacyScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
       {/* Header */}
       <MobileHeader
-        title="Privacy & Data Control"
+        title={isHindi ? "गोपनीयता व डेटा नियंत्रण" : "Privacy & Data Control"}
         showBack={true}
         onBack={() => setScreen(SCREENS.MORE)}
       />
@@ -104,7 +106,7 @@ export const PrivacyScreen = () => {
               <span>{toastMessage}</span>
             </div>
             <span className="text-[10px] text-teal-300 uppercase tracking-wider font-extrabold">
-              Saved
+              {isHindi ? "सहेजा गया" : "Saved"}
             </span>
           </div>
         )}
@@ -118,16 +120,18 @@ export const PrivacyScreen = () => {
               <Shield className="w-4 h-4" />
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">
-              Patient Governance
+              {isHindi ? "मरीज़ नियंत्रण व शासन" : "Patient Governance"}
             </span>
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white leading-tight">
-            Privacy & Data Control
+            {isHindi ? "गोपनीयता व डेटा नियंत्रण" : "Privacy & Data Control"}
           </h2>
 
           <p className="text-xs sm:text-sm text-teal-100/90 leading-relaxed">
-            Manage how your health information is shared and accessed. Your health information belongs to you. You can review active sharing permissions, control access, and review recent activity.
+            {isHindi
+              ? "प्रबंधित करें कि आपकी स्वास्थ्य जानकारी कैसे साझा और एक्सेस की जाती है। आपकी स्वास्थ्य जानकारी पर आपका पूर्ण अधिकार है।"
+              : "Manage how your health information is shared and accessed. Your health information belongs to you. You can review active sharing permissions, control access, and review recent activity."}
           </p>
         </div>
 
@@ -152,11 +156,13 @@ export const PrivacyScreen = () => {
                   <Unlock className="w-4 h-4 text-teal-800 shrink-0" />
                 )}
                 <h3 className="text-sm sm:text-base font-black text-slate-900">
-                  Health History Access
+                  {isHindi ? "स्वास्थ्य इतिहास पहुंच" : "Health History Access"}
                 </h3>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Control whether your saved health history and medical documents can be shared with connected healthcare sessions.
+                {isHindi
+                  ? "नियंत्रित करें कि क्या आपका सहेजा गया इतिहास और दस्तावेज़ जुड़े हुए स्वास्थ्य सत्रों के साथ साझा किए जा सकते हैं।"
+                  : "Control whether your saved health history and medical documents can be shared with connected healthcare sessions."}
               </p>
             </div>
 
@@ -164,12 +170,12 @@ export const PrivacyScreen = () => {
             {isHealthHistoryLocked ? (
               <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
                 <Lock className="w-3 h-3 text-amber-700" />
-                <span>Restricted</span>
+                <span>{isHindi ? "प्रतिबंधित" : "Restricted"}</span>
               </span>
             ) : (
               <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200 shadow-2xs">
                 <CheckCircle2 className="w-3 h-3 text-teal-700" />
-                <span>Available</span>
+                <span>{isHindi ? "उपलब्ध" : "Available"}</span>
               </span>
             )}
           </div>
@@ -179,13 +185,17 @@ export const PrivacyScreen = () => {
             <div>
               <p className="font-bold text-slate-800">
                 {isHealthHistoryLocked
-                  ? "Sharing is currently restricted"
-                  : "Available for sharing"}
+                  ? (isHindi ? "साझाकरण वर्तमान में प्रतिबंधित है" : "Sharing is currently restricted")
+                  : (isHindi ? "साझाकरण के लिए उपलब्ध" : "Available for sharing")}
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {isHealthHistoryLocked
-                  ? "Connected healthcare sessions cannot read your past history or documents."
-                  : "Authorized doctor consoles and terminals can access shared records."}
+                  ? (isHindi
+                      ? "जुड़े हुए सत्र आपका पिछला इतिहास या दस्तावेज़ नहीं पढ़ सकते।"
+                      : "Connected healthcare sessions cannot read your past history or documents.")
+                  : (isHindi
+                      ? "अधिकृत डॉक्टर और टर्मिनल आपके साझा रिकॉर्ड देख सकते हैं।"
+                      : "Authorized doctor consoles and terminals can access shared records.")}
               </p>
             </div>
 
@@ -197,7 +207,7 @@ export const PrivacyScreen = () => {
                 className="shrink-0 px-4 py-2 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
               >
                 <Unlock className="w-3.5 h-3.5" />
-                <span>Unlock History</span>
+                <span>{isHindi ? "इतिहास अनलॉक करें" : "Unlock History"}</span>
               </button>
             ) : (
               <button
@@ -206,13 +216,15 @@ export const PrivacyScreen = () => {
                 className="shrink-0 px-4 py-2 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-xs border border-amber-300 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
               >
                 <Lock className="w-3.5 h-3.5 text-amber-800" />
-                <span>Lock History</span>
+                <span>{isHindi ? "इतिहास लॉक करें" : "Lock History"}</span>
               </button>
             )}
           </div>
 
           <div className="pt-2 border-t border-slate-100/80 text-[11px] text-slate-400 italic">
-            This is a patient-controlled product setting. Your records remain intact and visible to you.
+            {isHindi
+              ? "यह मरीज़-नियंत्रित सेटिंग है। आपके रिकॉर्ड आपके पास पूरी तरह सुरक्षित और दृश्यमान रहेंगे।"
+              : "This is a patient-controlled product setting. Your records remain intact and visible to you."}
           </div>
         </section>
 
@@ -223,14 +235,14 @@ export const PrivacyScreen = () => {
           <div className="flex items-center justify-between px-1">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Active Consents
+                {isHindi ? "सक्रिय सहमतियां" : "Active Consents"}
               </h3>
               <p className="text-xs text-slate-500">
-                Permissions currently granted to connected healthcare sessions
+                {isHindi ? "जुड़े हुए सत्रों को वर्तमान में दी गई अनुमतियां" : "Permissions currently granted to connected healthcare sessions"}
               </p>
             </div>
             <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              {activeConsents.filter((c) => c.status === "ACTIVE").length} Active
+              {activeConsents.filter((c) => c.status === "ACTIVE").length} {isHindi ? "सक्रिय" : "Active"}
             </span>
           </div>
 
@@ -250,19 +262,19 @@ export const PrivacyScreen = () => {
                           {consent.title}
                         </h4>
                         <span className="text-[11px] text-teal-800 font-semibold mt-0.5 block">
-                          Granted: {consent.grantedAt}
+                          {isHindi ? "स्वीकृत:" : "Granted:"} {consent.grantedAt}
                         </span>
                       </div>
 
                       {isActive ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>Active</span>
+                          <span>{isHindi ? "सक्रिय" : "Active"}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 shrink-0">
                           <XCircle className="w-3 h-3 text-rose-600" />
-                          <span>Withdrawn</span>
+                          <span>{isHindi ? "वापस ली गई" : "Withdrawn"}</span>
                         </span>
                       )}
                     </div>
@@ -273,7 +285,7 @@ export const PrivacyScreen = () => {
 
                     <div className="flex items-center justify-between pt-1 text-xs">
                       <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                        Scope: {consent.scope || "Active consultation"}
+                        {isHindi ? "दायरा:" : "Scope:"} {consent.scope || (isHindi ? "सक्रिय परामर्श" : "Active consultation")}
                       </span>
 
                       <button
@@ -284,7 +296,7 @@ export const PrivacyScreen = () => {
                         }}
                         className="font-bold text-teal-800 hover:text-teal-950 flex items-center gap-0.5 cursor-pointer py-1"
                       >
-                        <span>View Details</span>
+                        <span>{isHindi ? "विवरण देखें" : "View Details"}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -293,7 +305,7 @@ export const PrivacyScreen = () => {
               })
             ) : (
               <div className="p-5 rounded-3xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                No active sharing permissions. Consents you grant will appear here.
+                {isHindi ? "कोई सक्रिय अनुमति नहीं है।" : "No active sharing permissions. Consents you grant will appear here."}
               </div>
             )}
           </div>
@@ -305,9 +317,9 @@ export const PrivacyScreen = () => {
         <section aria-label="Consent History" className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Consent History
+              {isHindi ? "सहमति इतिहास" : "Consent History"}
             </h3>
-            <span className="text-xs text-slate-400">Chronological</span>
+            <span className="text-xs text-slate-400">{isHindi ? "क्रमबद्ध" : "Chronological"}</span>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs divide-y divide-slate-100 overflow-hidden">
@@ -327,17 +339,21 @@ export const PrivacyScreen = () => {
                           : "bg-slate-100 text-slate-600 border-slate-200"
                       }`}
                     >
-                      {item.status}
+                      {item.status === "ACTIVE"
+                        ? (isHindi ? "सक्रिय" : "ACTIVE")
+                        : item.status === "WITHDRAWN"
+                        ? (isHindi ? "वापस ली गई" : "WITHDRAWN")
+                        : item.status}
                     </span>
                   </div>
 
                   <p className="text-slate-600 text-[11px]">{item.purpose}</p>
 
                   <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
-                    <span>Granted: {item.grantedAt}</span>
+                    <span>{isHindi ? "स्वीकृत:" : "Granted:"} {item.grantedAt}</span>
                     {item.withdrawnAt && (
                       <span className="text-rose-700 font-semibold">
-                        Withdrawn: {item.withdrawnAt}
+                        {isHindi ? "वापस ली गई:" : "Withdrawn:"} {item.withdrawnAt}
                       </span>
                     )}
                   </div>
@@ -345,7 +361,7 @@ export const PrivacyScreen = () => {
               ))
             ) : (
               <div className="p-4 text-center text-xs text-slate-500">
-                No consent history recorded.
+                {isHindi ? "कोई सहमति इतिहास दर्ज नहीं है।" : "No consent history recorded."}
               </div>
             )}
           </div>
@@ -357,10 +373,10 @@ export const PrivacyScreen = () => {
         <section aria-label="Access History" className="space-y-3">
           <div className="px-1 space-y-0.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Who accessed my information?
+              {isHindi ? "मेरी जानकारी किसने एक्सेस की?" : "Who accessed my information?"}
             </h3>
             <p className="text-xs text-slate-500">
-              Review recent access activity across connected clinical systems.
+              {isHindi ? "जुड़े हुए नैदानिक सिस्टमों में हालिया पहुंच गतिविधि देखें।" : "Review recent access activity across connected clinical systems."}
             </p>
           </div>
 
@@ -395,24 +411,26 @@ export const PrivacyScreen = () => {
                     <div className="flex items-center gap-1.5 text-slate-700">
                       <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span className="font-semibold">
-                        Information accessed: {entry.informationAccessed}
+                        {isHindi ? "एक्सेस की गई जानकारी:" : "Information accessed:"} {entry.informationAccessed}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 pl-5">
-                      Purpose: {entry.purpose}
+                      {isHindi ? "उद्देश्य:" : "Purpose:"} {entry.purpose}
                     </p>
                   </div>
                 </div>
               ))
             ) : (
               <div className="p-4 rounded-2xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                No access events recorded.
+                {isHindi ? "कोई एक्सेस गतिविधि दर्ज नहीं है।" : "No access events recorded."}
               </div>
             )}
           </div>
 
           <p className="text-[11px] text-slate-400 italic px-1">
-            Access activity shown here is based on the information available to MediKiosk.
+            {isHindi
+              ? "दिखाई गई गतिविधि मेडिकियोस्क को उपलब्ध डेटा पर आधारित है।"
+              : "Access activity shown here is based on the information available to MediKiosk."}
           </p>
         </section>
 
@@ -423,14 +441,14 @@ export const PrivacyScreen = () => {
           <div className="flex items-center justify-between px-1">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Active Sessions
+                {isHindi ? "सक्रिय सत्र" : "Active Sessions"}
               </h3>
               <p className="text-xs text-slate-500">
-                Currently connected devices and clinical terminals
+                {isHindi ? "वर्तमान में जुड़े उपकरण और अस्पताल टर्मिनल" : "Currently connected devices and clinical terminals"}
               </p>
             </div>
             <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              {activeSessions.filter((s) => s.status === "ACTIVE").length} Connected
+              {activeSessions.filter((s) => s.status === "ACTIVE").length} {isHindi ? "जुड़े हुए" : "Connected"}
             </span>
           </div>
 
@@ -468,11 +486,11 @@ export const PrivacyScreen = () => {
                       {isActive ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span>Active</span>
+                          <span>{isHindi ? "सक्रिय" : "Active"}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 shrink-0">
-                          <span>Ended</span>
+                          <span>{isHindi ? "समाप्त" : "Ended"}</span>
                         </span>
                       )}
                     </div>
@@ -480,7 +498,7 @@ export const PrivacyScreen = () => {
                     <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
                         <span className="text-slate-400 block font-semibold text-[9px] uppercase">
-                          Purpose
+                          {isHindi ? "उद्देश्य" : "Purpose"}
                         </span>
                         <span className="font-bold text-slate-800 mt-0.5 block">
                           {session.purpose}
@@ -488,7 +506,7 @@ export const PrivacyScreen = () => {
                       </div>
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
                         <span className="text-slate-400 block font-semibold text-[9px] uppercase">
-                          Started At
+                          {isHindi ? "प्रारंभ समय" : "Started At"}
                         </span>
                         <span className="font-bold text-slate-800 mt-0.5 block">
                           {session.startedAt}
@@ -505,7 +523,7 @@ export const PrivacyScreen = () => {
                           className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs"
                         >
                           <PowerOff className="w-3.5 h-3.5 text-rose-700" />
-                          <span>End Session</span>
+                          <span>{isHindi ? "सत्र समाप्त करें" : "End Session"}</span>
                         </button>
                       </div>
                     )}
@@ -514,7 +532,7 @@ export const PrivacyScreen = () => {
               })
             ) : (
               <div className="p-4 rounded-2xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                No active sessions.
+                {isHindi ? "कोई सक्रिय सत्र नहीं है।" : "No active sessions."}
               </div>
             )}
           </div>
@@ -530,10 +548,14 @@ export const PrivacyScreen = () => {
       {/* 1. Lock History Modal */}
       <PrivacyConfirmModal
         isOpen={isLockModalOpen}
-        title="Lock your health history?"
-        message="When your history is locked, connected healthcare sessions will not be able to use your saved medical history and documents through this patient-controlled setting."
-        confirmText="Lock History"
-        cancelText="Cancel"
+        title={isHindi ? "क्या स्वास्थ्य इतिहास लॉक करें?" : "Lock your health history?"}
+        message={
+          isHindi
+            ? "जब आपका इतिहास लॉक होता है, तो जुड़े हुए स्वास्थ्य सत्र इस मरीज़-नियंत्रित सेटिंग के माध्यम से आपके सहेजे गए मेडिकल इतिहास और दस्तावेज़ों का उपयोग नहीं कर पाएंगे।"
+            : "When your history is locked, connected healthcare sessions will not be able to use your saved medical history and documents through this patient-controlled setting."
+        }
+        confirmText={isHindi ? "इतिहास लॉक करें" : "Lock History"}
+        cancelText={isHindi ? "रद्द करें" : "Cancel"}
         variant="warning"
         icon={Lock}
         onConfirm={handleConfirmLock}
@@ -543,10 +565,14 @@ export const PrivacyScreen = () => {
       {/* 2. Unlock History Modal */}
       <PrivacyConfirmModal
         isOpen={isUnlockModalOpen}
-        title="Unlock your health history?"
-        message="Your saved health information can be shared with connected healthcare sessions when you allow access."
-        confirmText="Unlock History"
-        cancelText="Cancel"
+        title={isHindi ? "क्या स्वास्थ्य इतिहास अनलॉक करें?" : "Unlock your health history?"}
+        message={
+          isHindi
+            ? "आपकी सहेजी गई स्वास्थ्य जानकारी को जुड़े हुए स्वास्थ्य सत्रों के साथ तब साझा किया जा सकता है जब आप अनुमति दें।"
+            : "Your saved health information can be shared with connected healthcare sessions when you allow access."
+        }
+        confirmText={isHindi ? "इतिहास अनलॉक करें" : "Unlock History"}
+        cancelText={isHindi ? "रद्द करें" : "Cancel"}
         variant="primary"
         icon={Unlock}
         onConfirm={handleConfirmUnlock}
@@ -556,10 +582,14 @@ export const PrivacyScreen = () => {
       {/* 3. End Session Modal */}
       <PrivacyConfirmModal
         isOpen={!!sessionToEnd}
-        title="End this session?"
-        message="Ending the session will stop this connected session from using your information."
-        confirmText="End Session"
-        cancelText="Cancel"
+        title={isHindi ? "क्या यह सत्र समाप्त करें?" : "End this session?"}
+        message={
+          isHindi
+            ? "सत्र समाप्त करने से यह जुड़ा हुआ सत्र आपकी जानकारी का उपयोग नहीं कर पाएगा।"
+            : "Ending the session will stop this connected session from using your information."
+        }
+        confirmText={isHindi ? "सत्र समाप्त करें" : "End Session"}
+        cancelText={isHindi ? "रद्द करें" : "Cancel"}
         variant="danger"
         icon={PowerOff}
         onConfirm={handleConfirmEndSession}

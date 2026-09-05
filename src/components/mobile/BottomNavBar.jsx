@@ -12,32 +12,34 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
  * - More (Patient Profile, ABHA ID Card, Settings, Logout)
  */
 export const BottomNavBar = () => {
-  const { currentScreen, setScreen, activeNavTab, setActiveNavTab } =
+  const { currentScreen, setScreen, activeNavTab, setActiveNavTab, selectedLanguage } =
     useMobileStore();
+
+  const isHindi = selectedLanguage === "hi";
 
   const navItems = [
     {
       id: "home",
-      label: "Home",
+      label: isHindi ? "होम" : "Home",
       icon: Home,
       screen: SCREENS.M1,
     },
     {
       id: "visits",
-      label: "Visits",
+      label: isHindi ? "मुलाकातें" : "Visits",
       icon: CalendarDays,
       screen: SCREENS.VISITS,
-      badge: "Today",
+      badge: isHindi ? "आज" : "Today",
     },
     {
       id: "records",
-      label: "Records",
+      label: isHindi ? "रिकॉर्ड्स" : "Records",
       icon: FileText,
       screen: SCREENS.RECORDS,
     },
     {
       id: "more",
-      label: "More",
+      label: isHindi ? "अधिक" : "More",
       icon: UserRound,
       screen: SCREENS.MORE,
     },

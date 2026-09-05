@@ -9,7 +9,7 @@ import {
   mockExtractedData,
   mockDefaultDocument,
   mockMedicalRecords,
-} from "../data/mockData";
+} from "../data/mockData.js";
 
 /**
  * Uploads a captured or selected document image to the healthcare backend.

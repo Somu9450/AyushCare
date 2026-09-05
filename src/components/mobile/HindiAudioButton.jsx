@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Volume2, VolumeX, Pause, Play } from "lucide-react";
 import useMobileStore from "../../store/useMobileStore";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * HindiAudioButton
- * Allows patients (especially low-literacy or Hindi-speaking users) to listen to the health summary.
- * Uses the Web SpeechSynthesis API for prototype voice generation.
+ * Allows patients (especially low-literacy or audio-preference users) to listen to the health summary.
+ * Uses Web SpeechSynthesis API. Displays strictly single language (pure English or pure Hindi).
  */
 export const HindiAudioButton = ({ text, className = "" }) => {
   const { isHindiSpeechPlaying, setIsHindiSpeechPlaying } = useMobileStore();
+  const { isHindi } = useLanguage();
   const [speechSupported, setSpeechSupported] = useState(true);
   const utteranceRef = useRef(null);
 
@@ -18,7 +20,6 @@ export const HindiAudioButton = ({ text, className = "" }) => {
     }
 
     return () => {
-      // Clean up speech on unmount
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
@@ -27,7 +28,7 @@ export const HindiAudioButton = ({ text, className = "" }) => {
 
   const handleToggleAudio = () => {
     if (!speechSupported) {
-      alert("Text-to-speech is not supported in this browser.");
+      alert(isHindi ? "इस ब्राउज़र में टेक्स्ट-टू-स्पीच समर्थित नहीं है।" : "Text-to-speech is not supported in this browser.");
       return;
     }
 
@@ -42,23 +43,22 @@ export const HindiAudioButton = ({ text, className = "" }) => {
     // Cancel any previous speech
     synth.cancel();
 
-    // TODO: Replace browser SpeechSynthesis with production multilingual voice service.
-    // (e.g., AI4Bharat Indic-TTS / Bhashini / Google Cloud Text-to-Speech)
     const textToSpeak =
       text ||
-      "नमस्ते राजेश जी। यह आपकी स्वास्थ्य सारांश है। आप अपने डॉक्टर को यह जानकारी दिखा सकते हैं।";
+      (isHindi
+        ? "नमस्ते राजेश जी। यह आपकी स्वास्थ्य सारांश है। आप अपने डॉक्टर को यह जानकारी दिखा सकते हैं।"
+        : "Hello Rajesh. This is your health summary. You can review and share this information with your doctor.");
 
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = "hi-IN";
-    utterance.rate = 0.92; // Slightly slower for better comprehension
+    utterance.lang = isHindi ? "hi-IN" : "en-IN";
+    utterance.rate = 0.92;
 
-    // Attempt to pick a Hindi voice if available
     const voices = synth.getVoices();
-    const hindiVoice = voices.find(
-      (v) => v.lang.includes("hi") || v.name.toLowerCase().includes("hindi")
+    const voice = voices.find(
+      (v) => (isHindi ? (v.lang.includes("hi") || v.name.toLowerCase().includes("hindi")) : (v.lang.includes("en-IN") || v.lang.includes("en")))
     );
-    if (hindiVoice) {
-      utterance.voice = hindiVoice;
+    if (voice) {
+      utterance.voice = voice;
     }
 
     utterance.onstart = () => {
@@ -77,11 +77,19 @@ export const HindiAudioButton = ({ text, className = "" }) => {
     synth.speak(utterance);
   };
 
+  const titleText = isHindi
+    ? (isHindiSpeechPlaying ? "ऑडियो सारांश चल रहा है..." : "स्वास्थ्य सारांश सुनें")
+    : (isHindiSpeechPlaying ? "Playing Audio Summary..." : "Listen to Health Summary");
+
+  const subtitleText = isHindi
+    ? (isHindiSpeechPlaying ? "रोकने के लिए दोबारा दबाएं" : "स्पष्ट आवाज़ में सारांश सुनें")
+    : (isHindiSpeechPlaying ? "Tap again to pause playback" : "Read aloud with clear voice guidance");
+
   return (
     <button
       type="button"
       onClick={handleToggleAudio}
-      aria-label={isHindiSpeechPlaying ? "Stop Hindi voice audio" : "Listen to Summary in Hindi"}
+      aria-label={titleText}
       className={`w-full min-h-[50px] p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] select-none ${
         isHindiSpeechPlaying
           ? "bg-teal-900 border-teal-950 text-white shadow-md ring-2 ring-teal-500/20"
@@ -107,14 +115,14 @@ export const HindiAudioButton = ({ text, className = "" }) => {
               isHindiSpeechPlaying ? "text-white" : "text-teal-950"
             }`}
           >
-            {isHindiSpeechPlaying ? "Playing Hindi Audio..." : "Listen to Summary in Hindi"}
+            {titleText}
           </p>
           <p
             className={`text-xs mt-0.5 ${
               isHindiSpeechPlaying ? "text-teal-200" : "text-teal-800"
             }`}
           >
-            हिंदी में सारांश सुनें (आवाज़ में)
+            {subtitleText}
           </p>
         </div>
       </div>
@@ -130,7 +138,7 @@ export const HindiAudioButton = ({ text, className = "" }) => {
           </div>
         ) : (
           <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white/80 text-teal-900 border border-teal-300/60 shadow-2xs">
-            🔊 Play
+            🔊 {isHindi ? "चलाएं" : "Play"}
           </span>
         )}
       </div>

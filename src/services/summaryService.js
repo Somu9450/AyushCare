@@ -5,7 +5,7 @@
  * NOTE: Currently runs in prototype simulation mode using local promises and mock data.
  */
 
-import { mockTimeline, mockHealthSummary } from "../data/mockData";
+import { mockTimeline, mockHealthSummary } from "../data/mockData.js";
 
 /**
  * Fetches the synthesized medical timeline combining EHR, Kiosk intake, and newly uploaded documents.

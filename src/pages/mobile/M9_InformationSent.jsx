@@ -12,12 +12,20 @@ import useMobileStore from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import PrimaryButton from "../../components/mobile/PrimaryButton";
 import BottomActionBar from "../../components/mobile/BottomActionBar";
+import { useLanguage } from "../../i18n/translations";
 
-const CHECKLIST_ITEMS = [
+const CHECKLIST_ITEMS_EN = [
   "History captured",
   "Documents processed",
   "Timeline created",
   "Doctor summary prepared",
+];
+
+const CHECKLIST_ITEMS_HI = [
+  "स्वास्थ्य इतिहास दर्ज हुआ",
+  "दस्तावेज़ संसाधित हुए",
+  "समयरेखा तैयार हुई",
+  "डॉक्टर सारांश तैयार हुआ",
 ];
 
 /**
@@ -27,10 +35,11 @@ const CHECKLIST_ITEMS = [
  */
 export const M9_InformationSent = () => {
   const { session, resetMobileSession } = useMobileStore();
+  const { isHindi } = useLanguage();
+
+  const checklistItems = isHindi ? CHECKLIST_ITEMS_HI : CHECKLIST_ITEMS_EN;
 
   const handleReturnToKiosk = () => {
-    // TODO: Notify/sync with hospital kiosk backend.
-    // socket.emit('mobile:session_completed', { kioskId: session.kioskId, sessionId: session.sessionId });
     resetMobileSession();
   };
 
@@ -38,7 +47,7 @@ export const M9_InformationSent = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50">
       {/* Header */}
       <MobileHeader
-        title="Session Completed"
+        title={isHindi ? "सत्र संपन्न" : "Session Completed"}
         showBack={false}
       />
 
@@ -57,16 +66,18 @@ export const M9_InformationSent = () => {
         {/* Headings */}
         <div className="space-y-2">
           <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-            Your Information Has Been Sent ✓
+            {isHindi ? "आपकी जानकारी भेज दी गई है ✓" : "Your Information Has Been Sent ✓"}
           </h2>
           <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed">
-            Your medical history and documents are now available for your doctor to review.
+            {isHindi
+              ? "आपका स्वास्थ्य इतिहास और दस्तावेज़ अब डॉक्टर की समीक्षा हेतु उपलब्ध हैं।"
+              : "Your medical history and documents are now available for your doctor to review."}
           </p>
         </div>
 
         {/* Completed milestones checklist */}
         <div className="w-full bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm text-left space-y-3">
-          {CHECKLIST_ITEMS.map((item, idx) => (
+          {checklistItems.map((item, idx) => (
             <div key={idx} className="flex items-center gap-3">
               <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -85,13 +96,16 @@ export const M9_InformationSent = () => {
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-black text-slate-900">
-              Please return to the kiosk
+              {isHindi ? "कृपया कियोस्क पर वापस जाएं" : "Please return to the kiosk"}
             </h3>
             <p className="text-xs text-teal-900 mt-0.5 leading-snug">
-              Your session is synced with the hospital terminal.
+              {isHindi
+                ? "आपका सत्र अस्पताल टर्मिनल के साथ सिंक हो गया है।"
+                : "Your session is synced with the hospital terminal."}
             </p>
             <p className="text-[11px] text-slate-500 mt-1 font-mono">
-              Terminal: {session.terminalName || "Central Delhi OPD Terminal 03"}
+              {isHindi ? "टर्मिनल: " : "Terminal: "}
+              {session.terminalName || "Central Delhi OPD Terminal 03"}
             </p>
           </div>
         </div>
@@ -99,7 +113,11 @@ export const M9_InformationSent = () => {
         {/* Subtle security confirmation */}
         <div className="flex items-center gap-1.5 text-xs text-slate-400">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Session securely finalized and linked to OPD Desk</span>
+          <span>
+            {isHindi
+              ? "सत्र सुरक्षित रूप से पूर्ण हुआ और ओपीडी डेस्क से जुड़ा है"
+              : "Session securely finalized and linked to OPD Desk"}
+          </span>
         </div>
       </main>
 
@@ -109,7 +127,7 @@ export const M9_InformationSent = () => {
           onClick={handleReturnToKiosk}
           icon={RotateCcw}
         >
-          Return to Kiosk
+          {isHindi ? "कियोस्क पर वापस जाएं" : "Return to Kiosk"}
         </PrimaryButton>
       </BottomActionBar>
     </div>

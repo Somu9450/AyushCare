@@ -18,6 +18,7 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import PrivacyConfirmModal from "../../components/mobile/PrivacyConfirmModal";
+import { useLanguage } from "../../i18n/translations";
 
 /**
  * ConsentDetailsScreen
@@ -36,6 +37,7 @@ export const ConsentDetailsScreen = () => {
     setScreen,
     prevScreen,
   } = useMobileStore();
+  const { isHindi } = useLanguage();
 
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [successToast, setSuccessToast] = useState(null);
@@ -69,7 +71,7 @@ export const ConsentDetailsScreen = () => {
   const handleWithdrawConfirm = () => {
     withdrawConsent(consent.id);
     setIsWithdrawModalOpen(false);
-    setSuccessToast("Access withdrawn successfully");
+    setSuccessToast(isHindi ? "सहमति सफलतापूर्वक वापस ली गई" : "Access withdrawn successfully");
     setTimeout(() => {
       setSuccessToast(null);
     }, 3000);
@@ -79,7 +81,7 @@ export const ConsentDetailsScreen = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
       {/* Header */}
       <MobileHeader
-        title="Consent Details"
+        title={isHindi ? "सहमति विवरण" : "Consent Details"}
         showBack={true}
         onBack={() => setScreen(SCREENS.PRIVACY)}
       />
@@ -93,7 +95,9 @@ export const ConsentDetailsScreen = () => {
               <Check className="w-4 h-4 text-emerald-400" />
               <span>{successToast}</span>
             </div>
-            <span className="text-[10px] text-emerald-300">Updated</span>
+            <span className="text-[10px] text-emerald-300">
+              {isHindi ? "अद्यतित" : "Updated"}
+            </span>
           </div>
         )}
 
@@ -105,7 +109,7 @@ export const ConsentDetailsScreen = () => {
           <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="space-y-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded border border-teal-200">
-                Sharing Permission
+                {isHindi ? "साझाकरण अनुमति" : "Sharing Permission"}
               </span>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
                 {consent.title}
@@ -116,12 +120,12 @@ export const ConsentDetailsScreen = () => {
             {isWithdrawn ? (
               <span className="inline-flex items-center gap-1 text-xs font-bold text-rose-800 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 shrink-0">
                 <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                <span>Withdrawn</span>
+                <span>{isHindi ? "वापस ली गई" : "Withdrawn"}</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Active</span>
+                <span>{isHindi ? "सक्रिय" : "Active"}</span>
               </span>
             )}
           </div>
@@ -129,7 +133,7 @@ export const ConsentDetailsScreen = () => {
           {/* Primary Purpose */}
           <div className="space-y-1 text-xs">
             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-              Purpose
+              {isHindi ? "उद्देश्य" : "Purpose"}
             </span>
             <p className="text-sm font-semibold text-slate-800 leading-relaxed">
               {consent.purpose}
@@ -145,7 +149,7 @@ export const ConsentDetailsScreen = () => {
           >
             <div className="flex items-center gap-1.5 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
               <HelpCircle className="w-3.5 h-3.5 text-teal-700" />
-              <span>Why is this needed?</span>
+              <span>{isHindi ? "इसकी आवश्यकता क्यों है?" : "Why is this needed?"}</span>
             </div>
             <p className="text-slate-700 leading-relaxed text-xs sm:text-sm">
               {consent.whyNeeded}
@@ -161,7 +165,7 @@ export const ConsentDetailsScreen = () => {
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
             <FileText className="w-4 h-4 text-teal-800 shrink-0" />
             <h3 className="text-sm font-black text-slate-900">
-              Information Covered by This Consent
+              {isHindi ? "इस सहमति में शामिल जानकारी" : "Information Covered by This Consent"}
             </h3>
           </div>
 
@@ -188,7 +192,7 @@ export const ConsentDetailsScreen = () => {
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
             <UserCheck className="w-4 h-4 text-teal-800 shrink-0" />
             <h3 className="text-sm font-black text-slate-900">
-              Who Can Access This Information
+              {isHindi ? "इस जानकारी को कौन एक्सेस कर सकता है" : "Who Can Access This Information"}
             </h3>
           </div>
 
@@ -199,7 +203,7 @@ export const ConsentDetailsScreen = () => {
           <div className="grid grid-cols-2 gap-2.5 pt-1 text-[11px]">
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <span className="text-slate-400 block font-semibold uppercase text-[9px]">
-                Granted
+                {isHindi ? "स्वीकृत" : "Granted"}
               </span>
               <span className="font-bold text-slate-800 mt-0.5 block">
                 {consent.grantedAt}
@@ -208,10 +212,10 @@ export const ConsentDetailsScreen = () => {
 
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <span className="text-slate-400 block font-semibold uppercase text-[9px]">
-                Validity
+                {isHindi ? "वैधता" : "Validity"}
               </span>
               <span className="font-bold text-slate-800 mt-0.5 block">
-                {consent.expiresAt || "Active session"}
+                {consent.expiresAt || (isHindi ? "सक्रिय सत्र" : "Active session")}
               </span>
             </div>
           </div>
@@ -221,10 +225,12 @@ export const ConsentDetailsScreen = () => {
         <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200/90 text-xs text-slate-600 space-y-1">
           <div className="flex items-center gap-2 font-bold text-slate-800">
             <AlertCircle className="w-4 h-4 text-teal-800 shrink-0" />
-            <span>Patient Control Notice</span>
+            <span>{isHindi ? "मरीज़ नियंत्रण सूचना" : "Patient Control Notice"}</span>
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed pl-6">
-            Withdrawing access stops connected sessions from reading this information. Your personal medical records, visits, and history remain securely available to you in this app.
+            {isHindi
+              ? "सहमति वापस लेने से जुड़े हुए सत्र इस जानकारी को पढ़ना बंद कर देंगे। आपके व्यक्तिगत मेडिकल रिकॉर्ड, मुलाकातें और इतिहास इस ऐप में आपके लिए पूरी तरह सुरक्षित रहेंगे।"
+              : "Withdrawing access stops connected sessions from reading this information. Your personal medical records, visits, and history remain securely available to you in this app."}
           </p>
         </div>
 
@@ -237,11 +243,13 @@ export const ConsentDetailsScreen = () => {
               className="w-full min-h-[50px] px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-2xs"
             >
               <ShieldAlert className="w-4 h-4 text-rose-700" />
-              <span>Withdraw Access</span>
+              <span>{isHindi ? "सहमति वापस लें" : "Withdraw Access"}</span>
             </button>
           ) : (
             <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-bold text-center">
-              Access was withdrawn by you on {consent.withdrawnAt || "recently"}.
+              {isHindi
+                ? `आपके द्वारा ${consent.withdrawnAt || "हाल ही में"} सहमति वापस ले ली गई थी।`
+                : `Access was withdrawn by you on ${consent.withdrawnAt || "recently"}.`}
             </div>
           )}
 
@@ -251,7 +259,7 @@ export const ConsentDetailsScreen = () => {
             className="w-full min-h-[46px] px-4 rounded-2xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Privacy & Data Control</span>
+            <span>{isHindi ? "गोपनीयता व डेटा नियंत्रण पर वापस जाएं" : "Back to Privacy & Data Control"}</span>
           </button>
         </div>
       </main>
@@ -262,10 +270,14 @@ export const ConsentDetailsScreen = () => {
       {/* Confirmation Modal */}
       <PrivacyConfirmModal
         isOpen={isWithdrawModalOpen}
-        title="Withdraw this access?"
-        message="If you withdraw this consent, the selected healthcare session will no longer be allowed to use the information covered by this consent."
-        confirmText="Withdraw Access"
-        cancelText="Cancel"
+        title={isHindi ? "क्या यह सहमति वापस लें?" : "Withdraw this access?"}
+        message={
+          isHindi
+            ? "यदि आप यह सहमति वापस लेते हैं, तो संबंधित स्वास्थ्य सत्र को इसके अंतर्गत आने वाली जानकारी का उपयोग करने की अनुमति नहीं होगी।"
+            : "If you withdraw this consent, the selected healthcare session will no longer be allowed to use the information covered by this consent."
+        }
+        confirmText={isHindi ? "सहमति वापस लें" : "Withdraw Access"}
+        cancelText={isHindi ? "रद्द करें" : "Cancel"}
         variant="danger"
         icon={ShieldAlert}
         onConfirm={handleWithdrawConfirm}
