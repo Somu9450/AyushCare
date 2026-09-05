@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import {
     pairKioskSession, getUploadUrl, registerDocument, deleteDocument, syncKioskUpload,
-    sendPortalOtp, verifyPortalOtp, getPortalDashboard, getAudioSummary, getPortalDocuments, getPortalPrivacy, updatePortalPrivacy
+    sendPortalOtp, verifyPortalOtp, getPortalDashboard, getAudioSummary, getPortalDocuments,
+    updatePortalPrivacy, getPortalPrivacy
 } from '../controllers/mobile.controller.js';
-import { verifyJWT } from '../middleware/auth.middleware.js';
+
+import { verifyPatientJWT } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -16,10 +18,13 @@ router.route("/kiosk-session/:session_id/sync").post(syncKioskUpload);
 router.route("/portal/auth/send-otp").post(sendPortalOtp);
 router.route("/portal/auth/verify-otp").post(verifyPortalOtp);
 
-router.route("/portal/dashboard").get(verifyJWT, getPortalDashboard);
-router.route("/portal/audio-summary").get(verifyJWT, getAudioSummary);
-router.route("/portal/documents").get(verifyJWT, getPortalDocuments);
-router.route("/portal/documents/upload-url").post(verifyJWT, getUploadUrl);
-router.route("/portal/privacy-settings").get(verifyJWT, getPortalPrivacy).patch(verifyJWT, updatePortalPrivacy);
+router.route("/portal/dashboard").get(verifyPatientJWT, getPortalDashboard);
+router.route("/portal/audio-summary").get(verifyPatientJWT, getAudioSummary);
+router.route("/portal/documents").get(verifyPatientJWT, getPortalDocuments);
+router.route("/portal/documents/upload-url").post(verifyPatientJWT, getUploadUrl); 
+
+router.route("/portal/privacy-settings")
+    .get(verifyPatientJWT, getPortalPrivacy)
+    .patch(verifyPatientJWT, updatePortalPrivacy);
 
 export default router;

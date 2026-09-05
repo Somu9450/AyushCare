@@ -30,3 +30,35 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
         throw new ApiError(401, error?.message || "Invalid Access Token");
     }
 });
+
+export const verifyPatientJWT = asyncHandler(async (req, res, next) => {
+    const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+
+    if (!token) {
+        throw new ApiError(401, "Unauthorized request. Missing token.");
+    }
+
+    try {
+        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+
+        if (decodedToken.role !== 'patient') {
+            throw new ApiError(403, "Access denied. Patient privileges required.");
+        }
+
+        const patientQuery = await pool.query(
+            'SELECT id, full_name, mobile_number, consent_granted FROM patients WHERE id = $1',
+            [decodedToken.id]
+        );
+
+        const patient = patientQuery.rows[0];
+
+        if (!patient) {
+            throw new ApiError(401, "Invalid patient session token");
+        }
+
+        req.user = patient;
+        next();
+    } catch (error) {
+        throw new ApiError(401, error?.message || "Invalid patient session token");
+    }
+});
