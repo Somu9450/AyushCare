@@ -1,4 +1,3 @@
-import React from "react";
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 import M1_MobileHome from "./pages/mobile/M1_MobileHome";
 import M2_DocumentType from "./pages/mobile/M2_DocumentType";
