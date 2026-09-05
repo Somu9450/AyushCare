@@ -126,3 +126,6 @@ class TestAPIIntegration:
         # 7. Close Session
         close_res = await async_client.delete(f"/api/v1/sessions/{session_id}")
         assert close_res.status_code == 204
+
+        deleted_res = await async_client.get(f"/api/v1/sessions/{session_id}")
+        assert deleted_res.status_code == 404
