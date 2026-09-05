@@ -2,599 +2,605 @@ import React, { useState } from "react";
 import {
   Shield,
   ShieldCheck,
-  ShieldAlert,
   Lock,
   Unlock,
   Eye,
-  Clock,
-  Calendar,
-  Building2,
-  FileText,
-  ChevronRight,
+  EyeOff,
   CheckCircle2,
-  AlertCircle,
   XCircle,
   Check,
-  Monitor,
-  PowerOff,
+  FileText,
+  Activity,
+  FolderHeart,
+  ChevronRight,
   History,
-  HelpCircle,
+  AlertCircle,
+  Sliders,
 } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
-import PrivacyConfirmModal from "../../components/mobile/PrivacyConfirmModal";
 import { useLanguage } from "../../i18n/translations";
 
 /**
- * PrivacyScreen — "Privacy & Data Control"
- * Patient-friendly privacy and consent experience inspired by DPDP principles:
- * - Health history access lock/unlock control
- * - Active consent governance with detail inspection & withdrawal
- * - Chronological consent history
- * - Access audit history ("Who accessed my information?")
- * - Active connected healthcare sessions management
+ * PrivacyScreen — Simplified & Intuitive Patient Data Control
+ * Allows patients to view and toggle:
+ * 1. Master Health History Lock
+ * 2. Active Doctor & Hospital Sharing Permissions (Toggle ON to allow, Toggle OFF to pause, and re-allow anytime!)
+ * 3. Granular Diagnosis Privacy (Lock / hide specific past conditions like mental health or chronic illness)
+ * 4. Granular Report Category Privacy (Lock / hide lab reports, scans, prescriptions)
+ * 5. Recent Access History (Who viewed what)
  */
 export const PrivacyScreen = () => {
   const {
     privacyData,
     isHealthHistoryLocked,
-    setHealthHistoryLocked,
+    toggleHealthHistoryAccess,
+    diagnosesPrivacy,
+    toggleDiagnosisPrivacy,
+    reportsPrivacy,
+    toggleReportPrivacy,
+    toggleConsent,
     setSelectedConsent,
-    endSession,
     setScreen,
-    prevScreen,
   } = useMobileStore();
-  const { isHindi } = useLanguage();
 
-  // Confirmation Modals State
-  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
-  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
-  const [sessionToEnd, setSessionToEnd] = useState(null);
+  const { t, isHindi } = useLanguage();
+  const [activeTab, setActiveTab] = useState("all"); // "all" | "diagnoses" | "reports" | "audit"
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
-    }, 3200);
-  };
-
-  // Lock / Unlock Handlers
-  const handleConfirmLock = () => {
-    setHealthHistoryLocked(true);
-    setIsLockModalOpen(false);
-    showToast(isHindi ? "स्वास्थ्य इतिहास लॉक किया गया" : "Health history locked");
-  };
-
-  const handleConfirmUnlock = () => {
-    setHealthHistoryLocked(false);
-    setIsUnlockModalOpen(false);
-    showToast(isHindi ? "स्वास्थ्य इतिहास अनलॉक किया गया" : "Health history unlocked");
-  };
-
-  // End Session Handler
-  const handleConfirmEndSession = () => {
-    if (sessionToEnd) {
-      endSession(sessionToEnd.id);
-      setSessionToEnd(null);
-      showToast(isHindi ? "सत्र समाप्त हुआ" : "Session ended");
-    }
+    }, 2800);
   };
 
   const activeConsents = privacyData.activeConsents || [];
-  const consentHistory = privacyData.consentHistory || [];
   const accessHistory = privacyData.accessHistory || [];
-  const activeSessions = privacyData.activeSessions || [];
+
+  const handleToggleMasterHistory = () => {
+    const willLock = !isHealthHistoryLocked;
+    toggleHealthHistoryAccess();
+    showToast(
+      willLock
+        ? (isHindi ? "मास्टर इतिहास लॉक किया गया (साझाकरण बंद)" : "Master history locked (sharing stopped)")
+        : (isHindi ? "मास्टर इतिहास अनलॉक किया गया (साझाकरण चालू)" : "Master history unlocked (sharing allowed)")
+    );
+  };
+
+  const handleToggleConsentItem = (consentId, currentlyActive) => {
+    toggleConsent(consentId);
+    showToast(
+      currentlyActive
+        ? (isHindi ? "पहुंच अनुमति रोक दी गई" : "Access permission paused")
+        : (isHindi ? "पहुंच अनुमति पुनः स्वीकृत की गई ✓" : "Access permission re-allowed ✓")
+    );
+  };
+
+  const handleToggleDiagnosis = (id, currentlyLocked) => {
+    toggleDiagnosisPrivacy(id);
+    showToast(
+      currentlyLocked
+        ? (isHindi ? "रोग निदान डॉक्टर से साझा किया जा रहा है ✓" : "Diagnosis is now shared with doctor ✓")
+        : (isHindi ? "रोग निदान डॉक्टर से छुपा दिया गया 🔒" : "Diagnosis is now hidden from doctor 🔒")
+    );
+  };
+
+  const handleToggleReport = (id, currentlyLocked) => {
+    toggleReportPrivacy(id);
+    showToast(
+      currentlyLocked
+        ? (isHindi ? "रिपोर्ट डॉक्टर से साझा की जा रही है ✓" : "Reports are now shared with doctor ✓")
+        : (isHindi ? "रिपोर्ट डॉक्टर से छुपा दी गई 🔒" : "Reports are now hidden from doctor 🔒")
+    );
+  };
 
   return (
     <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
       {/* Header */}
       <MobileHeader
-        title={isHindi ? "गोपनीयता व डेटा नियंत्रण" : "Privacy & Data Control"}
+        title={t("privacy_title")}
         showBack={true}
         onBack={() => setScreen(SCREENS.MORE)}
       />
 
       {/* Main Content */}
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* Floating Toast Feedback */}
+        {/* Toast Feedback */}
         {toastMessage && (
           <div className="p-3.5 rounded-2xl bg-slate-950 text-white border border-teal-500/40 shadow-xl text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2">
               <Check className="w-4 h-4 text-teal-400 shrink-0" />
               <span>{toastMessage}</span>
             </div>
-            <span className="text-[10px] text-teal-300 uppercase tracking-wider font-extrabold">
+            <span className="text-[10px] text-teal-300 uppercase tracking-wider font-black">
               {isHindi ? "सहेजा गया" : "Saved"}
             </span>
           </div>
         )}
 
         {/* -------------------------------------------------------------
-            BANNER / HEADER NOTICE
-        -------------------------------------------------------------- */}
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-teal-800 to-teal-950 text-white shadow-md space-y-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-teal-200">
-              <Shield className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-200">
-              {isHindi ? "मरीज़ नियंत्रण व शासन" : "Patient Governance"}
-            </span>
-          </div>
-
-          <h2 className="text-xl sm:text-2xl font-black text-white leading-tight">
-            {isHindi ? "गोपनीयता व डेटा नियंत्रण" : "Privacy & Data Control"}
-          </h2>
-
-          <p className="text-xs sm:text-sm text-teal-100/90 leading-relaxed">
-            {isHindi
-              ? "प्रबंधित करें कि आपकी स्वास्थ्य जानकारी कैसे साझा और एक्सेस की जाती है। आपकी स्वास्थ्य जानकारी पर आपका पूर्ण अधिकार है।"
-              : "Manage how your health information is shared and accessed. Your health information belongs to you. You can review active sharing permissions, control access, and review recent activity."}
-          </p>
-        </div>
-
-        {/* -------------------------------------------------------------
-            SECTION 1 — HEALTH HISTORY CONTROL (LOCK / UNLOCK)
+            1. MASTER PRIVACY TOGGLE CARD
         -------------------------------------------------------------- */}
         <section
-          aria-label="Health History Access"
-          className={`p-5 rounded-3xl border shadow-xs transition-all space-y-4 ${
+          aria-label="Master Privacy Control"
+          className={`p-5 rounded-3xl border shadow-sm transition-all space-y-3.5 ${
             isHealthHistoryLocked
-              ? "bg-amber-50/70 border-amber-300 ring-1 ring-amber-400/20"
+              ? "bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/20"
               : "bg-white border-slate-200/90"
           }`}
         >
-          {/* Header & State Indicator */}
-          <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                {isHealthHistoryLocked ? (
-                  <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-                ) : (
-                  <Unlock className="w-4 h-4 text-teal-800 shrink-0" />
-                )}
-                <h3 className="text-sm sm:text-base font-black text-slate-900">
-                  {isHindi ? "स्वास्थ्य इतिहास पहुंच" : "Health History Access"}
-                </h3>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    isHealthHistoryLocked
+                      ? "bg-amber-100 text-amber-900"
+                      : "bg-teal-50 text-teal-800"
+                  }`}
+                >
+                  {isHealthHistoryLocked ? (
+                    <Lock className="w-4 h-4 text-amber-700" />
+                  ) : (
+                    <Unlock className="w-4 h-4 text-teal-800" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-900 leading-tight">
+                    {t("privacy_history_lock_heading")}
+                  </h2>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      isHealthHistoryLocked
+                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    }`}
+                  >
+                    {isHealthHistoryLocked
+                      ? t("privacy_lock_active")
+                      : t("privacy_lock_inactive")}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                {isHindi
-                  ? "नियंत्रित करें कि क्या आपका सहेजा गया इतिहास और दस्तावेज़ जुड़े हुए स्वास्थ्य सत्रों के साथ साझा किए जा सकते हैं।"
-                  : "Control whether your saved health history and medical documents can be shared with connected healthcare sessions."}
+              <p className="text-xs text-slate-500 pt-1 leading-relaxed">
+                {t("privacy_history_lock_sub")}
               </p>
             </div>
 
-            {/* Status Badge */}
-            {isHealthHistoryLocked ? (
-              <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
-                <Lock className="w-3 h-3 text-amber-700" />
-                <span>{isHindi ? "प्रतिबंधित" : "Restricted"}</span>
-              </span>
-            ) : (
-              <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200 shadow-2xs">
-                <CheckCircle2 className="w-3 h-3 text-teal-700" />
-                <span>{isHindi ? "उपलब्ध" : "Available"}</span>
-              </span>
-            )}
+            {/* Master iOS-style Toggle Switch */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!isHealthHistoryLocked}
+              onClick={handleToggleMasterHistory}
+              className={`w-14 h-8 rounded-full p-1 transition-colors duration-200 ease-in-out cursor-pointer shrink-0 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-600 ${
+                !isHealthHistoryLocked ? "bg-teal-700" : "bg-slate-300"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center text-[10px] font-bold ${
+                  !isHealthHistoryLocked
+                    ? "translate-x-6 text-teal-800"
+                    : "translate-x-0 text-slate-400"
+                }`}
+              >
+                {!isHealthHistoryLocked ? "✓" : "✕"}
+              </div>
+            </button>
           </div>
 
-          {/* Current Status Explanation */}
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <div>
-              <p className="font-bold text-slate-800">
-                {isHealthHistoryLocked
-                  ? (isHindi ? "साझाकरण वर्तमान में प्रतिबंधित है" : "Sharing is currently restricted")
-                  : (isHindi ? "साझाकरण के लिए उपलब्ध" : "Available for sharing")}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {isHealthHistoryLocked
-                  ? (isHindi
-                      ? "जुड़े हुए सत्र आपका पिछला इतिहास या दस्तावेज़ नहीं पढ़ सकते।"
-                      : "Connected healthcare sessions cannot read your past history or documents.")
-                  : (isHindi
-                      ? "अधिकृत डॉक्टर और टर्मिनल आपके साझा रिकॉर्ड देख सकते हैं।"
-                      : "Authorized doctor consoles and terminals can access shared records.")}
-              </p>
-            </div>
-
-            {/* Toggle Button */}
-            {isHealthHistoryLocked ? (
-              <button
-                type="button"
-                onClick={() => setIsUnlockModalOpen(true)}
-                className="shrink-0 px-4 py-2 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-              >
-                <Unlock className="w-3.5 h-3.5" />
-                <span>{isHindi ? "इतिहास अनलॉक करें" : "Unlock History"}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsLockModalOpen(true)}
-                className="shrink-0 px-4 py-2 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-xs border border-amber-300 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-              >
-                <Lock className="w-3.5 h-3.5 text-amber-800" />
-                <span>{isHindi ? "इतिहास लॉक करें" : "Lock History"}</span>
-              </button>
-            )}
-          </div>
-
-          <div className="pt-2 border-t border-slate-100/80 text-[11px] text-slate-400 italic">
-            {isHindi
-              ? "यह मरीज़-नियंत्रित सेटिंग है। आपके रिकॉर्ड आपके पास पूरी तरह सुरक्षित और दृश्यमान रहेंगे।"
-              : "This is a patient-controlled product setting. Your records remain intact and visible to you."}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>
+              {isHealthHistoryLocked
+                ? (isHindi ? "वर्तमान स्थिति: संपूर्ण इतिहास सुरक्षित व छुपा हुआ है" : "Status: All history protected and hidden")
+                : (isHindi ? "वर्तमान स्थिति: अधिकृत डॉक्टर आपका इतिहास देख सकते हैं" : "Status: Authorized doctors can view history")}
+            </span>
+            <span className="font-bold text-teal-800">
+              {isHealthHistoryLocked
+                ? (isHindi ? "अनलॉक करने हेतु स्विच दबाएं" : "Toggle switch to unlock")
+                : (isHindi ? "छुपाने हेतु स्विच दबाएं" : "Toggle switch to hide")}
+            </span>
           </div>
         </section>
 
         {/* -------------------------------------------------------------
-            SECTION 2 — ACTIVE CONSENTS
+            FILTER TABS: PERMISSIONS / DIAGNOSES / REPORTS / AUDIT
         -------------------------------------------------------------- */}
-        <section aria-label="Active Consents" className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div>
+        <div className="flex p-1.5 rounded-2xl bg-slate-200/80 border border-slate-200 text-xs font-bold gap-1 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`flex-1 min-w-[80px] py-2 px-2.5 rounded-xl transition cursor-pointer text-center whitespace-nowrap ${
+              activeTab === "all"
+                ? "bg-white text-teal-900 shadow-xs font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {t("privacy_tab_permissions")} ({activeConsents.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("diagnoses")}
+            className={`flex-1 min-w-[80px] py-2 px-2.5 rounded-xl transition cursor-pointer text-center whitespace-nowrap ${
+              activeTab === "diagnoses"
+                ? "bg-white text-teal-900 shadow-xs font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {t("privacy_tab_diagnoses")} ({diagnosesPrivacy?.length || 4})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("reports")}
+            className={`flex-1 min-w-[80px] py-2 px-2.5 rounded-xl transition cursor-pointer text-center whitespace-nowrap ${
+              activeTab === "reports"
+                ? "bg-white text-teal-900 shadow-xs font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {t("privacy_tab_reports")} ({reportsPrivacy?.length || 4})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("audit")}
+            className={`flex-1 min-w-[80px] py-2 px-2.5 rounded-xl transition cursor-pointer text-center whitespace-nowrap ${
+              activeTab === "audit"
+                ? "bg-white text-teal-900 shadow-xs font-black"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {t("privacy_tab_audit")}
+          </button>
+        </div>
+
+        {/* -------------------------------------------------------------
+            TAB 1: PERMISSIONS & ACTIVE CONSENTS (WITH INSTANT TOGGLE!)
+        -------------------------------------------------------------- */}
+        {(activeTab === "all" || activeTab === "permissions") && (
+          <section aria-label="Sharing Permissions" className="space-y-3">
+            <div className="px-1">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                {isHindi ? "सक्रिय सहमतियां" : "Active Consents"}
+                {t("privacy_active_consents")}
               </h3>
-              <p className="text-xs text-slate-500">
-                {isHindi ? "जुड़े हुए सत्रों को वर्तमान में दी गई अनुमतियां" : "Permissions currently granted to connected healthcare sessions"}
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isHindi
+                  ? "अस्पताल व डॉक्टर को दी गई अनुमतियां। आप किसी भी समय स्विच बंद या पुनः चालू कर सकते हैं।"
+                  : "Permissions granted to hospital terminals and doctors. Toggle switch to pause or re-allow anytime."}
               </p>
             </div>
-            <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              {activeConsents.filter((c) => c.status === "ACTIVE").length} {isHindi ? "सक्रिय" : "Active"}
-            </span>
-          </div>
 
-          <div className="space-y-2.5">
-            {activeConsents.length > 0 ? (
-              activeConsents.map((consent) => {
+            <div className="space-y-3">
+              {activeConsents.map((consent) => {
                 const isActive = consent.status === "ACTIVE";
 
                 return (
                   <div
                     key={consent.id}
-                    className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3 hover:border-teal-400/40 transition"
+                    className={`p-4 sm:p-5 rounded-3xl border transition shadow-xs space-y-3 ${
+                      isActive
+                        ? "bg-white border-slate-200/90"
+                        : "bg-slate-100/80 border-slate-300 opacity-90"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
-                      <div>
-                        <h4 className="text-sm font-black text-slate-900 leading-tight">
-                          {consent.title}
-                        </h4>
-                        <span className="text-[11px] text-teal-800 font-semibold mt-0.5 block">
-                          {isHindi ? "स्वीकृत:" : "Granted:"} {consent.grantedAt}
-                        </span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-black text-slate-900">
+                            {consent.title}
+                          </h4>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isActive
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-rose-50 text-rose-800 border-rose-200"
+                            }`}
+                          >
+                            {isActive
+                              ? (isHindi ? "सक्रिय (साझा)" : "Active (Shared)")
+                              : (isHindi ? "रोका गया (बंद)" : "Paused (Withdrawn)")}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {consent.purpose}
+                        </p>
                       </div>
 
-                      {isActive ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          <span>{isHindi ? "सक्रिय" : "Active"}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 shrink-0">
-                          <XCircle className="w-3 h-3 text-rose-600" />
-                          <span>{isHindi ? "वापस ली गई" : "Withdrawn"}</span>
-                        </span>
-                      )}
+                      {/* Instant Toggle Switch for Consent */}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isActive}
+                        onClick={() => handleToggleConsentItem(consent.id, isActive)}
+                        className={`w-12 h-7 rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer shrink-0 focus:outline-none ${
+                          isActive ? "bg-teal-700" : "bg-slate-300"
+                        }`}
+                        title={isActive ? t("privacy_btn_withdraw") : t("privacy_btn_reallow")}
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center text-[9px] font-bold ${
+                            isActive
+                              ? "translate-x-5 text-teal-800"
+                              : "translate-x-0 text-slate-400"
+                          }`}
+                        >
+                          {isActive ? "✓" : "✕"}
+                        </div>
+                      </button>
                     </div>
 
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {consent.purpose}
-                    </p>
-
-                    <div className="flex items-center justify-between pt-1 text-xs">
-                      <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
-                        {isHindi ? "दायरा:" : "Scope:"} {consent.scope || (isHindi ? "सक्रिय परामर्श" : "Active consultation")}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+                      <span>
+                        {isHindi ? "स्वीकृत:" : "Granted:"} {consent.grantedAt}
                       </span>
-
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedConsent(consent);
                           setScreen(SCREENS.CONSENT_DETAILS);
                         }}
-                        className="font-bold text-teal-800 hover:text-teal-950 flex items-center gap-0.5 cursor-pointer py-1"
+                        className="font-bold text-teal-800 hover:text-teal-950 flex items-center gap-0.5 cursor-pointer"
                       >
-                        <span>{isHindi ? "विवरण देखें" : "View Details"}</span>
+                        <span>{isHindi ? "पूर्ण विवरण" : "Full Details"}</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 );
-              })
-            ) : (
-              <div className="p-5 rounded-3xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                {isHindi ? "कोई सक्रिय अनुमति नहीं है।" : "No active sharing permissions. Consents you grant will appear here."}
-              </div>
-            )}
-          </div>
-        </section>
+              })}
+            </div>
+          </section>
+        )}
 
         {/* -------------------------------------------------------------
-            SECTION 3 — CONSENT HISTORY
+            TAB 2: PREVIOUS DIAGNOSES PRIVACY (SIMPLE GRANULAR TOGGLE!)
         -------------------------------------------------------------- */}
-        <section aria-label="Consent History" className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              {isHindi ? "सहमति इतिहास" : "Consent History"}
-            </h3>
-            <span className="text-xs text-slate-400">{isHindi ? "क्रमबद्ध" : "Chronological"}</span>
-          </div>
-
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs divide-y divide-slate-100 overflow-hidden">
-            {consentHistory.length > 0 ? (
-              consentHistory.map((item, idx) => (
-                <div key={item.id || idx} className="p-4 text-xs space-y-1 hover:bg-slate-50/50 transition">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-black text-slate-900 text-xs sm:text-sm">
-                      {item.title}
-                    </p>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                        item.status === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : item.status === "WITHDRAWN"
-                          ? "bg-rose-50 text-rose-800 border-rose-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}
-                    >
-                      {item.status === "ACTIVE"
-                        ? (isHindi ? "सक्रिय" : "ACTIVE")
-                        : item.status === "WITHDRAWN"
-                        ? (isHindi ? "वापस ली गई" : "WITHDRAWN")
-                        : item.status}
-                    </span>
-                  </div>
-
-                  <p className="text-slate-600 text-[11px]">{item.purpose}</p>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
-                    <span>{isHindi ? "स्वीकृत:" : "Granted:"} {item.grantedAt}</span>
-                    {item.withdrawnAt && (
-                      <span className="text-rose-700 font-semibold">
-                        {isHindi ? "वापस ली गई:" : "Withdrawn:"} {item.withdrawnAt}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-xs text-slate-500">
-                {isHindi ? "कोई सहमति इतिहास दर्ज नहीं है।" : "No consent history recorded."}
+        {(activeTab === "all" || activeTab === "diagnoses") && (
+          <section aria-label="Diagnoses Privacy" className="space-y-3 pt-1">
+            <div className="px-1">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-teal-800" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  {t("privacy_diagnoses_title")}
+                </h3>
               </div>
-            )}
-          </div>
-        </section>
-
-        {/* -------------------------------------------------------------
-            SECTION 4 — ACCESS HISTORY ("Who accessed my information?")
-        -------------------------------------------------------------- */}
-        <section aria-label="Access History" className="space-y-3">
-          <div className="px-1 space-y-0.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              {isHindi ? "मेरी जानकारी किसने एक्सेस की?" : "Who accessed my information?"}
-            </h3>
-            <p className="text-xs text-slate-500">
-              {isHindi ? "जुड़े हुए नैदानिक सिस्टमों में हालिया पहुंच गतिविधि देखें।" : "Review recent access activity across connected clinical systems."}
-            </p>
-          </div>
-
-          <div className="space-y-2.5">
-            {accessHistory.length > 0 ? (
-              accessHistory.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-2 text-xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-black text-slate-900">
-                        {entry.organization}
-                      </p>
-                      <p className="text-[11px] text-teal-800 font-medium">
-                        {entry.department} · {entry.accessedByRole}
-                      </p>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="text-[10px] font-bold text-slate-700 block">
-                        {entry.date}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block">
-                        {entry.time}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-semibold">
-                        {isHindi ? "एक्सेस की गई जानकारी:" : "Information accessed:"} {entry.informationAccessed}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 pl-5">
-                      {isHindi ? "उद्देश्य:" : "Purpose:"} {entry.purpose}
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                {isHindi ? "कोई एक्सेस गतिविधि दर्ज नहीं है।" : "No access events recorded."}
-              </div>
-            )}
-          </div>
-
-          <p className="text-[11px] text-slate-400 italic px-1">
-            {isHindi
-              ? "दिखाई गई गतिविधि मेडिकियोस्क को उपलब्ध डेटा पर आधारित है।"
-              : "Access activity shown here is based on the information available to MediKiosk."}
-          </p>
-        </section>
-
-        {/* -------------------------------------------------------------
-            SECTION 5 — ACTIVE SESSIONS
-        -------------------------------------------------------------- */}
-        <section aria-label="Active Sessions" className="space-y-3 pb-6">
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                {isHindi ? "सक्रिय सत्र" : "Active Sessions"}
-              </h3>
-              <p className="text-xs text-slate-500">
-                {isHindi ? "वर्तमान में जुड़े उपकरण और अस्पताल टर्मिनल" : "Currently connected devices and clinical terminals"}
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                {t("privacy_diagnoses_sub")}
               </p>
             </div>
-            <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              {activeSessions.filter((s) => s.status === "ACTIVE").length} {isHindi ? "जुड़े हुए" : "Connected"}
-            </span>
-          </div>
 
-          <div className="space-y-2.5">
-            {activeSessions.length > 0 ? (
-              activeSessions.map((session) => {
-                const isActive = session.status === "ACTIVE";
+            <div className="space-y-2.5">
+              {diagnosesPrivacy.map((diag) => {
+                const isLocked = diag.locked;
+                const diagTitle = isHindi ? diag.hiTitle : diag.title;
+                const diagCat = isHindi ? diag.hiCategory : diag.category;
 
                 return (
                   <div
-                    key={session.id}
-                    className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
+                    key={diag.id}
+                    className={`p-4 rounded-2xl border transition shadow-2xs flex items-center justify-between gap-3 ${
+                      isLocked
+                        ? "bg-amber-50/70 border-amber-200"
+                        : "bg-white border-slate-200"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-                            isActive
-                              ? "bg-teal-50 text-teal-800 border border-teal-200"
-                              : "bg-slate-100 text-slate-400 border border-slate-200"
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {isLocked ? (
+                          <EyeOff className="w-4 h-4 text-amber-700 shrink-0" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-teal-700 shrink-0" />
+                        )}
+                        <h4 className="text-sm font-bold text-slate-900 truncate">
+                          {diagTitle}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <span>{diagCat}</span>
+                        <span>·</span>
+                        <span>{diag.date}</span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                            isLocked
+                              ? "bg-amber-200/80 text-amber-950"
+                              : "bg-emerald-100 text-emerald-900"
                           }`}
                         >
-                          <Monitor className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-black text-slate-900 leading-tight">
-                            {session.name}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {session.device}
-                          </p>
-                        </div>
-                      </div>
-
-                      {isActive ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                          <span>{isHindi ? "सक्रिय" : "Active"}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200 shrink-0">
-                          <span>{isHindi ? "समाप्त" : "Ended"}</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-slate-400 block font-semibold text-[9px] uppercase">
-                          {isHindi ? "उद्देश्य" : "Purpose"}
-                        </span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">
-                          {session.purpose}
-                        </span>
-                      </div>
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-slate-400 block font-semibold text-[9px] uppercase">
-                          {isHindi ? "प्रारंभ समय" : "Started At"}
-                        </span>
-                        <span className="font-bold text-slate-800 mt-0.5 block">
-                          {session.startedAt}
+                          {isLocked ? t("privacy_badge_hidden") : t("privacy_badge_shared")}
                         </span>
                       </div>
                     </div>
 
-                    {/* End Session Button */}
-                    {isActive && (
-                      <div className="pt-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setSessionToEnd(session)}
-                          className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-2xs"
+                    {/* Instant Toggle Switch */}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!isLocked}
+                        onClick={() => handleToggleDiagnosis(diag.id, isLocked)}
+                        className={`w-12 h-7 rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${
+                          !isLocked ? "bg-teal-700" : "bg-amber-500"
+                        }`}
+                        title={!isLocked ? t("privacy_toggle_hide") : t("privacy_toggle_share")}
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center text-[9px] font-bold ${
+                            !isLocked
+                              ? "translate-x-5 text-teal-800"
+                              : "translate-x-0 text-amber-800"
+                          }`}
                         >
-                          <PowerOff className="w-3.5 h-3.5 text-rose-700" />
-                          <span>{isHindi ? "सत्र समाप्त करें" : "End Session"}</span>
-                        </button>
-                      </div>
-                    )}
+                          {!isLocked ? "✓" : "🔒"}
+                        </div>
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {!isLocked
+                          ? (isHindi ? "साझा" : "Shared")
+                          : (isHindi ? "छुपाया गया" : "Hidden")}
+                      </span>
+                    </div>
                   </div>
                 );
-              })
-            ) : (
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 text-center text-xs text-slate-500">
-                {isHindi ? "कोई सक्रिय सत्र नहीं है।" : "No active sessions."}
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* -------------------------------------------------------------
+            TAB 3: MEDICAL REPORTS PRIVACY (TOGGLE SPECIFIC REPORT GROUPS)
+        -------------------------------------------------------------- */}
+        {(activeTab === "all" || activeTab === "reports") && (
+          <section aria-label="Reports Privacy" className="space-y-3 pt-1">
+            <div className="px-1">
+              <div className="flex items-center gap-2">
+                <FolderHeart className="w-4 h-4 text-teal-800" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  {t("privacy_reports_title")}
+                </h3>
               </div>
-            )}
-          </div>
-        </section>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                {t("privacy_reports_sub")}
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              {reportsPrivacy.map((rep) => {
+                const isLocked = rep.locked;
+                const repTitle = isHindi ? rep.hiTitle : rep.title;
+
+                return (
+                  <div
+                    key={rep.id}
+                    className={`p-4 rounded-2xl border transition shadow-2xs flex items-center justify-between gap-3 ${
+                      isLocked
+                        ? "bg-amber-50/70 border-amber-200"
+                        : "bg-white border-slate-200"
+                    }`}
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {isLocked ? (
+                          <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                        ) : (
+                          <FileText className="w-4 h-4 text-teal-700 shrink-0" />
+                        )}
+                        <h4 className="text-sm font-bold text-slate-900 truncate">
+                          {repTitle}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <span>{rep.count} {isHindi ? "दस्तावेज़" : "documents"}</span>
+                        <span>·</span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                            isLocked
+                              ? "bg-amber-200/80 text-amber-950"
+                              : "bg-emerald-100 text-emerald-900"
+                          }`}
+                        >
+                          {isLocked ? t("privacy_badge_hidden") : t("privacy_badge_shared")}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Instant Toggle Switch */}
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!isLocked}
+                        onClick={() => handleToggleReport(rep.id, isLocked)}
+                        className={`w-12 h-7 rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${
+                          !isLocked ? "bg-teal-700" : "bg-amber-500"
+                        }`}
+                        title={!isLocked ? t("privacy_toggle_hide") : t("privacy_toggle_share")}
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center text-[9px] font-bold ${
+                            !isLocked
+                              ? "translate-x-5 text-teal-800"
+                              : "translate-x-0 text-amber-800"
+                          }`}
+                        >
+                          {!isLocked ? "✓" : "🔒"}
+                        </div>
+                      </button>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {!isLocked
+                          ? (isHindi ? "साझा" : "Shared")
+                          : (isHindi ? "छुपाया गया" : "Hidden")}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* -------------------------------------------------------------
+            TAB 4: ACCESS HISTORY AUDIT TRAIL
+        -------------------------------------------------------------- */}
+        {(activeTab === "all" || activeTab === "audit") && (
+          <section aria-label="Access History Audit" className="space-y-3 pt-1">
+            <div className="px-1">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-slate-600" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  {t("privacy_access_audit")}
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isHindi
+                  ? "हाल ही में किस डॉक्टर या कियोस्क टर्मिनल ने कौन सी जानकारी एक्सेस या अद्यतन की।"
+                  : "Transparent audit log of who accessed or updated your medical information."}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {accessHistory.slice(0, 4).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="p-3.5 rounded-2xl bg-white border border-slate-200 text-xs space-y-1 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900">
+                      {entry.organization}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {entry.date} · {entry.time}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 text-[11px]">
+                    {entry.informationAccessed} · {entry.purpose}
+                  </p>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                        entry.status === "ACTIVE"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {entry.status}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {entry.accessedByRole}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
-      {/* Persistent Bottom Nav */}
+      {/* Bottom Navigation */}
       <BottomNavBar />
-
-      {/* -------------------------------------------------------------
-          CONFIRMATION MODALS
-      -------------------------------------------------------------- */}
-      {/* 1. Lock History Modal */}
-      <PrivacyConfirmModal
-        isOpen={isLockModalOpen}
-        title={isHindi ? "क्या स्वास्थ्य इतिहास लॉक करें?" : "Lock your health history?"}
-        message={
-          isHindi
-            ? "जब आपका इतिहास लॉक होता है, तो जुड़े हुए स्वास्थ्य सत्र इस मरीज़-नियंत्रित सेटिंग के माध्यम से आपके सहेजे गए मेडिकल इतिहास और दस्तावेज़ों का उपयोग नहीं कर पाएंगे।"
-            : "When your history is locked, connected healthcare sessions will not be able to use your saved medical history and documents through this patient-controlled setting."
-        }
-        confirmText={isHindi ? "इतिहास लॉक करें" : "Lock History"}
-        cancelText={isHindi ? "रद्द करें" : "Cancel"}
-        variant="warning"
-        icon={Lock}
-        onConfirm={handleConfirmLock}
-        onCancel={() => setIsLockModalOpen(false)}
-      />
-
-      {/* 2. Unlock History Modal */}
-      <PrivacyConfirmModal
-        isOpen={isUnlockModalOpen}
-        title={isHindi ? "क्या स्वास्थ्य इतिहास अनलॉक करें?" : "Unlock your health history?"}
-        message={
-          isHindi
-            ? "आपकी सहेजी गई स्वास्थ्य जानकारी को जुड़े हुए स्वास्थ्य सत्रों के साथ तब साझा किया जा सकता है जब आप अनुमति दें।"
-            : "Your saved health information can be shared with connected healthcare sessions when you allow access."
-        }
-        confirmText={isHindi ? "इतिहास अनलॉक करें" : "Unlock History"}
-        cancelText={isHindi ? "रद्द करें" : "Cancel"}
-        variant="primary"
-        icon={Unlock}
-        onConfirm={handleConfirmUnlock}
-        onCancel={() => setIsUnlockModalOpen(false)}
-      />
-
-      {/* 3. End Session Modal */}
-      <PrivacyConfirmModal
-        isOpen={!!sessionToEnd}
-        title={isHindi ? "क्या यह सत्र समाप्त करें?" : "End this session?"}
-        message={
-          isHindi
-            ? "सत्र समाप्त करने से यह जुड़ा हुआ सत्र आपकी जानकारी का उपयोग नहीं कर पाएगा।"
-            : "Ending the session will stop this connected session from using your information."
-        }
-        confirmText={isHindi ? "सत्र समाप्त करें" : "End Session"}
-        cancelText={isHindi ? "रद्द करें" : "Cancel"}
-        variant="danger"
-        icon={PowerOff}
-        onConfirm={handleConfirmEndSession}
-        onCancel={() => setSessionToEnd(null)}
-      />
     </div>
   );
 };

@@ -703,17 +703,103 @@ export const useMobileStore = create((set, get) => ({
   },
 
   /* -------------------------------------------------------------------------- */
-  /* PRIVACY & DATA CONTROL STATE (Prompt 4)                                    */
+  /* PRIVACY & DATA CONTROL STATE (Granular diagnosis & report toggles)        */
   /* -------------------------------------------------------------------------- */
   privacyData: JSON.parse(JSON.stringify(mockPrivacyData)),
   isHealthHistoryLocked: false,
   selectedConsent: null,
   setSelectedConsent: (consent) => set({ selectedConsent: consent }),
 
+  // Granular Diagnosis Privacy (Prevents external viewing of selected conditions)
+  diagnosesPrivacy: [
+    {
+      id: "diag_01",
+      title: "Type 2 Diabetes Mellitus",
+      hiTitle: "टाइप 2 मधुमेह (डायबिटीज)",
+      category: "Chronic Condition",
+      hiCategory: "दीर्घकालिक स्थिति",
+      date: "May 2026",
+      locked: false,
+    },
+    {
+      id: "diag_02",
+      title: "Essential Hypertension (High BP)",
+      hiTitle: "उच्च रक्तचाप (हाई बीपी)",
+      category: "Cardiovascular",
+      hiCategory: "हृदय व रक्त वाहिका",
+      date: "Jan 2026",
+      locked: false,
+    },
+    {
+      id: "diag_03",
+      title: "Depressive Episode / Anxiety (Mental Health)",
+      hiTitle: "मानसिक तनाव व चिंता (मानसिक स्वास्थ्य)",
+      category: "Mental Health",
+      hiCategory: "मानसिक स्वास्थ्य",
+      date: "Nov 2025",
+      locked: true,
+    },
+    {
+      id: "diag_04",
+      title: "Viral Upper Respiratory Infection",
+      hiTitle: "वायरल श्वसन संक्रमण (सर्दी-खांसी)",
+      category: "General Medicine",
+      hiCategory: "सामान्य चिकित्सा",
+      date: "Sep 2026",
+      locked: false,
+    },
+  ],
+
+  // Granular Medical Reports Privacy (Prevents external viewing of report categories)
+  reportsPrivacy: [
+    {
+      id: "rep_prescriptions",
+      title: "Prescriptions & Medication Records",
+      hiTitle: "डॉक्टर के पर्चे व दवाइयां",
+      count: 4,
+      locked: false,
+    },
+    {
+      id: "rep_blood",
+      title: "Blood Tests & Pathology Investigations",
+      hiTitle: "ब्लड टेस्ट व पैथोलॉजी रिपोर्ट",
+      count: 3,
+      locked: false,
+    },
+    {
+      id: "rep_scans",
+      title: "CT Scan & MRI Diagnostic Imaging",
+      hiTitle: "सीटी स्कैन व एमआरआई जांच रिपोर्ट",
+      count: 2,
+      locked: false,
+    },
+    {
+      id: "rep_discharge",
+      title: "Hospital Discharge Summaries",
+      hiTitle: "अस्पताल डिस्चार्ज समरी रिपोर्ट",
+      count: 1,
+      locked: false,
+    },
+  ],
+
+  toggleDiagnosisPrivacy: (id) => {
+    set((state) => ({
+      diagnosesPrivacy: state.diagnosesPrivacy.map((d) =>
+        d.id === id ? { ...d, locked: !d.locked } : d
+      ),
+    }));
+  },
+
+  toggleReportPrivacy: (id) => {
+    set((state) => ({
+      reportsPrivacy: state.reportsPrivacy.map((r) =>
+        r.id === id ? { ...r, locked: !r.locked } : r
+      ),
+    }));
+  },
+
   // Set health history access locked state
   setHealthHistoryLocked: (locked) => {
-    // TODO: Replace mock privacy state with backend API.
-    // TODO: Integrate with ABDM consent/access mechanisms when backend is available.
     set((state) => ({
       isHealthHistoryLocked: locked,
       privacyData: {
@@ -738,6 +824,73 @@ export const useMobileStore = create((set, get) => ({
 
   toggleHealthHistoryAccess: () => {
     get().setHealthHistoryLocked(!get().isHealthHistoryLocked);
+  },
+
+  // Re-grant or re-allow previously withdrawn consent
+  regrantConsent: (consentId) => {
+    set((state) => {
+      const targetConsent = state.privacyData.activeConsents.find((c) => c.id === consentId);
+      const nowFormatted =
+        new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }) +
+        ` · ${new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`;
+
+      const updatedActiveConsents = state.privacyData.activeConsents.map((c) =>
+        c.id === consentId ? { ...c, status: "ACTIVE", grantedAt: nowFormatted, withdrawnAt: null } : c
+      );
+
+      const existingInHistory = state.privacyData.consentHistory.find((h) => h.id === consentId);
+      let updatedHistory;
+      if (existingInHistory) {
+        updatedHistory = state.privacyData.consentHistory.map((h) =>
+          h.id === consentId ? { ...h, status: "ACTIVE", grantedAt: nowFormatted, withdrawnAt: null } : h
+        );
+      } else {
+        updatedHistory = state.privacyData.consentHistory;
+      }
+
+      const newAuditEvent = {
+        id: `acc-regranted-${Date.now()}`,
+        organization: "Patient Privacy Control",
+        department: "Mobile Companion",
+        accessedByRole: "Patient (Self)",
+        informationAccessed: targetConsent?.title || "Consent Permission",
+        purpose: "Permission Re-Allowed / Unlocked",
+        date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        status: "ACTIVE",
+        details: `Access permission '${targetConsent?.title || consentId}' was re-allowed by patient.`,
+      };
+
+      return {
+        privacyData: {
+          ...state.privacyData,
+          activeConsents: updatedActiveConsents,
+          consentHistory: updatedHistory,
+          accessHistory: [newAuditEvent, ...state.privacyData.accessHistory],
+        },
+        selectedConsent:
+          state.selectedConsent?.id === consentId
+            ? { ...state.selectedConsent, status: "ACTIVE", grantedAt: nowFormatted, withdrawnAt: null }
+            : state.selectedConsent,
+      };
+    });
+  },
+
+  // Toggle active consent on / off seamlessly
+  toggleConsent: (consentId) => {
+    const target = get().privacyData?.activeConsents?.find((c) => c.id === consentId);
+    if (target?.status === "ACTIVE") {
+      get().withdrawConsent(consentId);
+    } else {
+      get().regrantConsent(consentId);
+    }
   },
 
   // Withdraw active consent

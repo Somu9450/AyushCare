@@ -34,6 +34,7 @@ export const ConsentDetailsScreen = () => {
     selectedConsent,
     privacyData,
     withdrawConsent,
+    regrantConsent,
     setScreen,
     prevScreen,
   } = useMobileStore();
@@ -71,7 +72,15 @@ export const ConsentDetailsScreen = () => {
   const handleWithdrawConfirm = () => {
     withdrawConsent(consent.id);
     setIsWithdrawModalOpen(false);
-    setSuccessToast(isHindi ? "सहमति सफलतापूर्वक वापस ली गई" : "Access withdrawn successfully");
+    setSuccessToast(isHindi ? "सहमति सफलतापूर्वक रोक दी गई" : "Access paused successfully");
+    setTimeout(() => {
+      setSuccessToast(null);
+    }, 3000);
+  };
+
+  const handleRegrantAccess = () => {
+    regrantConsent(consent.id);
+    setSuccessToast(isHindi ? "सहमति पुनः स्वीकृत की गई ✓" : "Access re-allowed successfully ✓");
     setTimeout(() => {
       setSuccessToast(null);
     }, 3000);
@@ -243,13 +252,23 @@ export const ConsentDetailsScreen = () => {
               className="w-full min-h-[50px] px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-2xs"
             >
               <ShieldAlert className="w-4 h-4 text-rose-700" />
-              <span>{isHindi ? "सहमति वापस लें" : "Withdraw Access"}</span>
+              <span>{isHindi ? "पहुंच रोकें / सहमति वापस लें" : "Pause / Withdraw Access"}</span>
             </button>
           ) : (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-bold text-center">
-              {isHindi
-                ? `आपके द्वारा ${consent.withdrawnAt || "हाल ही में"} सहमति वापस ले ली गई थी।`
-                : `Access was withdrawn by you on ${consent.withdrawnAt || "recently"}.`}
+            <div className="space-y-2">
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-bold text-center">
+                {isHindi
+                  ? "यह सहमति वर्तमान में रोक दी गई है।"
+                  : "Access is currently paused."}
+              </div>
+              <button
+                type="button"
+                onClick={handleRegrantAccess}
+                className="w-full min-h-[50px] px-4 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-sm"
+              >
+                <ShieldCheck className="w-4 h-4 text-teal-300" />
+                <span>{isHindi ? "सहमति पुनः अनुमति दें (साझाकरण चालू करें)" : "Re-Allow Access Permission"}</span>
+              </button>
             </div>
           )}
 
