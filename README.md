@@ -109,7 +109,7 @@ docker-compose up --build
 ## Safety
 
 > **This system does NOT diagnose, prescribe, or replace clinical judgement.**
-> All output is for clinician review only.
+> All output is for clinician review only
 
 - 10 deterministic red-flag rules with emergency escalation
 - LLM-augmented compound pattern detection
