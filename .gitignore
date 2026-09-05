@@ -41,3 +41,7 @@ uploads/
 .vscode/
 .idea/
 *.swp
+
+/docs
+
+
