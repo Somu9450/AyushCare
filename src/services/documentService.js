@@ -5,7 +5,11 @@
  * NOTE: Currently runs in prototype simulation mode using local promises and mock data.
  */
 
-import { mockExtractedData, mockDefaultDocument } from "../data/mockData";
+import {
+  mockExtractedData,
+  mockDefaultDocument,
+  mockMedicalRecords,
+} from "../data/mockData";
 
 /**
  * Uploads a captured or selected document image to the healthcare backend.
@@ -82,18 +86,71 @@ export async function analyzeDocumentOCR(documentId, progressCallback) {
 }
 
 /**
+ * Retrieves all medical records with optional category filtering.
+ * Categories: 'ALL' | 'prescription' | 'lab_report' | 'discharge_summary' | 'other'
+ *
+ * Future API: GET /api/v1/mobile/documents?category=...
+ */
+export async function fetchMedicalRecords(category = "ALL") {
+  // TODO: Replace mock document retrieval with backend API.
+  // TODO: Replace local/mock document storage with secure backend storage.
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      let filtered = [...mockMedicalRecords];
+      if (category !== "ALL") {
+        filtered = filtered.filter((r) => r.type === category);
+      }
+      resolve({
+        success: true,
+        records: filtered,
+      });
+    }, 120);
+  });
+}
+
+/**
  * Retrieves an existing uploaded document with its OCR entities.
  *
  * Future API: GET /api/v1/mobile/documents/:id
  */
 export async function getDocumentDetails(documentId) {
   // TODO: Replace with GET /api/v1/mobile/documents/:id
+  // TODO: Replace mock OCR result with backend extraction service.
+  // TODO: Replace local/mock document storage with secure backend storage.
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const record = mockMedicalRecords.find((r) => r.id === documentId);
+      if (record) {
+        resolve({
+          success: true,
+          document: record,
+          extractedData: record.extractedInformation,
+        });
+      } else {
+        resolve({
+          success: true,
+          document: mockDefaultDocument,
+          extractedData: mockExtractedData,
+        });
+      }
+    }, 150);
+  });
+}
+
+/**
+ * Updates corrected entity data for a specific document.
+ *
+ * Future API: PATCH /api/v1/mobile/documents/:id
+ */
+export async function updateRecordExtraction(documentId, updatedEntity) {
+  // TODO: Persist corrected extraction through document API.
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
-        document: mockDefaultDocument,
-        extractedData: mockExtractedData,
+        success: true,
+        documentId,
+        updatedEntity,
       });
-    }, 200);
+    }, 100);
   });
 }

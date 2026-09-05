@@ -55,21 +55,7 @@
   padding-top: max(0.75rem, calc(env(safe-area-inset-top, 0px) + 0.5rem));
 }
 
-/* Custom subtle animations */
-@keyframes scan-beam {
-  0%, 100% {
-    top: 5%;
-    opacity: 0.3;
-  }
-  50% {
-    top: 90%;
-    opacity: 0.9;
-  }
-}
 
-.animate-scan-beam {
-  animation: scan-beam 2.4s ease-in-out infinite;
-}
 
 @keyframes pulse-ring {
   0% {
@@ -97,4 +83,45 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* ------------------------------------------------------------- */
+/* ACCESSIBILITY UTILITY THEMES (Prompt 5)                       */
+/* ------------------------------------------------------------- */
+
+/* Text Sizing */
+.text-size-large {
+  font-size: 112%;
+}
+
+.text-size-xlarge {
+  font-size: 125%;
+}
+
+/* High Contrast Mode */
+.theme-high-contrast {
+  filter: contrast(118%);
+}
+
+.theme-high-contrast .border,
+.theme-high-contrast [class*="border-"] {
+  border-color: #334155 !important;
+}
+
+.theme-high-contrast button {
+  outline: 2px solid transparent;
+}
+
+.theme-high-contrast button:focus-visible {
+  outline: 3px solid #005454 !important;
+  outline-offset: 2px;
+}
+
+/* Reduced Motion Mode */
+.theme-reduce-motion *,
+.theme-reduce-motion *::before,
+.theme-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
 }

@@ -28,7 +28,10 @@ export const M5_DocumentAnalysis = () => {
     analysisStep,
     runAnalysisSimulation,
     setScreen,
+    capturedDocuments,
   } = useMobileStore();
+
+  const totalPages = capturedDocuments?.length || 1;
 
   useEffect(() => {
     // Start automated progress simulation
@@ -45,7 +48,7 @@ export const M5_DocumentAnalysis = () => {
     <div className="min-h-full flex flex-col justify-between bg-slate-50">
       {/* Header */}
       <MobileHeader
-        title="Processing Document"
+        title={totalPages > 1 ? `Processing ${totalPages} Documents` : "Processing Document"}
         showBack={false}
       />
 
@@ -62,10 +65,10 @@ export const M5_DocumentAnalysis = () => {
         {/* Headings */}
         <div className="space-y-1.5">
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Reading your document
+            {totalPages > 1 ? `Reading your documents (${totalPages} pages)` : "Reading your document"}
           </h2>
           <p className="text-xs text-slate-500 max-w-xs mx-auto">
-            AI is extracting medical information
+            AI is extracting medical information from {totalPages > 1 ? `all ${totalPages} captured pages` : "the document"}
           </p>
         </div>
 

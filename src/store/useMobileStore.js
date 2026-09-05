@@ -5,12 +5,27 @@ import {
   mockTimeline,
   mockHealthSummary,
   mockDefaultDocument,
+  mockMedicalRecords,
+  mockPrivacyData,
 } from "../data/mockData";
 import { analyzeDocumentOCR } from "../services/documentService";
 import { sendSummaryToDoctor } from "../services/summaryService";
 
 export const SCREENS = {
+  AUTH: "AUTH", // Patient Authentication (ABHA / Aadhaar / Mobile OTP)
   M1: "M1", // Active Session / Mobile Home
+  VISITS: "VISITS", // My Healthcare Visits History (Allopathy / AYUSH)
+  VISIT_DETAILS: "VISIT_DETAILS", // Single Encounter Details
+  APPOINTMENTS: "APPOINTMENTS", // Consultations & Appointments (Upcoming, Past, Details)
+  RECORDS: "RECORDS", // Medical Records Home & Document Repository
+  DOCUMENT_DETAILS: "DOCUMENT_DETAILS", // Document Details & Extracted Info
+  MORE: "MORE", // ABHA Card, Profile, Settings & Logout
+  PRIVACY: "PRIVACY", // Privacy & Data Control (Prompt 4)
+  CONSENT_DETAILS: "CONSENT_DETAILS", // Consent Details & Revocation (Prompt 4)
+  KIOSK_CONNECT: "KIOSK_CONNECT", // Scan Kiosk QR / Demo Auto-Connect (Prompt 5)
+  KIOSK_SESSION: "KIOSK_SESSION", // Active Kiosk Session Details & Disconnect (Prompt 5)
+  PROFILE: "PROFILE", // Patient Identity & Demographics with Masked Identifiers (Prompt 5)
+  SETTINGS: "SETTINGS", // Settings, Language & Accessibility Preferences (Prompt 5)
   M2: "M2", // Select Document Type
   M3: "M3", // Document Capture
   M4: "M4", // Image Quality Review
@@ -22,7 +37,20 @@ export const SCREENS = {
 };
 
 const SCREEN_ORDER = [
+  SCREENS.AUTH,
   SCREENS.M1,
+  SCREENS.VISITS,
+  SCREENS.VISIT_DETAILS,
+  SCREENS.APPOINTMENTS,
+  SCREENS.RECORDS,
+  SCREENS.DOCUMENT_DETAILS,
+  SCREENS.MORE,
+  SCREENS.PRIVACY,
+  SCREENS.CONSENT_DETAILS,
+  SCREENS.KIOSK_CONNECT,
+  SCREENS.KIOSK_SESSION,
+  SCREENS.PROFILE,
+  SCREENS.SETTINGS,
   SCREENS.M2,
   SCREENS.M3,
   SCREENS.M4,
@@ -37,8 +65,88 @@ export const useMobileStore = create((set, get) => ({
   /* -------------------------------------------------------------------------- */
   /* SCREEN NAVIGATION                                                          */
   /* -------------------------------------------------------------------------- */
-  currentScreen: SCREENS.M1,
-  screenHistory: [SCREENS.M1],
+  currentScreen: SCREENS.AUTH,
+  screenHistory: [SCREENS.AUTH],
+  isAuthenticated: false,
+  activeNavTab: "home",
+
+  setActiveNavTab: (tab) => set({ activeNavTab: tab }),
+
+  selectedAppointment: null,
+  setSelectedAppointment: (appointment) => set({ selectedAppointment: appointment }),
+
+  /* Healthcare Visits State */
+  selectedVisit: null,
+  setSelectedVisit: (visit) => set({ selectedVisit: visit }),
+  visitFilter: "ALL", // "ALL" | "ALLOPATHY" | "AYUSH"
+  setVisitFilter: (filter) => set({ visitFilter: filter }),
+
+  /* Medical Records State (Prompt 3) */
+  medicalRecords: [...mockMedicalRecords],
+  selectedMedicalRecord: null,
+  setSelectedMedicalRecord: (doc) => set({ selectedMedicalRecord: doc }),
+  selectedRecordCategory: "ALL", // "ALL" | "prescription" | "lab_report" | "discharge_summary" | "other"
+  setSelectedRecordCategory: (cat) => set({ selectedRecordCategory: cat }),
+
+  addMedicalRecord: (newRecord) =>
+    set((state) => ({
+      medicalRecords: [newRecord, ...state.medicalRecords],
+    })),
+
+  updateMedicalRecord: (id, updatedFields) =>
+    set((state) => ({
+      medicalRecords: state.medicalRecords.map((r) =>
+        r.id === id ? { ...r, ...updatedFields } : r
+      ),
+    })),
+
+  updateRecordExtraction: (docId, updatedEntity) => {
+    set((state) => ({
+      medicalRecords: state.medicalRecords.map((doc) => {
+        if (doc.id !== docId) return doc;
+        if (updatedEntity.type === "medicine") {
+          return {
+            ...doc,
+            extractedInformation: {
+              ...doc.extractedInformation,
+              medicines: doc.extractedInformation.medicines.map((m) =>
+                m.id === updatedEntity.data.id
+                  ? { ...m, ...updatedEntity.data, needsVerification: false }
+                  : m
+              ),
+            },
+          };
+        } else if (updatedEntity.type === "diagnosis") {
+          return {
+            ...doc,
+            extractedInformation: {
+              ...doc.extractedInformation,
+              diagnosis: doc.extractedInformation.diagnosis.map((d) =>
+                d.id === updatedEntity.data.id || d.value === updatedEntity.data.oldValue
+                  ? { ...d, value: updatedEntity.data.value, needsVerification: false }
+                  : d
+              ),
+            },
+          };
+        }
+        return doc;
+      }),
+    }));
+  },
+
+  setVerifiedPatient: (patient) => {
+    set((state) => ({
+      isAuthenticated: true,
+      activeNavTab: "home",
+      session: {
+        ...state.session,
+        patient: {
+          ...state.session.patient,
+          ...patient,
+        },
+      },
+    }));
+  },
 
   setScreen: (screen) => {
     if (!SCREEN_ORDER.includes(screen)) return;
@@ -107,18 +215,71 @@ export const useMobileStore = create((set, get) => ({
   /* -------------------------------------------------------------------------- */
   selectedDocumentType: "prescription",
   capturedDocument: { ...mockDefaultDocument },
+  capturedDocuments: [{ ...mockDefaultDocument }],
   
   setSelectedDocumentType: (typeId) => {
     set({ selectedDocumentType: typeId });
   },
 
   setCapturedDocument: (doc) => {
+    const formatted = {
+      ...mockDefaultDocument,
+      ...doc,
+      documentType: get().selectedDocumentType || "prescription",
+    };
     set({
-      capturedDocument: {
-        ...mockDefaultDocument,
-        ...doc,
-        documentType: get().selectedDocumentType || "prescription",
-      },
+      capturedDocument: formatted,
+      capturedDocuments: [formatted],
+    });
+  },
+
+  setCapturedDocuments: (docs) => {
+    if (!docs || docs.length === 0) {
+      set({
+        capturedDocuments: [],
+        capturedDocument: { ...mockDefaultDocument },
+      });
+      return;
+    }
+    const formattedList = docs.map((doc, idx) => ({
+      ...mockDefaultDocument,
+      ...doc,
+      id: doc.id || `doc_${Date.now()}_${idx}`,
+      documentType: get().selectedDocumentType || "prescription",
+    }));
+    set({
+      capturedDocuments: formattedList,
+      capturedDocument: formattedList[0],
+    });
+  },
+
+  addCapturedDocument: (doc) => {
+    const formatted = {
+      ...mockDefaultDocument,
+      ...doc,
+      id: doc.id || `doc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      documentType: get().selectedDocumentType || "prescription",
+    };
+    set((state) => ({
+      capturedDocuments: [...state.capturedDocuments, formatted],
+      capturedDocument: formatted,
+    }));
+  },
+
+  removeCapturedDocument: (id) => {
+    set((state) => {
+      const remaining = state.capturedDocuments.filter((d) => d.id !== id);
+      return {
+        capturedDocuments: remaining,
+        capturedDocument: remaining[0] || { ...mockDefaultDocument },
+      };
+    });
+  },
+
+  clearCapturedDocuments: () => {
+    set({
+      capturedDocuments: [],
+      capturedDocument: { ...mockDefaultDocument },
     });
   },
 
@@ -176,19 +337,86 @@ export const useMobileStore = create((set, get) => ({
   },
 
   confirmExtractedInformation: () => {
+    const state = get();
     // Mark all as verified
-    set((state) => ({
-      extractedData: {
-        ...state.extractedData,
-        medicines: state.extractedData.medicines.map((m) => ({
-          ...m,
-          needsVerification: false,
-        })),
-        diagnosis: {
-          ...state.extractedData.diagnosis,
-          needsVerification: false,
+    const verifiedMedicines = state.extractedData.medicines.map((m) => ({
+      ...m,
+      needsVerification: false,
+      confidence: "HIGH",
+    }));
+    const verifiedDiagnosis = {
+      ...state.extractedData.diagnosis,
+      needsVerification: false,
+      confidence: "HIGH",
+    };
+
+    // Auto-create persistent medical record entries for all captured documents
+    const docList =
+      state.capturedDocuments && state.capturedDocuments.length > 0
+        ? state.capturedDocuments
+        : [state.capturedDocument];
+
+    const newRecords = docList.map((doc, idx) => {
+      const newDocId = `DOC-${Date.now().toString().slice(-4)}${docList.length > 1 ? `-${idx + 1}` : ""}`;
+      const pageSuffix = docList.length > 1 ? ` (Page ${idx + 1} of ${docList.length})` : "";
+      return {
+        id: newDocId,
+        type: state.selectedDocumentType || "prescription",
+        typeLabel:
+          state.selectedDocumentType === "lab_report"
+            ? "Lab Report"
+            : state.selectedDocumentType === "discharge_summary"
+            ? "Discharge Summary"
+            : state.selectedDocumentType === "other"
+            ? "Other Medical Record"
+            : "Prescription",
+        title: doc.fileName ? `${doc.fileName.replace(/\.[^/.]+$/, "")}${pageSuffix}.pdf` : `Document${pageSuffix}.pdf`,
+        date: new Date().toISOString().split("T")[0],
+        displayDate: doc.date || "Today",
+        monthGroup: "RECENT",
+        source: doc.clinic || "Civil Hospital OPD",
+        doctor: doc.doctor || "Consulting Physician",
+        clinic: doc.clinic || "OPD Desk",
+        status: "CONFIRMED",
+        statusLabel: "Confirmed",
+        visitId: "VISIT-001", // Associated with current active hospital session
+        sessionId: state.session.sessionId,
+        fileSize: doc.fileSize || "1.4 MB",
+        dataUrl: doc.dataUrl,
+        pageNumber: idx + 1,
+        totalPages: docList.length,
+        extractedInformation: {
+          medicines: verifiedMedicines,
+          diagnosis: [verifiedDiagnosis],
+          prescriptionDate:
+            state.extractedData.prescriptionDate || doc.date || "Today",
         },
+      };
+    });
+
+    const primaryRecord = newRecords[0];
+
+    // Auto-create medical timeline entry
+    const newTimelineEntry = {
+      id: `tl_${Date.now()}`,
+      year: "2026",
+      timeLabel: "TODAY",
+      title: `${primaryRecord.typeLabel} processed${docList.length > 1 ? ` (${docList.length} pages)` : ""}`,
+      subtitle: `${primaryRecord.title} · ${verifiedDiagnosis.name || "Medical record"}`,
+      source: primaryRecord.typeLabel,
+      sourceType: "DOCUMENT",
+      badgeColor: "teal",
+      isLatest: true,
+    };
+
+    set((prev) => ({
+      extractedData: {
+        ...prev.extractedData,
+        medicines: verifiedMedicines,
+        diagnosis: verifiedDiagnosis,
       },
+      medicalRecords: [...newRecords, ...prev.medicalRecords],
+      timeline: [newTimelineEntry, ...prev.timeline],
     }));
   },
 
@@ -217,6 +445,171 @@ export const useMobileStore = create((set, get) => ({
   },
 
   /* -------------------------------------------------------------------------- */
+  /* PRIVACY & DATA CONTROL STATE (Prompt 4)                                    */
+  /* -------------------------------------------------------------------------- */
+  privacyData: JSON.parse(JSON.stringify(mockPrivacyData)),
+  isHealthHistoryLocked: false,
+  selectedConsent: null,
+  setSelectedConsent: (consent) => set({ selectedConsent: consent }),
+
+  // Set health history access locked state
+  setHealthHistoryLocked: (locked) => {
+    // TODO: Replace mock privacy state with backend API.
+    // TODO: Integrate with ABDM consent/access mechanisms when backend is available.
+    set((state) => ({
+      isHealthHistoryLocked: locked,
+      privacyData: {
+        ...state.privacyData,
+        healthHistoryAccess: {
+          ...state.privacyData.healthHistoryAccess,
+          locked,
+          updatedAt:
+            new Date().toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }) +
+            `, ${new Date().toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`,
+        },
+      },
+    }));
+  },
+
+  toggleHealthHistoryAccess: () => {
+    get().setHealthHistoryLocked(!get().isHealthHistoryLocked);
+  },
+
+  // Withdraw active consent
+  withdrawConsent: (consentId) => {
+    // TODO: Fetch active consents from consent service / replace with backend consent API.
+    set((state) => {
+      const targetConsent = state.privacyData.activeConsents.find((c) => c.id === consentId);
+      const nowFormatted =
+        new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }) +
+        ` · ${new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`;
+
+      const updatedActiveConsents = state.privacyData.activeConsents.map((c) =>
+        c.id === consentId ? { ...c, status: "WITHDRAWN", withdrawnAt: nowFormatted } : c
+      );
+
+      const existingInHistory = state.privacyData.consentHistory.find((h) => h.id === consentId);
+      let updatedHistory;
+      if (existingInHistory) {
+        updatedHistory = state.privacyData.consentHistory.map((h) =>
+          h.id === consentId ? { ...h, status: "WITHDRAWN", withdrawnAt: nowFormatted } : h
+        );
+      } else if (targetConsent) {
+        updatedHistory = [
+          {
+            id: targetConsent.id,
+            title: targetConsent.title,
+            purpose: targetConsent.purpose,
+            status: "WITHDRAWN",
+            grantedAt: targetConsent.grantedAt,
+            withdrawnAt: nowFormatted,
+            notes: "Access withdrawn by patient via mobile companion",
+          },
+          ...state.privacyData.consentHistory,
+        ];
+      } else {
+        updatedHistory = state.privacyData.consentHistory;
+      }
+
+      // Add to access history audit trail as a revocation event
+      const newAuditEvent = {
+        id: `acc-withdrawn-${Date.now()}`,
+        organization: "Patient Privacy Control",
+        department: "Mobile Companion",
+        accessedByRole: "Patient (Self)",
+        informationAccessed: targetConsent?.title || "Consent Permissions",
+        purpose: "Patient consent withdrawal",
+        date: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        time: new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: "WITHDRAWN",
+        details: `Access permission '${targetConsent?.title || consentId}' was withdrawn by the patient.`,
+      };
+
+      return {
+        privacyData: {
+          ...state.privacyData,
+          activeConsents: updatedActiveConsents,
+          consentHistory: updatedHistory,
+          accessHistory: [newAuditEvent, ...state.privacyData.accessHistory],
+        },
+        selectedConsent:
+          state.selectedConsent?.id === consentId
+            ? { ...state.selectedConsent, status: "WITHDRAWN", withdrawnAt: nowFormatted }
+            : state.selectedConsent,
+      };
+    });
+  },
+
+  // End active connected healthcare session
+  endSession: (sessionId) => {
+    // TODO: Replace mock session termination with backend API.
+    set((state) => {
+      const targetSession = state.privacyData.activeSessions.find((s) => s.id === sessionId);
+      const updatedSessions = state.privacyData.activeSessions.map((s) =>
+        s.id === sessionId
+          ? {
+              ...s,
+              status: "ENDED",
+              endedAt: new Date().toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            }
+          : s
+      );
+
+      const newAuditEvent = {
+        id: `acc-session-${Date.now()}`,
+        organization: targetSession?.name || "Connected Healthcare Device",
+        department: "Hospital OPD",
+        accessedByRole: "Patient (Self)",
+        informationAccessed: "Connected Healthcare Session Token",
+        purpose: "Session Disconnection",
+        date: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        time: new Date().toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: "ENDED",
+        details: `Connected session '${targetSession?.name || sessionId}' was terminated by patient.`,
+      };
+
+      return {
+        privacyData: {
+          ...state.privacyData,
+          activeSessions: updatedSessions,
+          accessHistory: [newAuditEvent, ...state.privacyData.accessHistory],
+        },
+      };
+    });
+  },
+
+  /* -------------------------------------------------------------------------- */
   /* DOCTOR HANDOFF & RESET (M9)                                                */
   /* -------------------------------------------------------------------------- */
   isSendingToDoctor: false,
@@ -230,10 +623,230 @@ export const useMobileStore = create((set, get) => ({
     set({ isSendingToDoctor: false, currentScreen: SCREENS.M9 });
   },
 
+  /* -------------------------------------------------------------------------- */
+  /* KIOSK ↔ MOBILE COMPANION SESSION STATE (Prompt 5)                          */
+  /* -------------------------------------------------------------------------- */
+  kioskSession: {
+    id: "kiosk-session-001",
+    sessionToken: "MK-2026-0905-ABC123",
+    kioskName: "Hospital OPD Kiosk",
+    terminalId: "KIOSK-DELHI-OPD-03",
+    hospitalName: "MediKiosk Demo Hospital",
+    department: "General OPD",
+    location: "Civil Hospital Waiting Lobby, Ground Floor",
+    status: "CONNECTED", // "CONNECTED" | "DISCONNECTED" | "CONNECTING" | "EXPIRED" | "ENDED" | "ERROR"
+    startedAt: "05 Sep 2026 · 10:24 AM",
+    connectedAt: "05 Sep 2026 · 10:30 AM",
+    expiresAt: "05 Sep 2026 · 11:00 AM",
+    expiresInSeconds: 1800,
+  },
+
+  connectKioskSession: (sessionData, patientData) => {
+    // TODO: Connect to real hospital kiosk session service.
+    // TODO: Replace mock kiosk session validation with backend API.
+    const now = new Date();
+    const timeFormatted =
+      now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) +
+      " · " +
+      now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+    const updatedSession = {
+      ...get().kioskSession,
+      ...sessionData,
+      status: "CONNECTED",
+      connectedAt: timeFormatted,
+    };
+
+    set((state) => {
+      // Sync into activeSessions list for Privacy & Data Control
+      const existingIdx = state.privacyData.activeSessions.findIndex(
+        (s) => s.id === updatedSession.id || s.name.includes("Hospital Kiosk")
+      );
+      let newActiveSessions = [...state.privacyData.activeSessions];
+
+      const kioskSessionEntry = {
+        id: updatedSession.id,
+        name: updatedSession.kioskName,
+        purpose: "Patient OPD consultation & self-service",
+        startedAt: updatedSession.startedAt || timeFormatted,
+        device: `${updatedSession.kioskName} (${updatedSession.terminalId})`,
+        location: updatedSession.location,
+        status: "ACTIVE",
+      };
+
+      if (existingIdx >= 0) {
+        newActiveSessions[existingIdx] = kioskSessionEntry;
+      } else {
+        newActiveSessions = [kioskSessionEntry, ...newActiveSessions];
+      }
+
+      // Add audit history
+      const newAudit = {
+        id: `acc-kiosk-${Date.now()}`,
+        organization: updatedSession.hospitalName,
+        department: updatedSession.department,
+        accessedByRole: "Patient Kiosk QR Auto-Connect",
+        informationAccessed: "Session Linkage Token",
+        purpose: "Kiosk companion synchronization",
+        date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        status: "ALLOWED",
+        details: `Linked to ${updatedSession.kioskName} via short-lived QR token.`,
+      };
+
+      return {
+        isAuthenticated: true, // Path B Auto-login
+        kioskSession: updatedSession,
+        session: patientData
+          ? { ...state.session, patient: { ...state.session.patient, ...patientData } }
+          : state.session,
+        privacyData: {
+          ...state.privacyData,
+          activeSessions: newActiveSessions,
+          accessHistory: [newAudit, ...state.privacyData.accessHistory],
+        },
+      };
+    });
+  },
+
+  disconnectKioskSession: () => {
+    // TODO: Connect to real hospital kiosk session service for teardown.
+    const currentKiosk = get().kioskSession;
+    set((state) => {
+      const updatedActiveSessions = state.privacyData.activeSessions.map((s) =>
+        s.id === currentKiosk.id || s.name.includes("Hospital Kiosk")
+          ? {
+              ...s,
+              status: "ENDED",
+              endedAt: new Date().toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            }
+          : s
+      );
+
+      return {
+        kioskSession: {
+          ...state.kioskSession,
+          status: "ENDED",
+        },
+        privacyData: {
+          ...state.privacyData,
+          activeSessions: updatedActiveSessions,
+        },
+      };
+    });
+  },
+
+  setKioskSessionStatus: (status) => {
+    set((state) => ({
+      kioskSession: {
+        ...state.kioskSession,
+        status,
+      },
+    }));
+  },
+
+  /* -------------------------------------------------------------------------- */
+  /* PATIENT PROFILE MANAGEMENT (Prompt 5)                                      */
+  /* -------------------------------------------------------------------------- */
+  updatePatientProfile: (updatedFields) => {
+    // TODO: Persist profile changes through patient profile API.
+    set((state) => ({
+      session: {
+        ...state.session,
+        patient: {
+          ...state.session.patient,
+          ...updatedFields,
+        },
+      },
+    }));
+  },
+
+  /* -------------------------------------------------------------------------- */
+  /* LANGUAGE PREFERENCE (Prompt 5)                                             */
+  /* -------------------------------------------------------------------------- */
+  selectedLanguage: (() => {
+    try {
+      return localStorage.getItem("ayushcare_language") || "en";
+    } catch {
+      return "en";
+    }
+  })(),
+
+  setSelectedLanguage: (lang) => {
+    // TODO: Expand supported languages and connect to backend/patient language preference.
+    try {
+      localStorage.setItem("ayushcare_language", lang);
+    } catch (e) {
+      // ignore
+    }
+    set({ selectedLanguage: lang });
+  },
+
+  /* -------------------------------------------------------------------------- */
+  /* ACCESSIBILITY PREFERENCES (Prompt 5)                                       */
+  /* -------------------------------------------------------------------------- */
+  accessibilitySettings: (() => {
+    try {
+      const saved = localStorage.getItem("ayushcare_accessibility");
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    return {
+      textSize: "default", // "default" | "large" | "xlarge"
+      highContrast: false,
+      audioAssistance: true,
+      reduceMotion: false,
+    };
+  })(),
+
+  updateAccessibilitySettings: (partialSettings) => {
+    set((state) => {
+      const updated = {
+        ...state.accessibilitySettings,
+        ...partialSettings,
+      };
+      try {
+        localStorage.setItem("ayushcare_accessibility", JSON.stringify(updated));
+      } catch (e) {
+        // ignore
+      }
+      return { accessibilitySettings: updated };
+    });
+  },
+
+  /* -------------------------------------------------------------------------- */
+  /* SAFE LOGOUT (Prompt 5)                                                     */
+  /* -------------------------------------------------------------------------- */
+  logoutPatient: () => {
+    // Important: Logout clears authentication state & temporary kiosk session,
+    // but PRESERVES medical records, visits, appointments, documents, and privacy history.
+    set((state) => ({
+      isAuthenticated: false,
+      currentScreen: SCREENS.AUTH,
+      screenHistory: [SCREENS.AUTH],
+      activeNavTab: "home",
+      kioskSession: {
+        ...state.kioskSession,
+        status: "DISCONNECTED",
+      },
+      selectedAppointment: null,
+      selectedVisit: null,
+      selectedMedicalRecord: null,
+    }));
+  },
+
   resetMobileSession: () => {
     set({
       currentScreen: SCREENS.M1,
       screenHistory: [SCREENS.M1],
+      activeNavTab: "home",
+      selectedAppointment: null,
+      selectedVisit: null,
+      visitFilter: "ALL",
       timerSecondsRemaining: 300,
       isSessionExpired: false,
       selectedDocumentType: "prescription",
