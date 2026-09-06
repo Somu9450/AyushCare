@@ -18,10 +18,24 @@ export const WarningBanner = ({
 }) => {
   const { isHindi } = useLanguage();
 
-  const defaultTitle = title || (isHindi ? "कृपया हाइलाइट की गई जानकारी सत्यापित करें।" : "Please verify highlighted information.");
-  const defaultMessage = isHindi
-    ? "हम केवल दस्तावेज़ पठन को सही कर रहे हैं। यह कोई चिकित्सीय निर्णय नहीं है।"
-    : "We are only correcting document reading. This is not a clinical decision.";
+  const defaultTitle =
+    title ||
+    (variant === "caution"
+      ? isHindi
+        ? "संभावित चेतावनी संकेत पाया गया"
+        : "Possible warning sign detected"
+      : isHindi
+      ? "दस्तावेज़ से निकाली गई जानकारी — कृपया सत्यापित करें"
+      : "Extracted from document — Please verify");
+
+  const defaultMessage =
+    variant === "caution"
+      ? isHindi
+        ? "कृपया तुरंत चिकित्सीय सहायता लें।"
+        : "Please seek immediate medical attention."
+      : isHindi
+      ? "जानकारी में पठन त्रुटियां हो सकती हैं। यह कोई चिकित्सीय निदान नहीं है।"
+      : "Information may contain reading errors. This is not a clinical diagnosis.";
 
   const styles = {
     warning: {

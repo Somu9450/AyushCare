@@ -86,38 +86,71 @@
 }
 
 /* ------------------------------------------------------------- */
-/* ACCESSIBILITY UTILITY THEMES (Prompt 5)                       */
+/* ACCESSIBILITY UTILITY THEMES (Cleaned for Prompt 8)          */
 /* ------------------------------------------------------------- */
 
-/* Text Sizing */
+/* Text Sizing: Sets root font scale so all rem units visibly adapt */
+html[data-text-size="default"] {
+  font-size: 16px;
+}
+
+html[data-text-size="large"] {
+  font-size: 18px;
+}
+
+html[data-text-size="xlarge"] {
+  font-size: 20px;
+}
+
 .text-size-large {
-  font-size: 112%;
+  font-size: 1.125rem;
 }
 
 .text-size-xlarge {
-  font-size: 125%;
+  font-size: 1.25rem;
 }
 
-/* High Contrast Mode */
+/* High Contrast Mode: Semantic theme values (no global contrast filters) */
+html[data-high-contrast="true"],
 .theme-high-contrast {
-  filter: contrast(118%);
+  --tw-border-opacity: 1;
 }
 
+html[data-high-contrast="true"] body,
+.theme-high-contrast body,
+.theme-high-contrast {
+  color: #020617 !important;
+}
+
+html[data-high-contrast="true"] .border,
+html[data-high-contrast="true"] [class*="border-"],
 .theme-high-contrast .border,
 .theme-high-contrast [class*="border-"] {
-  border-color: #334155 !important;
+  border-color: #0f172a !important;
 }
 
+html[data-high-contrast="true"] .text-slate-500,
+html[data-high-contrast="true"] .text-slate-400,
+.theme-high-contrast .text-slate-500,
+.theme-high-contrast .text-slate-400 {
+  color: #1e293b !important;
+}
+
+html[data-high-contrast="true"] button,
 .theme-high-contrast button {
   outline: 2px solid transparent;
 }
 
+html[data-high-contrast="true"] button:focus-visible,
 .theme-high-contrast button:focus-visible {
-  outline: 3px solid #005454 !important;
+  outline: 3px solid #003b3b !important;
   outline-offset: 2px;
 }
 
 /* Reduced Motion Mode */
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after,
 .theme-reduce-motion *,
 .theme-reduce-motion *::before,
 .theme-reduce-motion *::after {

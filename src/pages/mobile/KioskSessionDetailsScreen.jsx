@@ -1,282 +1,330 @@
-import React, { useState } from "react";
+import React, { useEffect } from "react";
 import {
-  MonitorCheck,
+  ArrowLeft,
   Building2,
-  Clock,
-  Shield,
-  Lock,
-  Unlock,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  ExternalLink,
+  Clock3,
+  LogOut,
+  MapPin,
+  MonitorSmartphone,
+  ShieldCheck,
 } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
-import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
-import useLanguage from "../../i18n/translations";
 
-export const KioskSessionDetailsScreen = () => {
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
+
+import {
+  getMobileSessionStatus,
+} from "../../services/mobileSessionService";
+
+function formatRemainingTime(seconds) {
+  const safeSeconds = Math.max(
+    0,
+    Number(seconds) || 0
+  );
+
+  const minutes = Math.floor(
+    safeSeconds / 60
+  );
+
+  const remainingSeconds =
+    safeSeconds % 60;
+
+  return `${String(minutes).padStart(
+    2,
+    "0"
+  )}:${String(remainingSeconds).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+function KioskSessionDetailsScreen() {
   const {
     kioskSession,
-    disconnectKioskSession,
+    timerSecondsRemaining,
+    isSessionExpired,
+    decrementTimer,
+    endKioskSession,
     setScreen,
-    isHealthHistoryLocked,
   } = useMobileStore();
 
-  const { t, isHindi } = useLanguage();
+  const storeRemaining =
+    Number(timerSecondsRemaining);
 
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const serviceStatus =
+    getMobileSessionStatus(
+      kioskSession
+    );
 
-  const isActive = kioskSession?.status === "CONNECTED";
+  const remainingSeconds =
+    Number.isFinite(storeRemaining) &&
+    storeRemaining >= 0
+      ? storeRemaining
+      : serviceStatus.remainingSeconds;
+
+  const connected =
+    kioskSession?.status ===
+      "CONNECTED" &&
+    !isSessionExpired &&
+    serviceStatus.connected;
+
+  useEffect(() => {
+    if (!connected) {
+      return undefined;
+    }
+
+    const interval = window.setInterval(
+      () => {
+        if (typeof decrementTimer === "function") {
+          decrementTimer();
+        }
+      },
+      1000
+    );
+
+    return () =>
+      window.clearInterval(interval);
+  }, [
+    connected,
+    decrementTimer,
+  ]);
 
   const handleEndSession = () => {
-    disconnectKioskSession();
-    setShowConfirmModal(false);
-    setToastMessage(isHindi ? "सत्र समाप्त हुआ" : "Session ended");
-    setTimeout(() => {
-      setToastMessage("");
-    }, 3000);
+    if (typeof endKioskSession === "function") {
+      endKioskSession();
+    }
+
+    setScreen(SCREENS.M1);
   };
 
+  const handleBack = () => {
+    setScreen(SCREENS.M1);
+  };
+
+  const expired =
+    isSessionExpired ||
+    serviceStatus.expired ||
+    kioskSession?.status === "EXPIRED" ||
+    remainingSeconds <= 0;
+
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
-      {/* Header */}
-      <MobileHeader
-        title={t("kiosk_session_title")}
-        showBack={true}
-        onBack={() => setScreen(SCREENS.M1)}
-      />
-
-      {/* Main Content */}
-      <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* Toast feedback */}
-        {toastMessage && (
-          <div className="p-3.5 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-lg animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
-
-        {/* Primary Kiosk Status Banner */}
-        <div
-          className={`p-5 rounded-3xl shadow-sm space-y-3 transition-colors ${
-            isActive
-              ? "bg-gradient-to-br from-teal-800 to-teal-950 text-white"
-              : "bg-white border border-slate-200 text-slate-800"
-          }`}
+    <div className="min-h-screen bg-slate-50 px-4 py-6">
+      <div className="mx-auto max-w-md">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mb-5 flex items-center gap-2 rounded-xl px-2 py-2 text-sm font-medium text-slate-600 hover:bg-white"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-white/15 pb-3">
-            <div className="flex items-center gap-2">
-              <MonitorCheck
-                className={`w-5 h-5 ${isActive ? "text-teal-200" : "text-slate-400"}`}
-              />
+          <ArrowLeft size={18} />
+          Back
+        </button>
+
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                  <MonitorSmartphone
+                    size={25}
+                  />
+                </div>
+
+                <h1 className="text-xl font-bold text-slate-900">
+                  Kiosk Session
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {kioskSession?.kioskName ||
+                    "Hospital OPD Kiosk"}
+                </p>
+              </div>
+
               <span
-                className={`text-xs font-black uppercase tracking-wider ${
-                  isActive ? "text-teal-200" : "text-slate-500"
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  expired
+                    ? "bg-red-50 text-red-700"
+                    : connected
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-100 text-slate-600"
                 }`}
               >
-                {t("kiosk_terminal_heading")}
+                {expired
+                  ? "Expired"
+                  : connected
+                    ? "Connected"
+                    : "Disconnected"}
               </span>
             </div>
+          </div>
 
-            <span
-              className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
-                isActive
-                  ? "bg-emerald-500/30 text-emerald-200 border-emerald-400/40"
-                  : "bg-slate-100 text-slate-500 border-slate-200"
+          <div className="space-y-3 p-6">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+              <Building2
+                className="shrink-0 text-blue-600"
+                size={20}
+              />
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-400">
+                  Hospital
+                </p>
+
+                <p className="mt-1 truncate text-sm font-semibold text-slate-800">
+                  {kioskSession?.hospitalName ||
+                    "Civil Hospital OPD"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+              <MapPin
+                className="shrink-0 text-blue-600"
+                size={20}
+              />
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-400">
+                  Location
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {kioskSession?.location ||
+                    "Central Delhi OPD Terminal"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+              <MonitorSmartphone
+                className="shrink-0 text-blue-600"
+                size={20}
+              />
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-400">
+                  Terminal
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {kioskSession?.terminalId ||
+                    "KIOSK-DELHI-OPD-03"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+              <Building2
+                className="shrink-0 text-blue-600"
+                size={20}
+              />
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-400">
+                  Department
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {kioskSession?.department ||
+                    "General Medicine OPD"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 p-6">
+            <div
+              className={`rounded-2xl p-5 ${
+                expired
+                  ? "bg-red-50"
+                  : "bg-blue-50"
               }`}
             >
-              {isActive ? t("kiosk_status_active") : t("kiosk_status_ended")}
-            </span>
-          </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Clock3
+                    className={
+                      expired
+                        ? "text-red-600"
+                        : "text-blue-600"
+                    }
+                    size={22}
+                  />
 
-          <div className="space-y-1">
-            <h2 className={`text-2xl font-black ${isActive ? "text-white" : "text-slate-900"}`}>
-              {kioskSession?.kioskName || (isHindi ? "अस्पताल ओपीडी कियोस्क" : "Hospital OPD Kiosk")}
-            </h2>
-            <p className={`text-xs font-mono ${isActive ? "text-teal-200/80" : "text-slate-500"}`}>
-              {isHindi ? "टर्मिनल" : "Terminal"}: {kioskSession?.terminalId || "KIOSK-03"} · {isHindi ? "संदर्भ" : "Reference"}: {kioskSession?.sessionToken || "MK-2026-0905"}
-            </p>
-          </div>
-        </div>
+                  <div>
+                    <p
+                      className={`text-xs font-semibold ${
+                        expired
+                          ? "text-red-700"
+                          : "text-blue-700"
+                      }`}
+                    >
+                      {expired
+                        ? "Session expired"
+                        : "Session time remaining"}
+                    </p>
 
-        {/* Detailed Metadata Card */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-            {t("kiosk_details_heading")}
-          </h3>
+                    <p
+                      className={`mt-1 text-2xl font-bold tabular-nums ${
+                        expired
+                          ? "text-red-800"
+                          : "text-blue-900"
+                      }`}
+                    >
+                      {formatRemainingTime(
+                        remainingSeconds
+                      )}
+                    </p>
+                  </div>
+                </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("kiosk_hospital_name")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {isHindi
-                  ? (kioskSession?.hindiHospitalName || "मेडीकियोस्क अस्पताल")
-                  : (kioskSession?.hospitalName || "MediKiosk Demo Hospital")}
-              </p>
-            </div>
-
-            <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("kiosk_department")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {isHindi ? "सामान्य ओपीडी" : (kioskSession?.department || "General OPD")}
-              </p>
-            </div>
-
-            <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("kiosk_connected_time")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {kioskSession?.connectedAt || "05 Sep 2026 · 10:30 AM"}
-              </p>
-            </div>
-
-            <div className="space-y-0.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("kiosk_session_expires")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {kioskSession?.expiresAt || "05 Sep 2026 · 11:00 AM"}
-              </p>
+                <ShieldCheck
+                  className={
+                    expired
+                      ? "text-red-400"
+                      : "text-blue-400"
+                  }
+                  size={28}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
-            <span className="text-slate-400 font-bold uppercase text-[10px]">
-              {t("kiosk_location")}
-            </span>
-            <p className="font-bold text-slate-800 mt-0.5">
-              {isHindi ? "नागरिक अस्पताल प्रतीक्षालय, भूतल" : (kioskSession?.location || "Civil Hospital Waiting Lobby, Ground Floor")}
-            </p>
-          </div>
-        </div>
-
-        {/* Privacy & Information Sharing Governance */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-teal-700" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                {t("kiosk_privacy_gov")}
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setScreen(SCREENS.PRIVACY)}
-              className="text-[11px] font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
-            >
-              <span>{t("kiosk_manage")}</span>
-              <ExternalLink className="w-3 h-3" />
-            </button>
-          </div>
-
-          <div
-            className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
-              isHealthHistoryLocked
-                ? "bg-amber-50/80 border-amber-200 text-amber-950"
-                : "bg-teal-50/80 border-teal-200 text-teal-950"
-            }`}
-          >
-            {isHealthHistoryLocked ? (
-              <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            ) : (
-              <Unlock className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-            )}
-            <div className="text-xs space-y-1">
-              <p className="font-bold">
-                {isHealthHistoryLocked
-                  ? t("kiosk_sharing_restricted")
-                  : t("kiosk_sharing_allowed")}
-              </p>
-              <p className="text-slate-600 leading-relaxed text-[11px]">
-                {t("kiosk_sharing_sub")}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="pt-2 space-y-3">
-          {isActive ? (
-            <button
-              type="button"
-              onClick={() => setShowConfirmModal(true)}
-              className="w-full min-h-[50px] p-3 rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs active:scale-[0.99]"
-            >
-              <XCircle className="w-4 h-4" />
-              <span>{t("kiosk_btn_end_session")}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setScreen(SCREENS.KIOSK_CONNECT)}
-              className="w-full min-h-[50px] p-3 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs active:scale-[0.99]"
-            >
-              <span>{t("kiosk_btn_connect_again")}</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setScreen(SCREENS.M1)}
-            className="w-full min-h-[44px] text-xs font-bold text-slate-500 hover:text-slate-800 text-center cursor-pointer"
-          >
-            {t("kiosk_btn_back_home")}
-          </button>
-        </div>
-      </main>
-
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
-        >
-          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl space-y-4 text-center border border-slate-200 animate-scale-up">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900">
-                {t("kiosk_end_confirm_title")}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {t("kiosk_end_confirm_sub")}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-              >
-                {t("cancel")}
-              </button>
+          {!expired && (
+            <div className="border-t border-slate-100 p-6">
               <button
                 type="button"
                 onClick={handleEndSession}
-                className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-sm"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-5 py-3.5 text-sm font-semibold text-red-700 transition hover:bg-red-50"
               >
-                {t("kiosk_btn_end_session")}
+                <LogOut size={18} />
+                End Kiosk Session
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      <BottomNavBar />
+          {expired && (
+            <div className="border-t border-slate-100 p-6">
+              <button
+                type="button"
+                onClick={() =>
+                  setScreen(SCREENS.M1)
+                }
+                className="w-full rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                Return to Home
+              </button>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-5 text-center text-xs leading-5 text-slate-400">
+          Only the temporary kiosk session reference
+          is used for this connection.
+        </p>
+      </div>
     </div>
   );
-};
+}
 
 export default KioskSessionDetailsScreen;

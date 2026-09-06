@@ -2628,5 +2628,6 @@ export const useMobileStore = create((set, get) => ({
   },
 }));
 
+export { useMobileStore };
 
 export default useMobileStore;

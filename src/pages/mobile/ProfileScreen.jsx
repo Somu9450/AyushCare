@@ -1,360 +1,503 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  User,
-  IdCard,
-  Phone,
-  Calendar,
-  MapPin,
-  Heart,
-  ShieldCheck,
+  CalendarDays,
+  ChevronRight,
   Edit3,
-  CheckCircle2,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowLeft,
+  LogOut,
+  Mail,
+  Phone,
+  ShieldCheck,
+  User,
   X,
 } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
+
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
-import useLanguage from "../../i18n/translations";
+import { useLanguage } from "../../i18n/translations";
 
-export const ProfileScreen = () => {
-  const { session, updatePatientProfile, setScreen } = useMobileStore();
-  const { t, isHindi } = useLanguage();
-  const patient = session.patient || {};
+export default function ProfileScreen() {
+  const {
+    patient,
+    session,
+    updatePatientProfile,
+    logout,
+    setScreen,
+  } = useMobileStore();
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
-  const [revealSensitive, setRevealSensitive] = useState(false);
+  const { isHindi } = useLanguage();
 
-  // Edit form state
-  const [editName, setEditName] = useState(patient.name || "Rajesh Kumar Sharma");
-  const [editMobile, setEditMobile] = useState(patient.mobile || "+91 98765 43210");
-  const [editAddress, setEditAddress] = useState(
-    patient.address || "H.No. 42, Sector 4, Rohini, New Delhi"
-  );
+  const activePatient =
+    patient || session?.patient || {};
 
-  // Masked string utilities
-  const getMaskedAbha = (abha) => {
-    if (!abha) return "91-XXXX-XXXX-9012";
-    const clean = abha.replace(/\s+/g, "");
-    if (clean.length >= 14) {
-      return `${clean.slice(0, 3)}XXXX-XXXX-${clean.slice(-4)}`;
+  const [editing, setEditing] =
+    useState(false);
+
+  const [form, setForm] = useState({
+    name: activePatient?.name || "",
+    mobile:
+      activePatient?.mobile ||
+      activePatient?.phone ||
+      "",
+    email: activePatient?.email || "",
+    dateOfBirth:
+      activePatient?.dateOfBirth ||
+      activePatient?.dob ||
+      "",
+  });
+
+  const displayName =
+    activePatient?.name ||
+    (isHindi ? "मरीज़" : "Patient");
+
+  const patientId =
+    activePatient?.patientId ||
+    activePatient?.id ||
+    "—";
+
+  const authMethod =
+    activePatient?.authMethod ||
+    activePatient?.authType ||
+    "";
+
+  const initials = useMemo(() => {
+    const parts = String(displayName)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (parts.length === 0) {
+      return "P";
     }
-    return "91-XXXX-XXXX-9012";
-  };
 
-  const getMaskedMobile = (mobile) => {
-    if (!mobile) return "+91 XXXXX 43210";
-    const digits = mobile.replace(/\D/g, "");
-    if (digits.length >= 10) {
-      return `+91 XXXXX ${digits.slice(-5)}`;
+    return parts
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase();
+  }, [displayName]);
+
+  const handleSave = () => {
+    if (
+      typeof updatePatientProfile ===
+      "function"
+    ) {
+      updatePatientProfile({
+        name: form.name.trim(),
+        mobile: form.mobile.trim(),
+        phone: form.mobile.trim(),
+        email: form.email.trim(),
+        dateOfBirth:
+          form.dateOfBirth || null,
+        dob: form.dateOfBirth || null,
+      });
     }
-    return "+91 XXXXX 43210";
+
+    setEditing(false);
   };
 
-  const getMaskedAadhaar = () => {
-    return "XXXX-XXXX-0144";
+  const handleLogout = async () => {
+    if (typeof logout === "function") {
+      await logout();
+      return;
+    }
+
+    setScreen(SCREENS.AUTH);
   };
-
-  const handleSaveProfile = (e) => {
-    e.preventDefault();
-    updatePatientProfile({
-      name: editName.trim() || patient.name,
-      mobile: editMobile.trim() || patient.mobile,
-      address: editAddress.trim() || patient.address,
-    });
-    setIsEditModalOpen(false);
-    setToastMessage(t("profile_updated_toast"));
-    setTimeout(() => setToastMessage(""), 3000);
-  };
-
-  const displayName = isHindi
-    ? (patient.hindiName || patient.name || "राजेश कुमार शर्मा")
-    : (patient.name || "Rajesh Kumar Sharma");
-
-  const genderDisplay = isHindi
-    ? (patient.gender === "Female" ? "महिला" : "पुरुष")
-    : (patient.gender || "Male");
-
-  const prakritiDisplay = isHindi
-    ? "वात-पित्त (प्रमुख)"
-    : "Vata-Pitta (Predominant)";
 
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={t("profile_title")}
-        showBack={true}
-        onBack={() => setScreen(SCREENS.MORE)}
+        title={isHindi ? "प्रोफ़ाइल" : "Profile"}
+        subtitle={
+          isHindi
+            ? "अपनी जानकारी और खाता सेटिंग देखें"
+            : "Manage your personal information"
+        }
       />
 
-      {/* Main Content */}
-      <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* Toast Notification */}
-        {toastMessage && (
-          <div className="p-3.5 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center gap-2 shadow-lg animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>{toastMessage}</span>
-          </div>
-        )}
-
-        {/* 1. Patient Digital Identity Card */}
-        <section
-          aria-label="Patient Identity Card"
-          className="p-5 rounded-3xl bg-gradient-to-br from-teal-800 to-teal-950 text-white shadow-md space-y-4"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center font-black text-xl text-white shadow-inner">
-                {displayName ? displayName.charAt(0) : "P"}
-              </div>
-              <div className="space-y-0.5">
-                <h2 className="text-xl font-black text-white leading-tight">
-                  {displayName}
-                </h2>
-                <p className="text-xs text-teal-100 font-medium">
-                  {patient.age} {isHindi ? "वर्ष" : "Yrs"} · {genderDisplay} · {patient.bloodGroup || "B+"}
-                </p>
-              </div>
+      <main className="mx-auto w-full max-w-md px-4 py-5 pb-24">
+        <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-teal-800 text-lg font-black text-white">
+              {initials}
             </div>
 
-            <span className="text-[10px] font-black uppercase tracking-wider bg-teal-700/90 text-teal-100 border border-teal-500/40 px-2.5 py-1 rounded-full shrink-0">
-              {t("profile_abdm_verified")}
-            </span>
-          </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-black text-slate-900">
+                {displayName}
+              </h1>
 
-          {/* Masked ABHA Number Badge */}
-          <div className="p-3.5 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase tracking-wider text-teal-200 font-bold block">
-                {t("profile_abha_number")}
-              </span>
-              <span className="text-sm font-mono font-bold tracking-wider text-white">
-                {revealSensitive ? patient.abhaNumber : getMaskedAbha(patient.abhaNumber)}
-              </span>
+              <p className="mt-1 truncate text-xs text-slate-500">
+                Patient ID · {patientId}
+              </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setRevealSensitive(!revealSensitive)}
-              className="p-1.5 rounded-xl hover:bg-white/10 text-teal-200 transition cursor-pointer"
-              title={revealSensitive ? (isHindi ? "पहचान छुपाएं" : "Mask identifiers") : (isHindi ? "पहचान दिखाएं" : "Reveal identifiers")}
+              onClick={() => setEditing(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+              aria-label={
+                isHindi
+                  ? "प्रोफ़ाइल संपादित करें"
+                  : "Edit profile"
+              }
             >
-              {revealSensitive ? (
-                <EyeOff className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
+              <Edit3 size={17} />
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-teal-200/80 pt-1 border-t border-white/10">
-            <span>{isHindi ? "मोबाइल" : "Mobile"}: {revealSensitive ? patient.mobile : getMaskedMobile(patient.mobile)}</span>
-            <span>{isHindi ? "आधार" : "Aadhaar"}: {getMaskedAadhaar()}</span>
+          <div className="mt-5 flex items-center gap-2 rounded-2xl bg-teal-50 p-3">
+            <ShieldCheck
+              size={17}
+              className="shrink-0 text-teal-700"
+            />
+
+            <p className="text-xs font-medium leading-5 text-teal-900">
+              {authMethod
+                ? isHindi
+                  ? `${authMethod} से पहचान सत्यापित`
+                  : `Identity verified using ${authMethod}`
+                : isHindi
+                  ? "पहचान सत्यापन उपलब्ध है"
+                  : "Identity verification available"}
+            </p>
           </div>
         </section>
 
-        {/* 2. Personal Information Grid */}
-        <section
-          aria-label="Personal Information"
-          className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4"
+        <section className="mt-6">
+          <SectionTitle
+            title={
+              isHindi
+                ? "व्यक्तिगत जानकारी"
+                : "Personal information"
+            }
+          />
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <InfoRow
+              icon={User}
+              label={
+                isHindi ? "पूरा नाम" : "Full name"
+              }
+              value={displayName}
+            />
+
+            <InfoRow
+              icon={Phone}
+              label={
+                isHindi
+                  ? "मोबाइल नंबर"
+                  : "Mobile number"
+              }
+              value={
+                activePatient?.mobile ||
+                activePatient?.phone ||
+                "—"
+              }
+            />
+
+            <InfoRow
+              icon={Mail}
+              label={isHindi ? "ईमेल" : "Email"}
+              value={
+                activePatient?.email || "—"
+              }
+            />
+
+            <InfoRow
+              icon={CalendarDays}
+              label={
+                isHindi
+                  ? "जन्म तिथि"
+                  : "Date of birth"
+              }
+              value={
+                activePatient?.dateOfBirth ||
+                activePatient?.dob ||
+                "—"
+              }
+              last
+            />
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <SectionTitle
+            title={
+              isHindi
+                ? "खाता और सुरक्षा"
+                : "Account & security"
+            }
+          />
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <ActionRow
+              title={
+                isHindi
+                  ? "गोपनीयता नियंत्रण"
+                  : "Privacy controls"
+              }
+              subtitle={
+                isHindi
+                  ? "सहमति और डेटा एक्सेस प्रबंधित करें"
+                  : "Manage consent and data access"
+              }
+              onClick={() =>
+                setScreen(SCREENS.PRIVACY)
+              }
+            />
+
+            <ActionRow
+              title={
+                isHindi
+                  ? "सेटिंग्स"
+                  : "Settings"
+              }
+              subtitle={
+                isHindi
+                  ? "भाषा और पहुंच विकल्प"
+                  : "Language and accessibility"
+              }
+              onClick={() =>
+                setScreen(SCREENS.SETTINGS)
+              }
+              last
+            />
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3.5 text-sm font-bold text-rose-700 shadow-sm"
         >
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-              {t("profile_personal_info")}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(true)}
-              className="text-xs font-bold text-teal-800 hover:text-teal-950 flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 hover:bg-teal-100 border border-teal-200 transition cursor-pointer"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>{t("profile_btn_edit")}</span>
-            </button>
-          </div>
+          <LogOut size={17} />
+          {isHindi ? "लॉग आउट" : "Log out"}
+        </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_name")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">{displayName}</p>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_dob")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {patient.dob || "15 Jun 1984"} ({patient.age} {isHindi ? "वर्ष" : "years"})
-              </p>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_gender")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">{genderDisplay}</p>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_mobile")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm font-mono">
-                {revealSensitive ? patient.mobile : getMaskedMobile(patient.mobile)}
-              </p>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_blood_group")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {patient.bloodGroup || "B+"}
-              </p>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-0.5">
-              <span className="text-slate-400 font-bold uppercase text-[10px]">
-                {t("profile_prakriti")}
-              </span>
-              <p className="font-bold text-slate-800 text-sm">
-                {prakritiDisplay}
-              </p>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-0.5">
-            <span className="text-slate-400 font-bold uppercase text-[10px]">
-              {t("profile_address")}
-            </span>
-            <p className="font-bold text-slate-800 mt-0.5">
-              {patient.address || (isHindi ? "मकान संख्या 42, सेक्टर 4, रोहिणी, नई दिल्ली" : "H.No. 42, Sector 4, Rohini, New Delhi")}
-            </p>
-            <p className="text-[11px] text-slate-500">
-              {isHindi ? "जिला" : "District"}: {isHindi ? (patient.hindiDistrict || patient.district || "मध्य दिल्ली") : (patient.district || "Central Delhi")}, {isHindi ? "राज्य" : "State"}: {isHindi ? "दिल्ली" : (patient.state || "Delhi")}
-            </p>
-          </div>
-        </section>
-
-        {/* 3. Security & Privacy Notice */}
-        <div className="p-4 rounded-3xl bg-slate-100/90 border border-slate-200/90 text-xs text-slate-600 flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 text-teal-800 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-bold text-slate-900">
-              {isHindi ? "डिजिटल सरकारी स्वास्थ्य सुरक्षा" : "ABDM Government Healthcare Protection"}
-            </p>
-            <p className="leading-relaxed">
-              {isHindi
-                ? "राष्ट्रीय डिजिटल स्वास्थ्य मिशन मानकों के अनुसार आपकी संवेदनशील पहचान सुरक्षित रखी गई है। स्वास्थ्य प्रदाता सहमतियों के प्रबंधन हेतु "
-                : "Your sensitive health identifiers are masked in compliance with National Digital Health Mission standards. To manage healthcare provider consents, visit "}
-              <button
-                type="button"
-                onClick={() => setScreen(SCREENS.PRIVACY)}
-                className="font-bold text-teal-800 hover:underline cursor-pointer"
-              >
-                {t("privacy_title")}
-              </button>
-              .
-            </p>
-          </div>
-        </div>
+        <p className="mt-4 px-3 text-center text-[10px] leading-5 text-slate-400">
+          {isHindi
+            ? "लॉग आउट करने पर इस डिवाइस की वर्तमान पहचान सत्र समाप्त हो जाएगा।"
+            : "Logging out ends the current identity session on this device."}
+        </p>
       </main>
 
-      {/* Edit Profile Drawer / Modal */}
-      {isEditModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
-        >
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-200 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-black text-slate-900">
-                {t("profile_edit_title")}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsEditModalOpen(false)}
-                className="p-1 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="font-bold uppercase tracking-wider text-slate-600 text-[10px]">
-                  {t("profile_edit_display_name")}
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-teal-700"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold uppercase tracking-wider text-slate-600 text-[10px]">
-                  {t("profile_mobile")}
-                </label>
-                <input
-                  type="tel"
-                  value={editMobile}
-                  onChange={(e) => setEditMobile(e.target.value)}
-                  required
-                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-teal-700"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="font-bold uppercase tracking-wider text-slate-600 text-[10px]">
-                  {t("profile_address")}
-                </label>
-                <textarea
-                  rows={2}
-                  value={editAddress}
-                  onChange={(e) => setEditAddress(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 outline-none focus:border-teal-700 resize-none"
-                />
-              </div>
-
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                {isHindi
-                  ? "नोट: आभा पहचान और जन्म तिथि राष्ट्रीय रिकॉर्ड से जुड़े हैं और आधार बायोमेट्रिक पुन: सत्यापन के बिना नहीं बदले जा सकते।"
-                  : "Note: ABHA identifier and Date of Birth are tied to national records and cannot be altered without Aadhaar biometric re-verification."}
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  type="submit"
-                  className="h-11 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs transition cursor-pointer shadow-sm"
-                >
-                  {t("profile_save_changes")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       <BottomNavBar />
+
+      {editing ? (
+        <EditProfileModal
+          form={form}
+          setForm={setForm}
+          isHindi={isHindi}
+          onClose={() => setEditing(false)}
+          onSave={handleSave}
+        />
+      ) : null}
     </div>
   );
-};
+}
 
-export default ProfileScreen;
+function SectionTitle({ title }) {
+  return (
+    <h2 className="mb-3 px-1 text-xs font-black uppercase tracking-wider text-slate-500">
+      {title}
+    </h2>
+  );
+}
+
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+  last = false,
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 px-4 py-4 ${
+        last ? "" : "border-b border-slate-100"
+      }`}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+        <Icon size={16} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 truncate text-sm font-semibold text-slate-700">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({
+  title,
+  subtitle,
+  onClick,
+  last = false,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 px-4 py-4 text-left active:bg-slate-50 ${
+        last ? "" : "border-b border-slate-100"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-slate-800">
+          {title}
+        </p>
+
+        <p className="mt-1 text-[11px] text-slate-500">
+          {subtitle}
+        </p>
+      </div>
+
+      <ChevronRight
+        size={18}
+        className="shrink-0 text-slate-400"
+      />
+    </button>
+  );
+}
+
+function EditProfileModal({
+  form,
+  setForm,
+  isHindi,
+  onClose,
+  onSave,
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 sm:items-center sm:p-4">
+      <div className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-900">
+              {isHindi
+                ? "प्रोफ़ाइल संपादित करें"
+                : "Edit profile"}
+            </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {isHindi
+                ? "अपनी जानकारी अपडेट करें"
+                : "Update your personal details"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <Field
+            label={
+              isHindi ? "पूरा नाम" : "Full name"
+            }
+            value={form.name}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                name: value,
+              }))
+            }
+          />
+
+          <Field
+            label={
+              isHindi
+                ? "मोबाइल नंबर"
+                : "Mobile number"
+            }
+            type="tel"
+            value={form.mobile}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                mobile: value,
+              }))
+            }
+          />
+
+          <Field
+            label={
+              isHindi ? "ईमेल" : "Email"
+            }
+            type="email"
+            value={form.email}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                email: value,
+              }))
+            }
+          />
+
+          <Field
+            label={
+              isHindi
+                ? "जन्म तिथि"
+                : "Date of birth"
+            }
+            type="date"
+            value={form.dateOfBirth}
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                dateOfBirth: value,
+              }))
+            }
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={onSave}
+          className="mt-5 w-full rounded-2xl bg-teal-800 px-5 py-3.5 text-sm font-bold text-white"
+        >
+          {isHindi
+            ? "परिवर्तन सहेजें"
+            : "Save changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  type = "text",
+  value,
+  onChange,
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold text-slate-700">
+        {label}
+      </span>
+
+      <input
+        type={type}
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+      />
+    </label>
+  );
+}

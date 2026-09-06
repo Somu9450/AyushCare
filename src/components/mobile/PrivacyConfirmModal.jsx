@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, Lock, Unlock, ShieldAlert, X, AlertCircle } from "lucide-react";
+import { Lock, Unlock, ShieldAlert, X, AlertCircle } from "lucide-react";
 import { useLanguage } from "../../i18n/translations";
 
 /**

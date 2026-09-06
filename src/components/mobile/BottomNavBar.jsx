@@ -1,138 +1,169 @@
 import React from "react";
-import { Home, CalendarDays, FileText, UserRound } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
+import {
+  FileText,
+  Home,
+  MoreHorizontal,
+  Stethoscope,
+} from "lucide-react";
 
-/**
- * BottomNavBar
- * Persistent main navigation bar for the AyushCare mobile companion app.
- * Exposes 4 primary navigation tabs:
- * - Home (Active Kiosk Session, Today's Appointment, Quick Actions)
- * - Visits (Appointments: Upcoming, Past, Appointment Details)
- * - Records (Medical Documents, OCR Entities, Timeline)
- * - More (Patient Profile, ABHA ID Card, Settings, Logout)
- */
-export const BottomNavBar = () => {
-  const { currentScreen, setScreen, activeNavTab, setActiveNavTab, selectedLanguage } =
-    useMobileStore();
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
 
-  const isHindi = selectedLanguage === "hi";
+const NAV_ITEMS = [
+  {
+    id: "home",
+    label: "Home",
+    icon: Home,
+    screens: [
+      SCREENS.M1,
+    ],
+  },
 
-  const navItems = [
-    {
-      id: "home",
-      label: isHindi ? "होम" : "Home",
-      icon: Home,
-      screen: SCREENS.M1,
-    },
-    {
-      id: "visits",
-      label: isHindi ? "मुलाकातें" : "Visits",
-      icon: CalendarDays,
-      screen: SCREENS.VISITS,
-      badge: isHindi ? "आज" : "Today",
-    },
-    {
-      id: "records",
-      label: isHindi ? "रिकॉर्ड्स" : "Records",
-      icon: FileText,
-      screen: SCREENS.RECORDS,
-    },
-    {
-      id: "more",
-      label: isHindi ? "अधिक" : "More",
-      icon: UserRound,
-      screen: SCREENS.MORE,
-    },
-  ];
+  {
+    id: "visits",
+    label: "Visits",
+    icon: Stethoscope,
+    screens: [
+      SCREENS.VISITS,
+      SCREENS.VISIT_DETAILS,
+      SCREENS.APPOINTMENTS,
+    ],
+  },
 
-  const handleNav = (item) => {
-    setActiveNavTab(item.id);
-    setScreen(item.screen);
-  };
+  {
+    id: "records",
+    label: "Records",
+    icon: FileText,
+    screens: [
+      SCREENS.RECORDS,
+      SCREENS.DOCUMENT_DETAILS,
+    ],
+  },
 
-  // Determine active tab
-  const getIsActive = (item) => {
-    if (activeNavTab) return activeNavTab === item.id;
-    if (item.id === "home" && currentScreen === SCREENS.M1) return true;
-    if (
-      item.id === "visits" &&
-      (currentScreen === SCREENS.VISITS || currentScreen === SCREENS.VISIT_DETAILS)
-    )
-      return true;
-    if (
-      item.id === "records" &&
-      (currentScreen === SCREENS.RECORDS ||
-        currentScreen === SCREENS.DOCUMENT_DETAILS ||
-        currentScreen === SCREENS.M7)
-    )
-      return true;
-    if (
-      item.id === "more" &&
-      (currentScreen === SCREENS.MORE ||
-        currentScreen === SCREENS.PRIVACY ||
-        currentScreen === SCREENS.CONSENT_DETAILS ||
-        currentScreen === SCREENS.PROFILE ||
-        currentScreen === SCREENS.SETTINGS ||
-        currentScreen === SCREENS.KIOSK_SESSION)
-    )
-      return true;
-    return false;
+  {
+    id: "more",
+    label: "More",
+    icon: MoreHorizontal,
+    screens: [
+      SCREENS.MORE,
+      SCREENS.PRIVACY,
+      SCREENS.CONSENT_DETAILS,
+      SCREENS.PROFILE,
+      SCREENS.SETTINGS,
+      SCREENS.ABOUT,
+      SCREENS.KIOSK_SESSION,
+    ],
+  },
+];
+
+function getActiveSection(
+  currentScreen
+) {
+  const match =
+    NAV_ITEMS.find(
+      (item) =>
+        item.screens.includes(
+          currentScreen
+        )
+    );
+
+  return (
+    match?.id ||
+    "home"
+  );
+}
+
+function BottomNavBar() {
+  const {
+    currentScreen,
+    setScreen,
+  } = useMobileStore();
+
+  const activeSection =
+    getActiveSection(
+      currentScreen
+    );
+
+  const handleNavigation = (
+    item
+  ) => {
+    if (!item) {
+      return;
+    }
+
+    const destination =
+      item.id === "home"
+        ? SCREENS.M1
+        : item.id === "visits"
+          ? SCREENS.VISITS
+          : item.id === "records"
+            ? SCREENS.RECORDS
+            : SCREENS.MORE;
+
+    setScreen(destination);
   };
 
   return (
     <nav
-      aria-label="Main Navigation"
-      className="shrink-0 w-full px-4 pt-2 pb-safe bg-white border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] z-30 transition-colors"
+      aria-label="Primary navigation"
+      className="sticky bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur"
     >
-      <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto flex items-center justify-around gap-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = getIsActive(item);
+      <div className="mx-auto grid max-w-5xl grid-cols-4 px-2 pb-[env(safe-area-inset-bottom)]">
+        {NAV_ITEMS.map(
+          (item) => {
+            const Icon =
+              item.icon;
 
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleNav(item)}
-              aria-label={item.label}
-              className={`flex-1 min-h-[54px] py-1 px-2 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all select-none cursor-pointer active:scale-95 relative ${
-                isActive
-                  ? "text-teal-800 font-bold"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50 font-medium"
-              }`}
-            >
-              {/* Active Tab Highlight Indicator */}
-              <div className="relative">
-                <Icon
-                  className={`w-5 h-5 transition-transform ${
-                    isActive ? "scale-110 stroke-[2.4] text-teal-800" : "stroke-[1.8]"
-                  }`}
-                />
-                {item.badge && (
-                  <span className="absolute -top-1.5 -right-3.5 bg-amber-500 text-white font-bold text-[9px] px-1 py-0.2 rounded-full uppercase tracking-wider leading-none shadow-2xs">
-                    {item.badge}
-                  </span>
-                )}
-              </div>
+            const active =
+              activeSection ===
+              item.id;
 
-              <span
-                className={`text-[11px] leading-tight tracking-tight transition-colors ${
-                  isActive ? "text-teal-800 font-extrabold" : "text-slate-500"
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() =>
+                  handleNavigation(
+                    item
+                  )
+                }
+                aria-current={
+                  active
+                    ? "page"
+                    : undefined
+                }
+                className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  active
+                    ? "text-blue-600"
+                    : "text-slate-500 hover:text-slate-700"
                 }`}
               >
-                {item.label}
-              </span>
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                    active
+                      ? "bg-blue-50"
+                      : "bg-transparent"
+                  }`}
+                >
+                  <Icon
+                    size={20}
+                    strokeWidth={
+                      active ? 2.3 : 1.9
+                    }
+                  />
+                </span>
 
-              {/* Active dot */}
-              {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-800 -mb-1"></span>
-              )}
-            </button>
-          );
-        })}
+                <span>
+                  {item.label}
+                </span>
+              </button>
+            );
+          }
+        )}
       </div>
     </nav>
   );
-};
+}
 
 export default BottomNavBar;

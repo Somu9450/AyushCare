@@ -1,41 +1,172 @@
 import React from "react";
-import { X, FileText, Download, ZoomIn } from "lucide-react";
+import {
+  X,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  AlertCircle,
+} from "lucide-react";
+
 import DocumentPreview from "./DocumentPreview";
 import useMobileStore from "../../store/useMobileStore";
-import { useLanguage } from "../../i18n/translations";
+import useLanguage from "../../i18n/translations";
 
-/**
- * OriginalDocModal
- * Modal sheet allowing the patient to inspect the original source document for verification.
- */
+const normalizePage = (page, index) => {
+  if (!page) {
+    return {
+      id: `page-${index + 1}`,
+      fileName: `Page ${index + 1}`,
+      image: null,
+      dataUrl: null,
+    };
+  }
+
+  return {
+    ...page,
+    id: page.id || `page-${index + 1}`,
+    fileName:
+      page.fileName ||
+      page.name ||
+      `Page ${index + 1}`,
+    image:
+      page.image ||
+      page.dataUrl ||
+      page.imageSrc ||
+      null,
+    dataUrl:
+      page.dataUrl ||
+      page.image ||
+      page.imageSrc ||
+      null,
+  };
+};
+
 export const OriginalDocModal = () => {
-  const { isOriginalDocModalOpen, setOriginalDocModalOpen, capturedDocument } =
-    useMobileStore();
+  const {
+    isOriginalDocModalOpen,
+    setOriginalDocModalOpen,
+    capturedDocument,
+  } = useMobileStore();
+
   const { isHindi } = useLanguage();
 
-  if (!isOriginalDocModalOpen) return null;
+  const [currentPageIndex, setCurrentPageIndex] =
+    React.useState(0);
+
+  const [imageError, setImageError] =
+    React.useState(false);
+
+  React.useEffect(() => {
+    setCurrentPageIndex(0);
+    setImageError(false);
+  }, [
+    isOriginalDocModalOpen,
+    capturedDocument?.id,
+    capturedDocument?.fileName,
+  ]);
+
+  if (!isOriginalDocModalOpen) {
+    return null;
+  }
+
+  const rawPages = Array.isArray(capturedDocument?.pages)
+    ? capturedDocument.pages
+    : [];
+
+  const pages =
+    rawPages.length > 0
+      ? rawPages.map(normalizePage)
+      : [
+          {
+            id: "page-1",
+            fileName:
+              capturedDocument?.fileName ||
+              (isHindi
+                ? "मूल दस्तावेज़"
+                : "Original Document"),
+            image:
+              capturedDocument?.image ||
+              capturedDocument?.dataUrl ||
+              null,
+            dataUrl:
+              capturedDocument?.dataUrl ||
+              capturedDocument?.image ||
+              null,
+          },
+        ];
+
+  const safePageIndex = Math.min(
+    currentPageIndex,
+    Math.max(0, pages.length - 1)
+  );
+
+  const activePage = pages[safePageIndex];
+
+  const totalPages = pages.length;
+
+  const currentImage =
+    activePage?.image ||
+    activePage?.dataUrl ||
+    null;
+
+  const documentName =
+    activePage?.fileName ||
+    capturedDocument?.fileName ||
+    (isHindi
+      ? "मूल चिकित्सीय दस्तावेज़"
+      : "Original Medical Document");
+
+  const goToPreviousPage = () => {
+    setCurrentPageIndex((index) =>
+      Math.max(0, index - 1)
+    );
+    setImageError(false);
+  };
+
+  const goToNextPage = () => {
+    setCurrentPageIndex((index) =>
+      Math.min(totalPages - 1, index + 1)
+    );
+    setImageError(false);
+  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={
+        isHindi
+          ? "मूल दस्तावेज़"
+          : "Original Document"
+      }
       onClick={() => setOriginalDocModalOpen(false)}
     >
       <div
-        className="w-full max-w-lg bg-slate-900 text-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-700 animate-in slide-in-from-bottom duration-250"
-        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg max-h-[94vh] bg-slate-950 text-white rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col"
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Modal Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-950">
+        {/* Header */}
+        <header className="shrink-0 px-4 py-3.5 border-b border-slate-800 bg-slate-950 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-teal-900/60 border border-teal-700 text-teal-300 flex items-center justify-center shrink-0">
-              <FileText className="w-5 h-5" />
+              <FileText className="w-4.5 h-4.5" />
             </div>
+
             <div className="min-w-0">
-              <h3 className="text-sm font-bold truncate text-slate-100">
-                {capturedDocument?.fileName || (isHindi ? "मूल पर्ची / दस्तावेज़" : "Original Prescription")}
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                {isHindi ? "मूल दस्तावेज़ · उच्च रिज़ॉल्यूशन स्कैन" : "Source Document · High Resolution Scan"}
+              <h2 className="text-sm font-black truncate">
+                {documentName}
+              </h2>
+
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {totalPages > 1
+                  ? isHindi
+                    ? `पृष्ठ ${safePageIndex + 1} / ${totalPages}`
+                    : `Page ${safePageIndex + 1} of ${totalPages}`
+                  : isHindi
+                  ? "मूल दस्तावेज़"
+                  : "Original source document"}
               </p>
             </div>
           </div>
@@ -43,48 +174,148 @@ export const OriginalDocModal = () => {
           <button
             type="button"
             onClick={() => setOriginalDocModalOpen(false)}
-            aria-label={isHindi ? "दस्तावेज़ बंद करें" : "Close Original Document"}
-            className="w-9 h-9 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer"
+            className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition"
+            aria-label={
+              isHindi ? "बंद करें" : "Close"
+            }
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
+        </header>
 
-        {/* Modal Body: Scrollable Document View */}
-        <div className="p-4 overflow-y-auto max-h-[75vh] bg-slate-900">
-          <div className="bg-white rounded-2xl p-1 shadow-lg">
-            <DocumentPreview
-              documentName={capturedDocument?.fileName}
-              date={capturedDocument?.date}
-              doctor={capturedDocument?.doctor}
-              clinic={capturedDocument?.clinic}
-              imageSrc={capturedDocument?.dataUrl}
-              showFullDetails={true}
-            />
+        {/* Page selector */}
+        {totalPages > 1 && (
+          <div className="shrink-0 px-4 py-2.5 bg-slate-900 border-b border-slate-800">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {pages.map((page, index) => (
+                <button
+                  key={page.id || index}
+                  type="button"
+                  onClick={() => {
+                    setCurrentPageIndex(index);
+                    setImageError(false);
+                  }}
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                    safePageIndex === index
+                      ? "bg-teal-700 text-white"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {isHindi
+                    ? `पृष्ठ ${index + 1}`
+                    : `Page ${index + 1}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Document */}
+        <div className="flex-1 overflow-y-auto bg-slate-900 p-3 sm:p-4">
+          <div className="rounded-2xl overflow-hidden bg-white shadow-xl">
+            {currentImage && !imageError ? (
+              <div className="relative">
+                <img
+                  src={currentImage}
+                  alt={
+                    isHindi
+                      ? `मूल दस्तावेज़ पृष्ठ ${
+                          safePageIndex + 1
+                        }`
+                      : `Original document page ${
+                          safePageIndex + 1
+                        }`
+                  }
+                  className="block w-full h-auto max-h-[65vh] object-contain bg-white"
+                  onError={() => setImageError(true)}
+                />
+
+                <div className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/60 text-white flex items-center justify-center">
+                  <ZoomIn className="w-4 h-4" />
+                </div>
+              </div>
+            ) : (
+              <div className="min-h-[280px] flex flex-col items-center justify-center px-6 py-10 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
+                  <FileText className="w-7 h-7" />
+                </div>
+
+                <h3 className="mt-4 text-sm font-black text-slate-900">
+                  {isHindi
+                    ? "मूल छवि उपलब्ध नहीं है"
+                    : "Original image unavailable"}
+                </h3>
+
+                <p className="mt-1.5 text-xs text-slate-500 max-w-xs leading-relaxed">
+                  {isHindi
+                    ? "इस प्रोटोटाइप रिकॉर्ड में दस्तावेज़ की छवि संग्रहीत नहीं है। नीचे उपलब्ध रिकॉर्ड जानकारी देखें।"
+                    : "The source image is not stored for this prototype record. Available record information is shown below."}
+                </p>
+              </div>
+            )}
           </div>
 
-          <div className="mt-3 p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 flex items-center justify-between">
-            <span>
-              {isHindi
-                ? "ओसीआर स्थिति: 3 दवाएं, 1 निदान निकाला गया"
-                : "OCR Status: Extracted 3 medicines, 1 diagnosis"}
-            </span>
-            <span className="text-[11px] text-teal-400 font-semibold">
-              {isHindi ? "100% मेल" : "100% Match"}
-            </span>
+          {/* Metadata */}
+          <div className="mt-3 p-3.5 rounded-2xl bg-slate-800 border border-slate-700">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-teal-300 shrink-0 mt-0.5" />
+
+              <div>
+                <p className="text-xs font-bold text-slate-200">
+                  {isHindi
+                    ? "दस्तावेज़ से निकाली गई जानकारी"
+                    : "Information read from document"}
+                </p>
+
+                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                  {isHindi
+                    ? "दिखाई गई जानकारी दस्तावेज़ से पढ़ी गई सामग्री पर आधारित है। महत्वपूर्ण जानकारी को मूल दस्तावेज़ से सत्यापित करें।"
+                    : "The displayed information is based on content read from the document. Verify important information against the original document."}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-3.5 border-t border-slate-800 bg-slate-950 flex gap-2">
+        {/* Navigation */}
+        {totalPages > 1 && (
+          <div className="shrink-0 px-4 py-2.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={goToPreviousPage}
+              disabled={safePageIndex === 0}
+              className="h-10 px-3 rounded-xl bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              {isHindi ? "पिछला" : "Previous"}
+            </button>
+
+            <span className="text-[10px] font-bold text-slate-500">
+              {safePageIndex + 1} / {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={goToNextPage}
+              disabled={safePageIndex === totalPages - 1}
+              className="h-10 px-3 rounded-xl bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            >
+              {isHindi ? "अगला" : "Next"}
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Footer */}
+        <footer className="shrink-0 p-3.5 bg-slate-950 border-t border-slate-800">
           <button
             type="button"
             onClick={() => setOriginalDocModalOpen(false)}
-            className="w-full min-h-[46px] rounded-xl bg-[#006666] hover:bg-[#005454] active:bg-[#004747] text-white font-bold text-sm cursor-pointer transition"
+            className="w-full min-h-[46px] rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-sm font-black cursor-pointer transition"
           >
-            {isHindi ? "समीक्षा संपन्न" : "Done Viewing"}
+            {isHindi ? "समीक्षा पूरी करें" : "Done Viewing"}
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );

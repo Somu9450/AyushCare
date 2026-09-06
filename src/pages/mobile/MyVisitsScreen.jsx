@@ -1,264 +1,447 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
-  Stethoscope,
-  Sparkles,
   ChevronRight,
-  CheckCircle2,
-  Building2,
-  FileQuestion,
-  RotateCcw,
-  Lock,
+  Hospital,
+  Loader2,
+  RefreshCw,
+  Stethoscope,
 } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
-import { mockVisits } from "../../data/mockData";
+
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
+import { fetchVisits } from "../../services/visitService";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
-import useLanguage from "../../i18n/translations";
+import { useLanguage } from "../../i18n/translations";
 
-export const MyVisitsScreen = () => {
+function normalizeVisits(result) {
+  if (Array.isArray(result)) return result;
+
+  if (Array.isArray(result?.visits)) {
+    return result.visits;
+  }
+
+  if (Array.isArray(result?.all)) {
+    return result.all;
+  }
+
+  if (Array.isArray(result?.data)) {
+    return result.data;
+  }
+
+  return [
+    ...(Array.isArray(result?.past) ? result.past : []),
+    ...(Array.isArray(result?.upcoming)
+      ? result.upcoming
+      : []),
+  ];
+}
+
+function getDateValue(visit) {
+  return (
+    visit?.date ||
+    visit?.visitDate ||
+    visit?.appointmentDate ||
+    visit?.scheduledDate ||
+    ""
+  );
+}
+
+function dateTimestamp(visit) {
+  const value = getDateValue(visit);
+
+  if (!value) return 0;
+
+  const parsed = new Date(value).getTime();
+
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function formatDate(value, isHindi) {
+  if (!value) {
+    return isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toLocaleDateString(
+    isHindi ? "hi-IN" : "en-IN",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
+  );
+}
+
+export default function MyVisitsScreen() {
   const {
+    patient,
+    session,
     visitFilter,
     setVisitFilter,
     setSelectedVisit,
     setScreen,
-    prevScreen,
-    isHealthHistoryLocked,
+    setActiveNavTab,
   } = useMobileStore();
 
-  const { t, isHindi } = useLanguage();
+  const { isHindi } = useLanguage();
 
-  // Filter options
-  const filterTabs = [
-    { id: "ALL", label: t("visits_tab_all") },
-    { id: "ALLOPATHY", label: t("visits_tab_allopathy") },
-    { id: "AYUSH", label: t("visits_tab_ayush") },
-  ];
+  const [visits, setVisits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Filtered visits
+  const activePatient =
+    patient || session?.patient || {};
+
+  const patientId =
+    activePatient?.patientId ||
+    activePatient?.id ||
+    null;
+
+  const loadVisits = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await fetchVisits({
+        patientId,
+      });
+
+      setVisits(normalizeVisits(result));
+    } catch (loadError) {
+      setError(
+        loadError?.message ||
+          (isHindi
+            ? "विज़िट इतिहास लोड नहीं हो सका।"
+            : "Unable to load visit history.")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVisits();
+  }, [patientId]);
+
   const filteredVisits = useMemo(() => {
-    if (visitFilter === "ALLOPATHY") {
-      return mockVisits.filter((v) => v.type === "ALLOPATHY");
-    }
-    if (visitFilter === "AYUSH") {
-      return mockVisits.filter((v) => v.type === "AYUSH");
-    }
-    return mockVisits;
-  }, [visitFilter]);
+    const result = [...visits].sort(
+      (a, b) => dateTimestamp(b) - dateTimestamp(a)
+    );
 
-  // Group visits chronologically: Year -> Month
-  const groupedVisits = useMemo(() => {
-    const groups = {};
-    filteredVisits.forEach((visit) => {
-      const year = visit.year || "2026";
-      const month = visit.month || (isHindi ? "हाल ही में" : "Recent");
-      if (!groups[year]) {
-        groups[year] = {};
-      }
-      if (!groups[year][month]) {
-        groups[year][month] = [];
-      }
-      groups[year][month].push(visit);
-    });
-    return groups;
-  }, [filteredVisits, isHindi]);
+    if (visitFilter === "PAST") {
+      return result.filter((visit) =>
+        isPastVisit(visit)
+      );
+    }
 
-  const handleSelectVisit = (visit) => {
+    if (visitFilter === "UPCOMING") {
+      return result.filter(
+        (visit) => !isPastVisit(visit)
+      );
+    }
+
+    return result;
+  }, [visits, visitFilter]);
+
+  const openVisit = (visit) => {
     setSelectedVisit(visit);
+    setActiveNavTab("visits");
     setScreen(SCREENS.VISIT_DETAILS);
   };
 
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
-      {/* Mobile Header with brand status */}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={t("visits_title")}
-        showBack={true}
-        onBack={prevScreen}
+        title={isHindi ? "मेरी विज़िट" : "My Visits"}
+        subtitle={
+          isHindi
+            ? "आपकी स्वास्थ्य मुलाकातों का इतिहास"
+            : "Your healthcare encounter history"
+        }
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* Main Heading & Subheading */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-              {t("visits_title")}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-              {isHindi ? "आपकी पिछली स्वास्थ्य मुलाकातें एवं परामर्श इतिहास।" : "Your previous healthcare visits and consultation history."}
-            </p>
-          </div>
+      <main className="mx-auto w-full max-w-md px-4 py-5 pb-24 sm:px-5">
+        <div className="mb-5 grid grid-cols-3 gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
+          <FilterButton
+            active={visitFilter === "ALL"}
+            onClick={() => setVisitFilter("ALL")}
+          >
+            {isHindi ? "सभी" : "All"}
+          </FilterButton>
 
-          {isHealthHistoryLocked && (
-            <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
-              <Lock className="w-3 h-3 text-amber-700" />
-              <span>{isHindi ? "साझाकरण प्रतिबंधित" : "Sharing restricted"}</span>
-            </span>
-          )}
+          <FilterButton
+            active={visitFilter === "UPCOMING"}
+            onClick={() =>
+              setVisitFilter("UPCOMING")
+            }
+          >
+            {isHindi ? "आने वाली" : "Upcoming"}
+          </FilterButton>
+
+          <FilterButton
+            active={visitFilter === "PAST"}
+            onClick={() => setVisitFilter("PAST")}
+          >
+            {isHindi ? "पिछली" : "Past"}
+          </FilterButton>
         </div>
 
-        {/* Visit Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
-          {filterTabs.map((tab) => {
-            const isSelected = visitFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setVisitFilter(tab.id)}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer border active:scale-95 ${
-                  isSelected
-                    ? "bg-teal-50 border-teal-700 text-teal-800 shadow-xs ring-1 ring-teal-600/30"
-                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 shadow-2xs"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Visit Chronological Grouping & Cards */}
-        {filteredVisits.length === 0 ? (
-          /* Empty State */
-          <div className="p-8 rounded-3xl bg-white border border-slate-200/90 text-center space-y-3 shadow-xs my-6">
-            <div className="w-14 h-14 rounded-2xl bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center mx-auto">
-              <FileQuestion className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900">
-              {t("visits_empty")}
-            </h3>
-            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-              {isHindi ? "आपकी पिछली स्वास्थ्य मुलाकातें यहाँ प्रदर्शित होंगी।" : "Your previous healthcare visits will appear here."}
-            </p>
-            <button
-              type="button"
-              onClick={() => setVisitFilter("ALL")}
-              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>{t("visits_tab_all")}</span>
-            </button>
-          </div>
+        {loading ? (
+          <LoadingState isHindi={isHindi} />
+        ) : error ? (
+          <ErrorState
+            message={error}
+            isHindi={isHindi}
+            onRetry={loadVisits}
+          />
+        ) : filteredVisits.length === 0 ? (
+          <EmptyState
+            filter={visitFilter}
+            isHindi={isHindi}
+          />
         ) : (
-          <div className="space-y-6">
-            {Object.entries(groupedVisits).map(([year, months]) => (
-              <section key={year} aria-label={`Visits in ${year}`} className="space-y-4">
-                {/* Year Marker */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400">
-                    {year}
-                  </span>
-                  <div className="flex-1 h-px bg-slate-200" />
-                </div>
-
-                {/* Months within Year */}
-                {Object.entries(months).map(([month, visits]) => (
-                  <div key={month} className="space-y-3">
-                    <h4 className="text-xs font-bold text-teal-800 uppercase tracking-wide px-1">
-                      {month}
-                    </h4>
-
-                    {/* Visit Cards */}
-                    <div className="space-y-3">
-                      {visits.map((visit) => {
-                        const isAyush = visit.type === "AYUSH";
-                        const Icon = isAyush ? Sparkles : Stethoscope;
-
-                        return (
-                          <div
-                            key={visit.id}
-                            onClick={() => handleSelectVisit(visit)}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                handleSelectVisit(visit);
-                              }
-                            }}
-                            className="w-full p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 hover:border-teal-600/40 hover:shadow-md transition-all active:scale-[0.99] text-left cursor-pointer space-y-3.5 group shadow-xs select-none"
-                          >
-                            {/* Card Header: Date & Status Badge */}
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                              <div className="flex items-center gap-2">
-                                <CalendarDays className="w-4 h-4 text-slate-400" />
-                                <span className="text-sm sm:text-base font-black text-slate-900">
-                                  {visit.date}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>{isHindi ? "मुलाकात पूर्ण" : (visit.status || "Completed")}</span>
-                              </div>
-                            </div>
-
-                            {/* Card Body: Doctor & Department Info */}
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
-                                    {isHindi ? (visit.hindiDepartment || visit.department) : visit.department}
-                                  </span>
-                                  {/* Visit Type Badge */}
-                                  <span
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                      isAyush
-                                        ? "bg-amber-50 text-amber-900 border-amber-200"
-                                        : "bg-teal-50 text-teal-800 border-teal-200"
-                                    }`}
-                                  >
-                                    <Icon className="w-3 h-3" />
-                                    <span>{isAyush ? (isHindi ? "आयुष" : "AYUSH") : (isHindi ? "एलोपैथी" : "Allopathy")}</span>
-                                  </span>
-                                </div>
-
-                                <h3 className="text-base sm:text-lg font-black text-slate-900 leading-snug">
-                                  {isHindi ? (visit.hindiDoctor || visit.doctor) : visit.doctor}
-                                </h3>
-
-                                <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                                  <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                  <span>{isHindi ? (visit.hindiHospital || visit.hospital) : visit.hospital}</span>
-                                  {visit.room && (
-                                    <>
-                                      <span>·</span>
-                                      <span>{isHindi ? `कक्ष ${visit.room.replace(/\D/g, '') || visit.room}` : visit.room}</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Card Footer: Action */}
-                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                              <span className="text-slate-400">
-                                {isHindi
-                                  ? `${visit.documents?.length || 0} दस्तावेज़ संलग्न`
-                                  : `${visit.documents?.length || 0} document${visit.documents?.length === 1 ? "" : "s"} attached`}
-                              </span>
-                              <span className="font-bold text-teal-800 group-hover:text-teal-950 flex items-center gap-1 transition-transform group-hover:translate-x-0.5">
-                                <span>{isHindi ? "मुलाकात देखें" : "View Visit"}</span>
-                                <ChevronRight className="w-4 h-4" />
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </section>
+          <div className="space-y-3">
+            {filteredVisits.map((visit, index) => (
+              <VisitCard
+                key={
+                  visit?.id ||
+                  visit?.visitId ||
+                  `visit-${index}`
+                }
+                visit={visit}
+                isHindi={isHindi}
+                onClick={() => openVisit(visit)}
+              />
             ))}
           </div>
         )}
       </main>
 
-      {/* Persistent Bottom Navigation */}
       <BottomNavBar />
     </div>
   );
-};
+}
 
-export default MyVisitsScreen;
+function FilterButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl px-2 py-2.5 text-xs font-bold transition ${
+        active
+          ? "bg-teal-700 text-white shadow-sm"
+          : "text-slate-500 hover:bg-slate-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function VisitCard({ visit, isHindi, onClick }) {
+  const doctor =
+    visit?.doctor ||
+    visit?.doctorName ||
+    visit?.physician ||
+    (isHindi ? "चिकित्सक" : "Doctor");
+
+  const department =
+    visit?.department ||
+    visit?.specialty ||
+    visit?.departmentName ||
+    (isHindi ? "सामान्य चिकित्सा" : "General Medicine");
+
+  const facility =
+    visit?.facility ||
+    visit?.hospital ||
+    visit?.hospitalName ||
+    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+
+  const date = formatDate(
+    getDateValue(visit),
+    isHindi
+  );
+
+  const status =
+    visit?.status ||
+    (isPastVisit(visit)
+      ? isHindi
+        ? "पूर्ण"
+        : "Completed"
+      : isHindi
+        ? "आने वाली"
+        : "Upcoming");
+
+  const summary =
+    visit?.summary ||
+    visit?.reason ||
+    visit?.chiefComplaint ||
+    visit?.notes ||
+    "";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition active:scale-[0.99]"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+          <Hospital size={21} />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-sm font-black text-slate-900">
+                {department}
+              </h2>
+
+              <p className="mt-1 truncate text-xs font-medium text-slate-500">
+                {doctor}
+              </p>
+            </div>
+
+            <ChevronRight
+              size={18}
+              className="mt-1 shrink-0 text-slate-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <CalendarDays
+          size={15}
+          className="text-slate-400"
+        />
+
+        <span className="text-xs font-semibold text-slate-600">
+          {date}
+        </span>
+
+        <span
+          className={`ml-auto rounded-full px-2.5 py-1 text-[10px] font-bold ${
+            isPastVisit(visit)
+              ? "bg-slate-100 text-slate-600"
+              : "bg-teal-50 text-teal-800"
+          }`}
+        >
+          {status}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Stethoscope
+          size={14}
+          className="shrink-0 text-slate-400"
+        />
+
+        <span className="truncate text-xs text-slate-500">
+          {facility}
+        </span>
+      </div>
+
+      {summary ? (
+        <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-500">
+          {summary}
+        </p>
+      ) : null}
+    </button>
+  );
+}
+
+function isPastVisit(visit) {
+  const status = String(
+    visit?.status || ""
+  ).toLowerCase();
+
+  if (
+    [
+      "completed",
+      "closed",
+      "finished",
+      "past",
+      "cancelled",
+      "canceled",
+    ].includes(status)
+  ) {
+    return true;
+  }
+
+  const timestamp = dateTimestamp(visit);
+
+  return timestamp > 0 && timestamp < Date.now();
+}
+
+function LoadingState({ isHindi }) {
+  return (
+    <div className="rounded-3xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-200">
+      <Loader2
+        size={30}
+        className="mx-auto animate-spin text-teal-700"
+      />
+
+      <p className="mt-4 text-sm font-semibold text-slate-700">
+        {isHindi
+          ? "विज़िट लोड हो रही हैं..."
+          : "Loading visits..."}
+      </p>
+    </div>
+  );
+}
+
+function ErrorState({ message, isHindi, onRetry }) {
+  return (
+    <div className="rounded-3xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-red-100">
+      <p className="text-sm font-semibold text-red-700">
+        {message}
+      </p>
+
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white active:scale-95"
+      >
+        <RefreshCw size={14} />
+        {isHindi ? "फिर प्रयास करें" : "Try again"}
+      </button>
+    </div>
+  );
+}
+
+function EmptyState({ filter, isHindi }) {
+  const message =
+    filter === "UPCOMING"
+      ? isHindi
+        ? "कोई आने वाली विज़िट नहीं है।"
+        : "No upcoming visits."
+      : filter === "PAST"
+        ? isHindi
+          ? "कोई पिछली विज़िट नहीं मिली।"
+          : "No past visits found."
+        : isHindi
+          ? "अभी कोई विज़िट नहीं मिली।"
+          : "No visits found.";
+
+  return (
+    <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center">
+      <CalendarDays
+        size={30}
+        className="mx-auto text-slate-300"
+      />
+
+      <p className="mt-3 text-sm font-semibold text-slate-600">
+        {message}
+      </p>
+    </div>
+  );
+}

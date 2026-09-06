@@ -1,207 +1,229 @@
 /**
  * Authentication Service
- * Implements future-proof schemas based on:
- * 1. ABDM (Ayushman Bharat Digital Mission) Gateway APIs (M1/M2/M3 milestones)
- * 2. UIDAI Aadhaar e-KYC OTP Authentication Specifications
- * 3. Hospital OPD Mobile OTP Gateway
  *
- * Currently simulates the backend responses while adhering to the official data structures.
+ * Current version:
+ * - Mock OTP authentication
+ * - No real credentials are stored
+ * - Designed to mirror the future backend API boundary
+ *
+ * Supported authentication methods:
+ * - Mobile number
+ * - ABHA ID
+ * - Aadhaar
+ *
+ * Kiosk QR sessions intentionally do NOT use this service.
+ * A QR-connected patient already has a short-lived kiosk session.
  */
 
-// Official ABDM & UIDAI Auth Mode constants
-export const AUTH_METHODS = {
-  ABHA: "ABHA",
-  AADHAAR: "AADHAAR",
-  MOBILE: "MOBILE",
-};
+const MOCK_OTP = "123456";
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function normalizeIdentifier(identifier) {
+  return String(identifier || "").trim();
+}
+
+function normalizeAuthType(authType) {
+  const value = String(authType || "mobile").toLowerCase();
+
+  if (value === "abha" || value === "abha_id") {
+    return "abha";
+  }
+
+  if (value === "aadhaar" || value === "aadhar") {
+    return "aadhaar";
+  }
+
+  return "mobile";
+}
+
+function createSessionId() {
+  return `mob_sess_${Date.now()}_${Math.floor(
+    100 + Math.random() * 900,
+  )}`;
+}
 
 /**
- * Request OTP for ABHA (14-digit Ayushman Bharat Health Account)
- * Follows ABDM API: POST /v0.5/users/auth/init
- * Request Body Schema: { authMethod: "AADHAAR_OTP" | "MOBILE_OTP", healhtid: string }
- * Response Schema: { transactionId: string, authModes: string[], maskedMobile: string }
+ * Request an OTP.
+ *
+ * Production API:
+ * POST /api/v1/mobile/auth/request-otp
+ *
+ * Request:
+ * {
+ *   authType: "mobile" | "abha" | "aadhaar",
+ *   identifier: "..."
+ * }
  */
-export async function requestAbhaOtp(abhaNumber) {
-  // TODO: Replace with official ABDM Gateway API call:
-  // const response = await axios.post(`${ABDM_GATEWAY_URL}/v0.5/users/auth/init`, {
-  //   authMethod: "AADHAAR_OTP",
-  //   healhtid: abhaNumber.replace(/-/g, ''),
-  // }, { headers: { "X-CM-ID": "sbx", Authorization: `Bearer ${gatewayToken}` } });
-  // return response.data;
+export async function requestOtp({
+  authType = "mobile",
+  identifier = "",
+} = {}) {
+  await wait(400);
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const cleanNumber = abhaNumber.replace(/\D/g, "");
-      resolve({
-        success: true,
-        transactionId: `txn_abdm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        authMode: "AADHAAR_OTP",
-        maskedMobile: "+91 ******3210",
-        message: "OTP dispatched to Aadhaar-registered mobile number",
-        expiresInSeconds: 600,
-      });
-    }, 400);
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const normalizedAuthType = normalizeAuthType(authType);
+
+  if (!normalizedIdentifier) {
+    return {
+      success: false,
+      error: "Please enter your registered identifier.",
+    };
+  }
+
+  return {
+    success: true,
+    authType: normalizedAuthType,
+    maskedIdentifier: maskIdentifier(
+      normalizedIdentifier,
+      normalizedAuthType,
+    ),
+    otpSent: true,
+
+    // Prototype-only information.
+    // A real backend must NEVER return the OTP to the client.
+    demoOtp: MOCK_OTP,
+
+    expiresInSeconds: 300,
+  };
+}
+
+/**
+ * Verify OTP and create a mobile session.
+ *
+ * Production API:
+ * POST /api/v1/mobile/auth/verify-otp
+ */
+export async function verifyOtp({
+  authType = "mobile",
+  identifier = "",
+  otp = "",
+} = {}) {
+  await wait(500);
+
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const normalizedAuthType = normalizeAuthType(authType);
+  const normalizedOtp = String(otp || "").trim();
+
+  if (!normalizedIdentifier) {
+    return {
+      success: false,
+      error: "Identifier is required.",
+    };
+  }
+
+  if (!/^\d{6}$/.test(normalizedOtp)) {
+    return {
+      success: false,
+      error: "Enter the 6-digit OTP.",
+    };
+  }
+
+  if (normalizedOtp !== MOCK_OTP) {
+    return {
+      success: false,
+      error: "Invalid OTP. Use 123456 in this prototype.",
+    };
+  }
+
+  return {
+    success: true,
+
+    user: {
+      id: "pat_88129012",
+      patientId: "PATIENT-001",
+      authType: normalizedAuthType,
+      identifier: normalizedIdentifier,
+    },
+
+    session: {
+      sessionId: createSessionId(),
+      authenticatedAt: new Date().toISOString(),
+      expiresInSeconds: 3600,
+    },
+  };
+}
+
+/**
+ * Convenience login function used by AuthScreen.
+ *
+ * Production implementation can collapse this into the backend
+ * request/verify flow while keeping the UI contract unchanged.
+ */
+export async function loginPatient({
+  authType = "mobile",
+  identifier = "",
+  otp = MOCK_OTP,
+} = {}) {
+  const otpRequest = await requestOtp({
+    authType,
+    identifier,
+  });
+
+  if (!otpRequest.success) {
+    return otpRequest;
+  }
+
+  return verifyOtp({
+    authType,
+    identifier,
+    otp,
   });
 }
 
 /**
- * Verify OTP for ABHA Number
- * Follows ABDM API: POST /v0.5/users/auth/confirmWithAadhaarOtp
- * Request Body Schema: { transactionId: string, otp: string }
- * Response Schema: { token: string, user: PatientProfile }
+ * End the authenticated mobile session.
+ *
+ * Production API:
+ * POST /api/v1/mobile/auth/logout
  */
-export async function verifyAbhaOtp(transactionId, otp, abhaNumber) {
-  // TODO: Replace with official ABDM API call:
-  // const response = await axios.post(`${ABDM_GATEWAY_URL}/v0.5/users/auth/confirmWithAadhaarOtp`, {
-  //   transactionId,
-  //   otp
-  // });
-  // return response.data;
+export async function logoutPatient(sessionId) {
+  await wait(150);
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const cleanNumber = abhaNumber ? abhaNumber.replace(/\D/g, "") : "91443288129012";
-      const formattedAbha = cleanNumber.length === 14
-        ? `${cleanNumber.slice(0, 2)}-${cleanNumber.slice(2, 6)}-${cleanNumber.slice(6, 10)}-${cleanNumber.slice(10, 14)}`
-        : "91-4432-8812-9012";
-
-      resolve({
-        success: true,
-        token: `jwt_abdm_token_${Date.now()}`,
-        patient: {
-          id: `pat_${cleanNumber.slice(-8)}`,
-          name: "Rajesh Kumar Sharma",
-          hindiName: "राजेश कुमार शर्मा",
-          gender: "Male",
-          age: 42,
-          dob: "1984-06-15",
-          mobile: "+91 98765 43210",
-          abhaNumber: formattedAbha,
-          abhaAddress: "rajesh.sharma@abdm",
-          bloodGroup: "B+",
-          district: "Central Delhi",
-          state: "Delhi",
-          authMethod: AUTH_METHODS.ABHA,
-          verifiedAt: new Date().toISOString(),
-        },
-      });
-    }, 600);
-  });
+  return {
+    success: true,
+    sessionId: sessionId || null,
+    loggedOutAt: new Date().toISOString(),
+  };
 }
 
 /**
- * Request OTP for 12-digit Aadhaar Number
- * Follows UIDAI Aadhaar Auth API Schema: POST /api/v1/auth/aadhaar/generate-otp
- * Request Schema: { aadhaarNumber: string, consent: boolean }
- * Response Schema: { txnId: string, status: "SUCCESS", maskedMobile: string }
+ * Mask identifiers before displaying them in the UI.
  */
-export async function requestAadhaarOtp(aadhaarNumber) {
-  // TODO: Replace with UIDAI certified e-KYC provider endpoint
-  // const response = await axios.post('/api/v1/auth/aadhaar/generate-otp', {
-  //   aadhaarNumber: aadhaarNumber.replace(/\s/g, ''),
-  //   consent: true
-  // });
+function maskIdentifier(identifier, authType) {
+  if (authType === "mobile") {
+    const digits = identifier.replace(/\D/g, "");
 
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        txnId: `txn_uidai_${Date.now()}`,
-        maskedMobile: "+91 ******6789",
-        message: "OTP sent to UIDAI registered mobile number",
-        expiresInSeconds: 300,
-      });
-    }, 400);
-  });
+    if (digits.length >= 4) {
+      return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(
+        -4,
+      )}`;
+    }
+
+    return "****";
+  }
+
+  if (authType === "aadhaar") {
+    const digits = identifier.replace(/\D/g, "");
+
+    if (digits.length >= 4) {
+      return `XXXX XXXX ${digits.slice(-4)}`;
+    }
+
+    return "XXXX XXXX XXXX";
+  }
+
+  if (authType === "abha") {
+    const compact = identifier.replace(/\s/g, "");
+
+    if (compact.length >= 4) {
+      return `${compact.slice(0, 2)}-XXXX-XXXX-${compact.slice(-4)}`;
+    }
+
+    return "XX-XXXX-XXXX-XXXX";
+  }
+
+  return "********";
 }
 
-/**
- * Verify OTP for Aadhaar
- * Follows UIDAI API: POST /api/v1/auth/aadhaar/verify-otp
- * Request Schema: { txnId: string, otp: string }
- * Response Schema: { eKycData: { uid: string, name: string, ... } }
- */
-export async function verifyAadhaarOtp(txnId, otp, aadhaarNumber) {
-  // TODO: Replace with UIDAI e-KYC response parsing
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const clean = aadhaarNumber ? aadhaarNumber.replace(/\D/g, "") : "728891230144";
-      const maskedUid = `XXXXXXXX${clean.slice(-4)}`;
-
-      resolve({
-        success: true,
-        token: `jwt_aadhaar_token_${Date.now()}`,
-        patient: {
-          id: `pat_aadhaar_${clean.slice(-6)}`,
-          name: "Sunita Devi",
-          hindiName: "सुनीता देवी",
-          gender: "Female",
-          age: 47,
-          dob: "1978-11-20",
-          mobile: "+91 91234 56789",
-          abhaNumber: "72-8891-2301-4455",
-          aadhaarNumber: maskedUid,
-          bloodGroup: "O+",
-          district: "Varanasi",
-          state: "Uttar Pradesh",
-          authMethod: AUTH_METHODS.AADHAAR,
-          verifiedAt: new Date().toISOString(),
-        },
-      });
-    }, 600);
-  });
-}
-
-/**
- * Request OTP for 10-digit Indian Mobile Number
- * Follows Hospital OPD OTP API: POST /api/v1/auth/mobile/otp
- * Request Schema: { mobile: string }
- */
-export async function requestMobileOtp(mobileNumber) {
-  // TODO: Replace with Hospital SMS Gateway / Twilio / Kaleyra API:
-  // const response = await axios.post('/api/v1/auth/mobile/otp', { mobile: mobileNumber });
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        txnId: `txn_sms_${Date.now()}`,
-        maskedMobile: `+91 ${mobileNumber.slice(0, 2)}******${mobileNumber.slice(-2)}`,
-        message: "SMS OTP sent successfully",
-        expiresInSeconds: 300,
-      });
-    }, 400);
-  });
-}
-
-/**
- * Verify OTP for Mobile
- * Follows Hospital OPD API: POST /api/v1/auth/mobile/verify
- */
-export async function verifyMobileOtp(txnId, otp, mobileNumber) {
-  // TODO: Replace with Hospital Auth Service
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const clean = mobileNumber ? mobileNumber.replace(/\D/g, "") : "9876543210";
-      resolve({
-        success: true,
-        token: `jwt_mobile_token_${Date.now()}`,
-        patient: {
-          id: `pat_mob_${clean.slice(-6)}`,
-          name: "Rajesh Kumar Sharma",
-          hindiName: "राजेश कुमार शर्मा",
-          gender: "Male",
-          age: 42,
-          dob: "1984-06-15",
-          mobile: `+91 ${clean}`,
-          abhaNumber: "91-4432-8812-9012",
-          bloodGroup: "B+",
-          district: "Central Delhi",
-          state: "Delhi",
-          authMethod: AUTH_METHODS.MOBILE,
-          verifiedAt: new Date().toISOString(),
-        },
-      });
-    }, 600);
-  });
-}
+export { MOCK_OTP };

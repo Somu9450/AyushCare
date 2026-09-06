@@ -1,124 +1,183 @@
 import React from "react";
-import { ArrowLeft, Wifi, CheckCircle2 } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CircleUserRound,
+  Menu,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 
-/**
- * MobileHeader component
- * Minimal patient-focused mobile header.
- * Shows back button (when screen allows), Screen Title, and AYUSHCARE brand status.
- */
-export const MobileHeader = ({
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
+
+function MobileHeader({
   title,
-  showBack = true,
-  onBack,
-  rightElement,
   subtitle,
-  dark = false,
-}) => {
+  showBack = true,
+  showProfile = false,
+  showMenu = false,
+  onBack,
+  onProfile,
+  onMenu,
+  rightContent,
+}) {
   const {
-    currentScreen,
-    prevScreen,
+    kioskSession,
+    patient,
     selectedLanguage,
     setSelectedLanguage,
+    prevScreen,
+    setScreen,
   } = useMobileStore();
+
+  const isConnected =
+    kioskSession?.status === "CONNECTED" &&
+    !kioskSession?.isSessionExpired;
 
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+      return;
+    }
+
+    if (typeof prevScreen === "function") {
       prevScreen();
     }
   };
 
-  const canGoBack = showBack && currentScreen !== SCREENS.M1 && currentScreen !== SCREENS.M9;
+  const handleProfile = () => {
+    if (onProfile) {
+      onProfile();
+      return;
+    }
+
+    if (typeof setScreen === "function") {
+      setScreen(SCREENS.PROFILE);
+    }
+  };
+
+  const handleMenu = () => {
+    if (onMenu) {
+      onMenu();
+      return;
+    }
+
+    if (typeof setScreen === "function") {
+      setScreen(SCREENS.MORE);
+    }
+  };
+
+  const toggleLanguage = () => {
+    if (typeof setSelectedLanguage !== "function") {
+      return;
+    }
+
+    setSelectedLanguage(
+      selectedLanguage === "hi" ? "en" : "hi"
+    );
+  };
+
+  const patientName =
+    patient?.name ||
+    patient?.fullName ||
+    "Patient";
 
   return (
-    <header
-      className={`w-full shrink-0 px-4 pt-safe pb-2.5 transition-colors ${
-        dark ? "bg-slate-950 text-white border-b border-slate-800/80" : "bg-white text-slate-900 border-b border-slate-200/80"
-      }`}
-    >
-      <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 h-12 sm:h-14">
-        {/* Left: Back Button or Brand */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          {canGoBack ? (
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex min-h-[68px] max-w-5xl items-center gap-3 px-4 py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {showBack && (
             <button
               type="button"
               onClick={handleBack}
-              aria-label="Go Back"
-              className={`w-10 h-10 -ml-1.5 rounded-xl flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                dark
-                  ? "text-slate-300 hover:bg-slate-800 active:bg-slate-700"
-                  : "text-slate-700 hover:bg-slate-100 active:bg-slate-200"
-              }`}
+              aria-label="Go back"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft size={20} />
             </button>
-          ) : null}
+          )}
 
           <div className="min-w-0">
-            {title ? (
-              <h1 className={`text-base font-bold truncate leading-tight ${dark ? "text-white" : "text-slate-900"}`}>
+            {title && (
+              <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
                 {title}
               </h1>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black tracking-wider text-teal-800">
-                  {selectedLanguage === "hi" ? "आयुषकेयर" : "AYUSHCARE"}
-                </span>
-                <span className="text-[11px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 uppercase">
-                  {selectedLanguage === "hi" ? "साथी" : "COMPANION"}
-                </span>
-              </div>
             )}
+
             {subtitle && (
-              <p className={`text-xs truncate leading-none mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>
+              <p className="truncate text-xs text-slate-500 sm:text-sm">
                 {subtitle}
               </p>
             )}
           </div>
         </div>
 
-        {/* Right Element or Kiosk Connection Indicator & Language Switcher */}
-        <div className="shrink-0 flex items-center gap-2">
-          {rightElement ? (
-            rightElement
-          ) : (
-            <>
-              {/* Universal Language Switcher Button */}
-              <button
-                type="button"
-                onClick={() => setSelectedLanguage(selectedLanguage === "hi" ? "en" : "hi")}
-                aria-label="Toggle Language"
-                className={`px-2.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 cursor-pointer border shadow-2xs active:scale-95 ${
-                  selectedLanguage === "hi"
-                    ? "bg-teal-800 text-white border-teal-900"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300"
-                }`}
-                title={selectedLanguage === "hi" ? "Switch to English" : "हिन्दी में बदलें"}
-              >
-                <span>{selectedLanguage === "hi" ? "हिन्दी" : "EN"}</span>
-              </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {rightContent}
 
-              <div
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight ${
-                  dark
-                    ? "bg-teal-950/80 text-teal-300 border border-teal-800"
-                    : "bg-teal-50 text-teal-800 border border-teal-200"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="hidden xs:inline">
-                  {selectedLanguage === "hi" ? "संबद्ध" : "Connected"}
-                </span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              </div>
-            </>
+          <button
+            type="button"
+            onClick={toggleLanguage}
+            aria-label="Change language"
+            className="hidden rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:block"
+          >
+            {selectedLanguage === "hi"
+              ? "हिं"
+              : "EN"}
+          </button>
+
+          <div
+            title={
+              isConnected
+                ? "Kiosk connected"
+                : "Kiosk not connected"
+            }
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold ${
+              isConnected
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {isConnected ? (
+              <CheckCircle2 size={14} />
+            ) : (
+              <WifiOff size={14} />
+            )}
+
+            <span className="hidden sm:inline">
+              {isConnected
+                ? "Connected"
+                : "Not connected"}
+            </span>
+          </div>
+
+          {showProfile && (
+            <button
+              type="button"
+              onClick={handleProfile}
+              aria-label={`Open profile for ${patientName}`}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <CircleUserRound size={21} />
+            </button>
+          )}
+
+          {showMenu && (
+            <button
+              type="button"
+              onClick={handleMenu}
+              aria-label="Open menu"
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <Menu size={21} />
+            </button>
           )}
         </div>
       </div>
     </header>
   );
-};
+}
 
 export default MobileHeader;

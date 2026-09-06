@@ -1,423 +1,452 @@
-import React, { useState } from "react";
+import React from "react";
 import {
-  Languages,
-  Eye,
-  Type,
-  Volume2,
-  VolumeX,
-  Shield,
-  MonitorCheck,
-  Info,
-  LogOut,
   Check,
   ChevronRight,
-  AlertTriangle,
-  Sliders,
-  Sparkles,
+  Languages,
+  LogOut,
+  MoveHorizontal,
+  PlayCircle,
+  RotateCcw,
+  ShieldCheck,
+  Type,
+  Volume2,
 } from "lucide-react";
-import useMobileStore, { SCREENS } from "../../store/useMobileStore";
+
+import useMobileStore, {
+  SCREENS,
+} from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
-export const SettingsScreen = () => {
+const TEXT_SIZES = [
+  {
+    id: "default",
+    label: "Default",
+    hindi: "सामान्य",
+  },
+  {
+    id: "large",
+    label: "Large",
+    hindi: "बड़ा",
+  },
+  {
+    id: "x-large",
+    label: "Extra large",
+    hindi: "बहुत बड़ा",
+  },
+];
+
+export default function SettingsScreen() {
   const {
     selectedLanguage,
     setSelectedLanguage,
     accessibilitySettings,
     updateAccessibilitySettings,
-    kioskSession,
+    logout,
     setScreen,
-    logoutPatient,
-    isHealthHistoryLocked,
   } = useMobileStore();
 
-  const { t, isHindi } = useLanguage();
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const { isHindi } = useLanguage();
 
-  const handleToggleHighContrast = () => {
-    updateAccessibilitySettings({
-      highContrast: !accessibilitySettings.highContrast,
+  const accessibility =
+    accessibilitySettings || {};
+
+  const updateAccessibility = (
+    partialSettings
+  ) => {
+    if (
+      typeof updateAccessibilitySettings ===
+      "function"
+    ) {
+      updateAccessibilitySettings(
+        partialSettings
+      );
+    }
+  };
+
+  const toggleLanguage = () => {
+    setSelectedLanguage(
+      selectedLanguage === "hi"
+        ? "en"
+        : "hi"
+    );
+  };
+
+  const resetAccessibility = () => {
+    updateAccessibility({
+      textSize: "default",
+      highContrast: false,
+      reduceMotion: false,
+      audioAssist: true,
     });
   };
 
-  const handleToggleAudio = () => {
-    updateAccessibilitySettings({
-      audioAssistance: !accessibilitySettings.audioAssistance,
-    });
-  };
+  const handleLogout = async () => {
+    if (typeof logout === "function") {
+      await logout();
+      return;
+    }
 
-  const handleToggleReduceMotion = () => {
-    updateAccessibilitySettings({
-      reduceMotion: !accessibilitySettings.reduceMotion,
-    });
-  };
-
-  const handleSetTextSize = (size) => {
-    updateAccessibilitySettings({ textSize: size });
-  };
-
-  const handleConfirmLogout = () => {
-    setShowLogoutModal(false);
-    logoutPatient();
+    setScreen(SCREENS.AUTH);
   };
 
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={t("settings_title")}
-        showBack={true}
-        onBack={() => setScreen(SCREENS.MORE)}
+        title={
+          isHindi ? "सेटिंग्स" : "Settings"
+        }
+        subtitle={
+          isHindi
+            ? "भाषा, पहुंच और ऐप प्राथमिकताएं"
+            : "Language, accessibility and preferences"
+        }
       />
 
-      {/* Main Content */}
-      <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* 1. Language Preference */}
-        <section
-          aria-label="Language Preference"
-          className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3"
-        >
-          <div className="flex items-center gap-2">
-            <Languages className="w-5 h-5 text-teal-700" />
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              {t("settings_lang_heading")}
-            </h3>
-          </div>
-          <p className="text-xs text-slate-500">
-            {t("settings_lang_sub")}
-          </p>
+      <main className="mx-auto w-full max-w-md px-4 py-5 pb-24">
+        <section>
+          <SectionTitle
+            title={
+              isHindi ? "भाषा" : "Language"
+            }
+          />
 
-          <div className="grid grid-cols-2 gap-2.5 pt-1">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
             <button
               type="button"
-              onClick={() => setSelectedLanguage("en")}
-              className={`p-3 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
-                selectedLanguage === "en"
-                  ? "bg-teal-50/80 border-teal-600 text-teal-950 font-bold shadow-xs"
-                  : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
-              }`}
+              onClick={toggleLanguage}
+              className="flex w-full items-center gap-3 p-4 text-left"
             >
-              <div>
-                <span className="text-sm font-bold block">English</span>
-                <span className="text-[10px] text-slate-400">
-                  {isHindi ? "सिस्टम मानक" : "Standard"}
-                </span>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                <Languages size={18} />
               </div>
-              {selectedLanguage === "en" && (
-                <div className="w-5 h-5 rounded-full bg-teal-800 text-white flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-              )}
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setSelectedLanguage("hi")}
-              className={`p-3 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
-                selectedLanguage === "hi"
-                  ? "bg-teal-50/80 border-teal-600 text-teal-950 font-bold shadow-xs"
-                  : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
-              }`}
-            >
-              <div>
-                <span className="text-sm font-bold block">हिन्दी</span>
-                <span className="text-[10px] text-slate-400">
-                  {isHindi ? "आवाज़ व पाठ" : "Voice & Text"}
-                </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-slate-800">
+                  {isHindi
+                    ? "ऐप भाषा"
+                    : "App language"}
+                </p>
+
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {selectedLanguage === "hi"
+                    ? "हिन्दी"
+                    : "English"}
+                </p>
               </div>
-              {selectedLanguage === "hi" && (
-                <div className="w-5 h-5 rounded-full bg-teal-800 text-white flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-              )}
+
+              <span className="rounded-xl bg-slate-100 px-3 py-2 text-[10px] font-black text-slate-600">
+                {selectedLanguage === "hi"
+                  ? "हिं"
+                  : "EN"}
+              </span>
             </button>
           </div>
         </section>
 
-        {/* 2. Accessibility Controls */}
-        <section
-          aria-label="Accessibility Settings"
-          className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sliders className="w-5 h-5 text-teal-700" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                {t("settings_access_heading")}
-              </h3>
-            </div>
-            <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-              {isHindi ? "सक्रिय स्केल" : "Live Scaled"}
-            </span>
+        <section className="mt-7">
+          <SectionTitle
+            title={
+              isHindi
+                ? "पहुंच"
+                : "Accessibility"
+            }
+          />
+
+          <div className="space-y-3">
+            <SettingToggle
+              icon={Type}
+              title={
+                isHindi
+                  ? "बड़ा टेक्स्ट"
+                  : "Larger text"
+              }
+              description={
+                isHindi
+                  ? "स्क्रीन पर टेक्स्ट का आकार बढ़ाएं।"
+                  : "Increase the text size across the app."
+              }
+              enabled={
+                accessibility.textSize ===
+                "large"
+              }
+              onChange={(enabled) =>
+                updateAccessibility({
+                  textSize: enabled
+                    ? "large"
+                    : "default",
+                })
+              }
+            />
+
+            <SettingToggle
+              icon={MoveHorizontal}
+              title={
+                isHindi
+                  ? "बहुत बड़ा टेक्स्ट"
+                  : "Extra large text"
+              }
+              description={
+                isHindi
+                  ? "कम दृष्टि वाले उपयोगकर्ताओं के लिए और बड़ा टेक्स्ट।"
+                  : "Use a larger text size for improved readability."
+              }
+              enabled={
+                accessibility.textSize ===
+                "x-large"
+              }
+              onChange={(enabled) =>
+                updateAccessibility({
+                  textSize: enabled
+                    ? "x-large"
+                    : "default",
+                })
+              }
+            />
+
+            <SettingToggle
+              icon={ShieldCheck}
+              title={
+                isHindi
+                  ? "उच्च कंट्रास्ट"
+                  : "High contrast"
+              }
+              description={
+                isHindi
+                  ? "टेक्स्ट और इंटरफेस के बीच कंट्रास्ट बढ़ाएं।"
+                  : "Increase contrast between interface elements and text."
+              }
+              enabled={Boolean(
+                accessibility.highContrast
+              )}
+              onChange={(enabled) =>
+                updateAccessibility({
+                  highContrast: enabled,
+                })
+              }
+            />
+
+            <SettingToggle
+              icon={PlayCircle}
+              title={
+                isHindi
+                  ? "कम मोशन"
+                  : "Reduce motion"
+              }
+              description={
+                isHindi
+                  ? "एनिमेशन और ट्रांज़िशन कम करें।"
+                  : "Reduce animations and transitions."
+              }
+              enabled={Boolean(
+                accessibility.reduceMotion
+              )}
+              onChange={(enabled) =>
+                updateAccessibility({
+                  reduceMotion: enabled,
+                })
+              }
+            />
+
+            <SettingToggle
+              icon={Volume2}
+              title={
+                isHindi
+                  ? "ऑडियो सहायता"
+                  : "Audio assistance"
+              }
+              description={
+                isHindi
+                  ? "जहां उपलब्ध हो वहां ऑडियो सहायता का उपयोग करें।"
+                  : "Enable audio assistance where available."
+              }
+              enabled={
+                accessibility.audioAssist !==
+                false
+              }
+              onChange={(enabled) =>
+                updateAccessibility({
+                  audioAssist: enabled,
+                })
+              }
+            />
           </div>
+        </section>
 
-          {/* Text Size Switcher */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                <Type className="w-4 h-4 text-slate-500" />
-                {t("settings_text_size")}
-              </span>
-              <span className="text-[11px] font-mono text-slate-500 capitalize">
-                {accessibilitySettings.textSize}
-              </span>
-            </div>
+        <section className="mt-7">
+          <SectionTitle
+            title={
+              isHindi
+                ? "टेक्स्ट आकार"
+                : "Text size"
+            }
+          />
 
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: "default", label: t("settings_text_default") },
-                { id: "large", label: t("settings_text_large") },
-                { id: "xlarge", label: t("settings_text_xlarge") },
-              ].map((opt) => (
+          <div className="rounded-3xl border border-slate-200 bg-white p-2">
+            {TEXT_SIZES.map((size) => {
+              const active =
+                (accessibility.textSize ||
+                  "default") === size.id;
+
+              return (
                 <button
-                  key={opt.id}
+                  key={size.id}
                   type="button"
-                  onClick={() => handleSetTextSize(opt.id)}
-                  className={`py-2 px-2 rounded-xl text-center text-xs font-bold transition cursor-pointer border ${
-                    accessibilitySettings.textSize === opt.id
-                      ? "bg-teal-800 text-white border-teal-900 shadow-xs"
-                      : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                  onClick={() =>
+                    updateAccessibility({
+                      textSize: size.id,
+                    })
+                  }
+                  className={`flex w-full items-center justify-between rounded-2xl px-4 py-3.5 text-left ${
+                    active
+                      ? "bg-teal-50 text-teal-950"
+                      : "text-slate-700"
                   }`}
                 >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* High Contrast Mode Toggle */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Eye className="w-4 h-4 text-slate-500" />
-                {t("settings_high_contrast")}
-              </span>
-              <p className="text-[11px] text-slate-500">
-                {t("settings_high_contrast_sub")}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={accessibilitySettings.highContrast}
-              onClick={handleToggleHighContrast}
-              className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer ${
-                accessibilitySettings.highContrast ? "bg-teal-800" : "bg-slate-300"
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  accessibilitySettings.highContrast ? "translate-x-5" : "translate-x-0"
-                }`}
-              ></div>
-            </button>
-          </div>
-
-          {/* Audio Assistance Toggle */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                {accessibilitySettings.audioAssistance ? (
-                  <Volume2 className="w-4 h-4 text-teal-700" />
-                ) : (
-                  <VolumeX className="w-4 h-4 text-slate-400" />
-                )}
-                {t("settings_audio_assist")}
-              </span>
-              <p className="text-[11px] text-slate-500">
-                {t("settings_audio_assist_sub")}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={accessibilitySettings.audioAssistance}
-              onClick={handleToggleAudio}
-              className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer ${
-                accessibilitySettings.audioAssistance ? "bg-teal-800" : "bg-slate-300"
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  accessibilitySettings.audioAssistance ? "translate-x-5" : "translate-x-0"
-                }`}
-              ></div>
-            </button>
-          </div>
-
-          {/* Reduce Motion Toggle */}
-          <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-slate-800">
-                {t("settings_reduce_motion")}
-              </span>
-              <p className="text-[11px] text-slate-500">
-                {t("settings_reduce_motion_sub")}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={accessibilitySettings.reduceMotion}
-              onClick={handleToggleReduceMotion}
-              className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer ${
-                accessibilitySettings.reduceMotion ? "bg-teal-800" : "bg-slate-300"
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  accessibilitySettings.reduceMotion ? "translate-x-5" : "translate-x-0"
-                }`}
-              ></div>
-            </button>
-          </div>
-        </section>
-
-        {/* 3. Privacy & Connected Sessions Shortcuts */}
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs divide-y divide-slate-100 text-sm">
-          <button
-            type="button"
-            onClick={() => setScreen(SCREENS.PRIVACY)}
-            className="w-full p-4 text-left flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 block">
-                  {t("more_menu_privacy")}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {t("more_menu_privacy_sub")}
-                </span>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-slate-400" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setScreen(SCREENS.KIOSK_SESSION)}
-            className="w-full p-4 text-left flex items-center justify-between hover:bg-slate-50 transition cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-800 flex items-center justify-center">
-                <MonitorCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900">{t("more_menu_sessions")}</span>
-                  <span
-                    className={`text-[10px] font-black uppercase px-2 py-0.2 rounded-full border ${
-                      kioskSession?.status === "CONNECTED"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : "bg-slate-100 text-slate-500 border-slate-200"
-                    }`}
-                  >
-                    {kioskSession?.status === "CONNECTED"
-                      ? isHindi
-                        ? "संबद्ध ✓"
-                        : "Connected ✓"
-                      : isHindi
-                      ? "निष्क्रिय"
-                      : "Inactive"}
+                  <span className="text-sm font-bold">
+                    {isHindi
+                      ? size.hindi
+                      : size.label}
                   </span>
-                </div>
-                <span className="text-xs text-slate-500">
-                  {kioskSession?.kioskName || (isHindi ? "अस्पताल ओपीडी कियोस्क" : "Hospital OPD Kiosk")}
-                </span>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-slate-400" />
-          </button>
-        </div>
 
-        {/* 4. About MediKiosk / AyushCare */}
-        <section
-          aria-label="About MediKiosk"
-          className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-3"
-        >
-          <div className="flex items-center gap-2">
-            <Info className="w-5 h-5 text-teal-700" />
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              {t("settings_about_heading")}
-            </h3>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5 text-xs text-slate-600">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 text-sm">
-                {t("app_name")} / MediKiosk
-              </span>
-              <span className="text-[11px] font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                v1.0.0
-              </span>
-            </div>
-            <p className="text-slate-500">
-              {t("settings_about_sub")}
-            </p>
+                  {active ? (
+                    <Check
+                      size={17}
+                      className="text-teal-700"
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        {/* 5. Logout Action */}
-        <div className="pt-2">
+        <section className="mt-7">
+          <SectionTitle
+            title={
+              isHindi
+                ? "गोपनीयता"
+                : "Privacy"
+            }
+          />
+
           <button
             type="button"
-            onClick={() => setShowLogoutModal(true)}
-            className="w-full min-h-[50px] p-3 rounded-2xl border border-rose-200 bg-rose-50/80 hover:bg-rose-100 text-rose-800 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-xs"
+            onClick={() =>
+              setScreen(SCREENS.PRIVACY)
+            }
+            className="flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-sm"
           >
-            <LogOut className="w-4 h-4" />
-            <span>{t("settings_btn_logout")}</span>
-          </button>
-        </div>
-      </main>
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
-        >
-          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl space-y-4 text-center border border-slate-200 animate-scale-up">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+              <ShieldCheck size={18} />
             </div>
 
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900">
-                {t("settings_logout_confirm_title")}
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {t("settings_logout_confirm_sub")}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-800">
+                {isHindi
+                  ? "गोपनीयता और डेटा नियंत्रण"
+                  : "Privacy & data control"}
+              </p>
+
+              <p className="mt-1 text-[11px] text-slate-500">
+                {isHindi
+                  ? "सहमति और डेटा एक्सेस प्रबंधित करें।"
+                  : "Manage consent and data access."}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowLogoutModal(false)}
-                className="h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmLogout}
-                className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-sm"
-              >
-                {t("settings_btn_confirm_logout")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <ChevronRight
+              size={18}
+              className="text-slate-400"
+            />
+          </button>
+        </section>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3.5 text-sm font-bold text-rose-700 shadow-sm"
+        >
+          <LogOut size={17} />
+          {isHindi
+            ? "लॉग आउट"
+            : "Log out"}
+        </button>
+
+        <button
+          type="button"
+          onClick={resetAccessibility}
+          className="mx-auto mt-4 flex items-center gap-1.5 text-[11px] font-bold text-slate-500"
+        >
+          <RotateCcw size={13} />
+          {isHindi
+            ? "पहुंच सेटिंग रीसेट करें"
+            : "Reset accessibility"}
+        </button>
+      </main>
 
       <BottomNavBar />
     </div>
   );
-};
+}
 
-export default SettingsScreen;
+function SectionTitle({ title }) {
+  return (
+    <h2 className="mb-3 px-1 text-xs font-black uppercase tracking-wider text-slate-500">
+      {title}
+    </h2>
+  );
+}
+
+function SettingToggle({
+  icon: Icon,
+  title,
+  description,
+  enabled,
+  onChange,
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+          enabled
+            ? "bg-teal-50 text-teal-700"
+            : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        <Icon size={18} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-slate-800">
+          {title}
+        </p>
+
+        <p className="mt-1 text-[11px] leading-5 text-slate-500">
+          {description}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={() => onChange(!enabled)}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+          enabled
+            ? "bg-teal-700"
+            : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+            enabled
+              ? "left-6"
+              : "left-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}

@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ArrowLeft,
-  Calendar,
+  CalendarDays,
   Building2,
   Stethoscope,
   Pill,
@@ -9,16 +9,124 @@ import {
   CheckCircle2,
   Eye,
   Edit2,
-  Clock,
+  FileText,
+  FlaskConical,
+  ClipboardList,
+  UserRound,
+  Clock3,
   ChevronRight,
 } from "lucide-react";
+
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
-import { mockMedicalRecords, mockVisits } from "../../data/mockData";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import OriginalDocModal from "../../components/mobile/OriginalDocModal";
 import EditItemModal from "../../components/mobile/EditItemModal";
+import { mockVisits } from "../../data/mockData";
 import useLanguage from "../../i18n/translations";
+
+const normalizeArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined || value === "") return [];
+  return [value];
+};
+
+const getTypeLabel = (record, isHindi) => {
+  switch (record?.type) {
+    case "prescription":
+      return isHindi ? "पर्चा" : "Prescription";
+    case "lab_report":
+      return isHindi ? "लैब रिपोर्ट" : "Lab Report";
+    case "discharge_summary":
+      return isHindi ? "डिस्चार्ज सारांश" : "Discharge Summary";
+    default:
+      return record?.typeLabel || (isHindi ? "अन्य रिकॉर्ड" : "Medical Record");
+  }
+};
+
+const StatusBadge = ({ status, isHindi }) => {
+  const config = {
+    UPLOADED: {
+      icon: Clock3,
+      label: isHindi ? "अपलोड किया गया" : "Uploaded",
+      className: "bg-slate-100 text-slate-700 border-slate-300",
+    },
+    CONFIRMED: {
+      icon: CheckCircle2,
+      label: isHindi ? "सत्यापित" : "Confirmed",
+      className: "bg-teal-50 text-teal-800 border-teal-200",
+    },
+    NEEDS_REVIEW: {
+      icon: AlertCircle,
+      label: isHindi ? "समीक्षा आवश्यक" : "Needs Review",
+      className: "bg-amber-50 text-amber-900 border-amber-300",
+    },
+    PROCESSING: {
+      icon: Clock3,
+      label: isHindi ? "प्रक्रिया जारी" : "Processing",
+      className: "bg-blue-50 text-blue-800 border-blue-200",
+    },
+    PROCESSED: {
+      icon: CheckCircle2,
+      label: isHindi ? "प्रसंस्कृत" : "Processed",
+      className: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    },
+    FAILED: {
+      icon: AlertCircle,
+      label: isHindi ? "विफल" : "Failed",
+      className: "bg-rose-50 text-rose-800 border-rose-200",
+    },
+  };
+
+  const current = config[status] || config.PROCESSED;
+  const Icon = current.icon;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold ${current.className}`}
+    >
+      <Icon
+        className={`w-3.5 h-3.5 ${
+          status === "PROCESSING" ? "animate-spin" : ""
+        }`}
+      />
+      {current.label}
+    </span>
+  );
+};
+
+const Section = ({ title, icon: Icon, children }) => (
+  <section className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+    <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+      <Icon className="w-4 h-4 text-teal-800 shrink-0" />
+      <h2 className="text-sm font-black text-slate-900">{title}</h2>
+    </div>
+
+    {children}
+  </section>
+);
+
+const EmptyExtraction = ({ text }) => (
+  <p className="text-xs text-slate-500 italic py-1">{text}</p>
+);
+
+const VerificationBadge = ({ needsVerification, isHindi }) => {
+  if (needsVerification) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
+        <AlertCircle className="w-3 h-3" />
+        {isHindi ? "जांचें" : "Verify"}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+      <CheckCircle2 className="w-3 h-3" />
+      {isHindi ? "सत्यापित" : "Verified"}
+    </span>
+  );
+};
 
 export const DocumentDetailsScreen = () => {
   const {
@@ -35,407 +143,702 @@ export const DocumentDetailsScreen = () => {
 
   const { isHindi } = useLanguage();
 
-  // Active record or fallback to first record
-  const doc = selectedMedicalRecord || medicalRecords[0] || mockMedicalRecords[0];
+  const record = useMemo(() => {
+    if (selectedMedicalRecord) {
+      return selectedMedicalRecord;
+    }
 
-  // Lookup associated visit if linked
-  const associatedVisit = doc?.visitId
-    ? mockVisits.find((v) => v.id === doc.visitId) || null
-    : null;
+    if (Array.isArray(medicalRecords) && medicalRecords.length > 0) {
+      return medicalRecords[0];
+    }
 
-  const extracted = doc?.extractedInformation || {
-    medicines: [],
-    diagnosis: [],
-    prescriptionDate: doc?.displayDate || doc?.date || "Today",
-  };
+    return null;
+  }, [selectedMedicalRecord, medicalRecords]);
 
-  const medicinesList = Array.isArray(extracted.medicines)
-    ? extracted.medicines
-    : extracted.medicines
-    ? [extracted.medicines]
-    : [];
+  const associatedVisit = useMemo(() => {
+    if (!record?.visitId) return null;
 
-  const diagnosisList = Array.isArray(extracted.diagnosis)
-    ? extracted.diagnosis
-    : extracted.diagnosis
-    ? [extracted.diagnosis]
-    : [];
+    return (
+      (Array.isArray(mockVisits)
+        ? mockVisits.find((visit) => visit.id === record.visitId)
+        : null) || null
+    );
+  }, [record]);
+
+  const extraction =
+    record?.extractedInformation ||
+    record?.extraction ||
+    record?.extractedData ||
+    {};
+
+  const medicines = normalizeArray(extraction?.medicines);
+  const investigations = normalizeArray(extraction?.investigations);
+  const procedures = normalizeArray(extraction?.procedures);
+  const diagnosis = normalizeArray(extraction?.diagnosis);
+  const recordDetails = normalizeArray(extraction?.recordDetails);
+
+  const date =
+    record?.displayDate ||
+    record?.date ||
+    record?.createdAt ||
+    (isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable");
+
+  const source =
+    record?.source ||
+    record?.clinic ||
+    record?.hospital ||
+    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+
+  const pages =
+    Array.isArray(record?.pages) && record.pages.length > 0
+      ? record.pages
+      : [];
+
+  const totalPages =
+    pages.length > 0
+      ? pages.length
+      : Number(record?.totalPages || 1);
 
   const handleViewOriginal = () => {
+    if (!record) return;
+
+    const documentPages = pages.map((page, index) => ({
+      ...page,
+      id: page?.id || `${record.id || "record"}-page-${index + 1}`,
+      fileName:
+        page?.fileName ||
+        page?.name ||
+        `${record.title || "Medical Document"} · Page ${index + 1}`,
+      image:
+        page?.image ||
+        page?.dataUrl ||
+        page?.imageSrc ||
+        null,
+      dataUrl:
+        page?.dataUrl ||
+        page?.image ||
+        page?.imageSrc ||
+        null,
+    }));
+
     setCapturedDocument({
-      fileName: doc?.title || "Medical_Document.pdf",
-      date: doc?.displayDate || doc?.date || "Today",
-      doctor: doc?.doctor || "Doctor",
-      clinic: doc?.clinic || doc?.source || "OPD",
-      dataUrl: doc?.dataUrl,
+      id: record.id,
+      fileName:
+        record.fileName ||
+        record.title ||
+        "Medical_Document",
+      date,
+      doctor: record.doctor || "",
+      clinic: source,
+      dataUrl:
+        record.dataUrl ||
+        record.image ||
+        documentPages[0]?.dataUrl ||
+        null,
+      pages: documentPages,
+      totalPages,
     });
+
     setOriginalDocModalOpen(true);
   };
 
   const handleOpenAssociatedVisit = () => {
-    if (associatedVisit) {
-      setSelectedVisit(associatedVisit);
-      setActiveNavTab("visits");
-      setScreen(SCREENS.VISIT_DETAILS);
-    }
+    if (!associatedVisit) return;
+
+    setSelectedVisit(associatedVisit);
+    setActiveNavTab("visits");
+    setScreen(SCREENS.VISIT_DETAILS);
   };
 
-  // Status badge styling
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "CONFIRMED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
-            <span>{isHindi ? "सत्यापित" : "Confirmed"}</span>
-          </span>
-        );
-      case "NEEDS_REVIEW":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-            <span>{isHindi ? "समीक्षा आवश्यक" : "Needs Review"}</span>
-          </span>
-        );
-      case "PROCESSING":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-            <Clock className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-            <span>{isHindi ? "प्रक्रिया जारी" : "Processing"}</span>
-          </span>
-        );
-      case "FAILED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-            <span>{isHindi ? "विफल" : "Failed"}</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{isHindi ? "प्रसंस्कृत" : "Processed"}</span>
-          </span>
-        );
-    }
-  };
+  if (!record) {
+    return (
+      <div className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+        <MobileHeader
+          title={isHindi ? "दस्तावेज़ विवरण" : "Document Details"}
+          showBack={true}
+          onBack={prevScreen}
+        />
+
+        <main className="flex-1 px-4 py-10 flex items-center justify-center">
+          <div className="w-full max-w-md p-7 rounded-3xl bg-white border border-slate-200 text-center shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
+              <FileText className="w-7 h-7 text-slate-500" />
+            </div>
+
+            <h1 className="mt-4 text-lg font-black">
+              {isHindi
+                ? "दस्तावेज़ उपलब्ध नहीं है"
+                : "Document unavailable"}
+            </h1>
+
+            <p className="mt-1.5 text-xs text-slate-500">
+              {isHindi
+                ? "कृपया रिकॉर्ड सूची से दस्तावेज़ दोबारा खोलें।"
+                : "Please open the document again from your records."}
+            </p>
+
+            <button
+              type="button"
+              onClick={prevScreen}
+              className="mt-5 w-full h-11 rounded-xl bg-teal-800 text-white text-xs font-bold cursor-pointer"
+            >
+              {isHindi ? "वापस जाएं" : "Go back"}
+            </button>
+          </div>
+        </main>
+
+        <BottomNavBar />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 select-none">
-      {/* Mobile Header with back button */}
+    <div className="min-h-full flex flex-col bg-slate-50 text-slate-900 select-none">
       <MobileHeader
         title={isHindi ? "दस्तावेज़ विवरण" : "Document Details"}
         showBack={true}
         onBack={prevScreen}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 px-4 sm:px-6 py-4 sm:py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-5">
-        {/* 1. DOCUMENT OVERVIEW CARD */}
-        <section
-          aria-label="Document Overview"
-          className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4"
-        >
-          {/* Top Bar: Type & Status */}
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <span className="text-xs font-black uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
-              {isHindi ? (doc.type === "prescription" ? "पर्चे" : doc.type === "lab_report" ? "लैब रिपोर्ट" : doc.typeLabel || doc.type) : (doc.typeLabel || doc.type)}
+        {/* Document overview */}
+        <section className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-black uppercase tracking-wide">
+              <FileText className="w-3.5 h-3.5" />
+              {getTypeLabel(record, isHindi)}
             </span>
-            {getStatusBadge(doc.status)}
+
+            <StatusBadge
+              status={record.status}
+              isHindi={isHindi}
+            />
           </div>
 
-          {/* Title & Metadata */}
-          <div className="space-y-1.5">
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug break-words">
-              {doc.title}
-            </h2>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black leading-snug break-words">
+              {record.title ||
+                (isHindi ? "चिकित्सीय रिकॉर्ड" : "Medical Record")}
+            </h1>
 
-            <div className="flex items-center gap-2 text-xs text-slate-500 pt-0.5 flex-wrap">
-              <span className="flex items-center gap-1 font-semibold text-slate-700">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                {doc.displayDate || doc.date}
+            <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                {date}
               </span>
+
               <span>·</span>
-              <span className="flex items-center gap-1">
+
+              <span className="inline-flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                {doc.source}
+                {source}
               </span>
-              {doc.fileSize && (
+
+              {totalPages > 1 && (
                 <>
                   <span>·</span>
-                  <span className="font-mono text-slate-400">{doc.fileSize}</span>
+                  <span className="font-semibold text-teal-800">
+                    {totalPages} {isHindi ? "पृष्ठ" : "pages"}
+                  </span>
                 </>
               )}
             </div>
+
+            {(record.doctor || record.department) && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+                <UserRound className="w-3.5 h-3.5 text-slate-400" />
+
+                <span>
+                  {record.doctor || ""}
+                  {record.doctor && record.department ? " · " : ""}
+                  {record.department || ""}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* View Original Action Button */}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
-            <span className="text-xs text-slate-400">
-              {isHindi ? "स्कैन किया गया / अपलोड किया गया पर्चा" : "Scanned / uploaded paper slip"}
-            </span>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-slate-400 leading-relaxed">
+              {isHindi
+                ? "मूल दस्तावेज़ से निकाली गई जानकारी"
+                : "Information extracted from the source document"}
+            </div>
+
             <button
               type="button"
               onClick={handleViewOriginal}
-              className="px-4 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold transition flex items-center gap-1.5 border border-teal-200 cursor-pointer active:scale-95 shadow-2xs"
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold hover:bg-teal-100 active:scale-95 transition cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>{isHindi ? "मूल दस्तावेज़ देखें" : "View Original"}</span>
+              {isHindi ? "मूल देखें" : "View Original"}
             </button>
           </div>
         </section>
 
-        {/* 2. ASSOCIATED HEALTHCARE VISIT */}
-        <section
-          aria-label="Associated Healthcare Visit"
-          className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-2.5"
+        {/* Associated visit */}
+        <Section
+          title={
+            isHindi
+              ? "संबंधित स्वास्थ्य परामर्श"
+              : "Associated Healthcare Encounter"
+          }
+          icon={Stethoscope}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Stethoscope className="w-3.5 h-3.5 text-teal-800" />
-              <span>{isHindi ? "संबंधित स्वास्थ्य परामर्श" : "Associated Healthcare Encounter"}</span>
-            </h3>
-          </div>
-
           {associatedVisit ? (
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div>
+            <button
+              type="button"
+              onClick={handleOpenAssociatedVisit}
+              className="w-full p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-left flex items-center justify-between gap-3 hover:border-teal-500 transition cursor-pointer"
+            >
+              <div className="min-w-0">
                 <p className="text-xs font-bold text-teal-800">
-                  {associatedVisit.date} · {isHindi ? (associatedVisit.hindiDepartment || associatedVisit.department) : associatedVisit.department}
+                  {associatedVisit.date || ""}
+                  {associatedVisit.department
+                    ? ` · ${
+                        isHindi
+                          ? associatedVisit.hindiDepartment ||
+                            associatedVisit.department
+                          : associatedVisit.department
+                      }`
+                    : ""}
                 </p>
-                <p className="text-sm font-black text-slate-900 mt-0.5">
-                  {isHindi ? (associatedVisit.hindiDoctor || associatedVisit.doctor) : associatedVisit.doctor}
+
+                <p className="text-sm font-black text-slate-900 mt-1">
+                  {isHindi
+                    ? associatedVisit.hindiDoctor ||
+                      associatedVisit.doctor
+                    : associatedVisit.doctor}
                 </p>
-                <p className="text-[11px] text-slate-500">
-                  {isHindi ? (associatedVisit.hindiHospital || associatedVisit.hospital) : associatedVisit.hospital} · {isHindi ? `कक्ष ${associatedVisit.room?.replace(/\D/g, '') || "ओपीडी"}` : (associatedVisit.room || "OPD")}
+
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {isHindi
+                    ? associatedVisit.hindiHospital ||
+                      associatedVisit.hospital
+                    : associatedVisit.hospital}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleOpenAssociatedVisit}
-                className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-              >
-                <span>{isHindi ? "मुलाकात" : "Encounter"}</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+            </button>
           ) : (
-            <p className="text-xs text-slate-500 italic py-1">
-              {isHindi ? "किसी विशिष्ट मुलाकात से लिंक नहीं है।" : "Not linked to a specific visit."}
+            <p className="text-xs text-slate-500 italic">
+              {isHindi
+                ? "यह रिकॉर्ड किसी विशिष्ट मुलाकात से लिंक नहीं है।"
+                : "This record is not linked to a specific visit."}
             </p>
           )}
-        </section>
+        </Section>
 
-        {/* 3. DOCUMENT EXTRACTION CLINICAL SAFETY NOTICE */}
-        <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-950 space-y-1 shadow-2xs">
-          <div className="flex items-center gap-2 font-bold text-amber-900">
-            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>{isHindi ? "कृपया हाइलाइट की गई जानकारी सत्यापित करें।" : "Please verify highlighted information."}</span>
+        {/* Safety note */}
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+
+            <div>
+              <p className="text-xs font-black text-amber-900">
+                {isHindi
+                  ? "दस्तावेज़ से निकाली गई जानकारी"
+                  : "Information read from the document"}
+              </p>
+
+              <p className="text-[11px] text-amber-900/80 mt-1 leading-relaxed">
+                {isHindi
+                  ? "किसी भी दवा, जांच या अन्य जानकारी को मूल दस्तावेज़ से मिलाकर देखें। यह नैदानिक निर्णय नहीं है।"
+                  : "Check medicines, investigations and other information against the original document. This is not a clinical decision."}
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-amber-900/90 leading-relaxed pl-6">
-            {isHindi
-              ? "हम आपके दस्तावेज़ से पढ़ी गई जानकारी दिखा रहे हैं। यह कोई नैदानिक निर्णय नहीं है।"
-              : "We are showing what was read from your document. This is not a clinical decision."}
-          </p>
         </div>
 
-        {/* 4. EXTRACTED MEDICATIONS */}
-        <section
-          aria-label="Extracted Medications"
-          className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
+        {/* Medicines */}
+        <Section
+          title={isHindi ? "पहचानी गई दवाइयां" : "Extracted Medicines"}
+          icon={Pill}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <Pill className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>{isHindi ? "पहचानी गई दवाइयां" : "Extracted Medicines"}</span>
-            </h3>
-            <span className="text-[11px] text-slate-400 font-medium">
-              {isHindi ? `${medicinesList.length} पहचानी गईं` : `${medicinesList.length} recognized`}
-            </span>
-          </div>
+          {medicines.length === 0 ? (
+            <EmptyExtraction
+              text={
+                isHindi
+                  ? "इस रिकॉर्ड से कोई दवा नहीं मिली।"
+                  : "No medicines were extracted from this record."
+              }
+            />
+          ) : (
+            <div className="space-y-2.5">
+              {medicines.map((medicine, index) => {
+                const id = medicine?.id || `medicine-${index}`;
 
-          <div className="space-y-2.5">
-            {medicinesList.length > 0 ? (
-              medicinesList.map((med) => (
-                <div
-                  key={med.id || med.name}
-                  className={`p-3.5 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
-                    med.needsVerification
-                      ? "bg-amber-50/60 border-amber-300 ring-1 ring-amber-400/20"
-                      : "bg-slate-50/70 border-slate-200"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-slate-900">
-                        {med.name}
-                      </p>
-                      {med.schedule && (
-                        <span className="text-[11px] font-semibold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                          {med.schedule}
-                        </span>
-                      )}
+                return (
+                  <div
+                    key={id}
+                    className={`p-3.5 rounded-2xl border ${
+                      medicine?.needsVerification
+                        ? "bg-amber-50/60 border-amber-300"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-black text-slate-900">
+                          {medicine?.name ||
+                            (isHindi ? "दवा" : "Medicine")}
+                        </p>
+
+                        {(medicine?.dosage ||
+                          medicine?.schedule ||
+                          medicine?.instruction) && (
+                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                            {[medicine?.dosage, medicine?.schedule]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+
+                        {medicine?.instruction && (
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {medicine.instruction}
+                          </p>
+                        )}
+
+                        {medicine?.needsVerification && (
+                          <p className="text-[11px] text-amber-800 mt-2 flex items-start gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                            {medicine?.verificationReason ||
+                              (isHindi
+                                ? "मूल पर्चे से मिलान करें।"
+                                : "Verify against the original document.")}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex flex-col items-end gap-2">
+                        <VerificationBadge
+                          needsVerification={
+                            medicine?.needsVerification
+                          }
+                          isHindi={isHindi}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingEntity({
+                              type: "medicine",
+                              data: medicine,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          {isHindi ? "संपादित करें" : "Edit"}
+                        </button>
+                      </div>
                     </div>
-
-                    {med.instruction && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        {med.instruction}
-                      </p>
-                    )}
-
-                    {med.needsVerification && (
-                      <p className="text-[11px] text-amber-800 mt-1.5 font-medium flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span>{med.verificationReason || (isHindi ? "कृपया कागजी पर्चे से मिलान करें" : "Please verify against paper copy")}</span>
-                      </p>
-                    )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
 
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    {med.needsVerification ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
-                        <AlertCircle className="w-3 h-3 text-amber-600" />
-                        {isHindi ? "सत्यापित करें" : "Verify"}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        {isHindi ? "उच्च सटीकता" : "High confidence"}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingEntity({
-                          type: "medicine",
-                          data: med,
-                        })
-                      }
-                      className="text-xs font-bold text-teal-800 hover:text-teal-950 p-1 flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>{isHindi ? "संपादित करें" : "Edit"}</span>
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 italic py-2">
-                {isHindi ? "इस दस्तावेज़ से कोई दवा नहीं मिली।" : "No medication entities extracted from this document."}
-              </p>
-            )}
-
-            <p className="text-[11px] text-slate-400 leading-snug italic pt-1">
-              {isHindi ? "दस्तावेज़ से निकाली गई जानकारी। कृपया मूल पर्चे से जांचें।" : "Extracted from document. Please verify with paper copy."}
-            </p>
-          </div>
-        </section>
-
-        {/* 5. EXTRACTED DIAGNOSIS / CLINICAL NOTES */}
-        <section
-          aria-label="Extracted Diagnosis"
-          className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3"
+        {/* Lab investigations */}
+        <Section
+          title={isHindi ? "जांच परिणाम" : "Investigations & Results"}
+          icon={FlaskConical}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-              <Stethoscope className="w-4 h-4 text-teal-800 shrink-0" />
-              <span>{isHindi ? "निदान / दस्तावेज़ जानकारी" : "Diagnosis / Document Information"}</span>
-            </h3>
-          </div>
+          {investigations.length === 0 ? (
+            <EmptyExtraction
+              text={
+                isHindi
+                  ? "इस रिकॉर्ड में कोई जांच परिणाम नहीं मिला।"
+                  : "No investigation results were extracted."
+              }
+            />
+          ) : (
+            <div className="space-y-2.5">
+              {investigations.map((test, index) => {
+                const id = test?.id || `investigation-${index}`;
 
-          <div className="space-y-2">
-            {diagnosisList.length > 0 ? (
-              diagnosisList.map((diag, idx) => (
+                return (
+                  <div
+                    key={id}
+                    className={`p-3.5 rounded-2xl border ${
+                      test?.needsVerification
+                        ? "bg-amber-50/60 border-amber-300"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-900">
+                          {test?.testName ||
+                            test?.name ||
+                            (isHindi ? "जांच" : "Investigation")}
+                        </p>
+
+                        <p className="text-sm font-bold text-slate-700 mt-1">
+                          {[test?.value, test?.unit]
+                            .filter(Boolean)
+                            .join(" ")}
+                        </p>
+
+                        {test?.referenceRange && (
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {isHindi ? "संदर्भ सीमा" : "Reference range"}:{" "}
+                            {test.referenceRange}
+                          </p>
+                        )}
+
+                        {test?.needsVerification && (
+                          <p className="text-[11px] text-amber-800 mt-2 flex items-start gap-1">
+                            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                            {test?.verificationReason ||
+                              (isHindi
+                                ? "मूल रिपोर्ट से मिलान करें।"
+                                : "Verify against the original report.")}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex flex-col items-end gap-2">
+                        <VerificationBadge
+                          needsVerification={test?.needsVerification}
+                          isHindi={isHindi}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingEntity({
+                              type: "investigation",
+                              data: test,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          {isHindi ? "संपादित करें" : "Edit"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        {/* Diagnosis */}
+        <Section
+          title={
+            isHindi
+              ? "निदान / दस्तावेज़ में लिखी जानकारी"
+              : "Diagnosis / Document Information"
+          }
+          icon={Stethoscope}
+        >
+          {diagnosis.length === 0 ? (
+            <EmptyExtraction
+              text={
+                isHindi
+                  ? "कोई विशिष्ट निदान जानकारी नहीं मिली।"
+                  : "No specific diagnosis information was extracted."
+              }
+            />
+          ) : (
+            <div className="space-y-2.5">
+              {diagnosis.map((item, index) => {
+                const id = item?.id || `diagnosis-${index}`;
+                const label = item?.value || item?.name || "";
+
+                return (
+                  <div
+                    key={id}
+                    className={`p-3.5 rounded-2xl border ${
+                      item?.needsVerification
+                        ? "bg-amber-50/60 border-amber-300"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900">
+                          {label}
+                        </p>
+
+                        {item?.needsVerification && (
+                          <p className="text-[11px] text-amber-800 mt-1.5">
+                            {item?.verificationReason ||
+                              (isHindi
+                                ? "मूल दस्तावेज़ से जांचें।"
+                                : "Verify against the original document.")}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex flex-col items-end gap-2">
+                        <VerificationBadge
+                          needsVerification={item?.needsVerification}
+                          isHindi={isHindi}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingEntity({
+                              type: "diagnosis",
+                              data: {
+                                id,
+                                name: label,
+                              },
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          {isHindi ? "संपादित करें" : "Edit"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        {/* Other document details */}
+        {recordDetails.length > 0 && (
+          <Section
+            title={
+              isHindi ? "दस्तावेज़ विवरण" : "Document Details"
+            }
+            icon={ClipboardList}
+          >
+            <div className="space-y-2">
+              {recordDetails.map((detail, index) => (
                 <div
-                  key={idx}
-                  className={`p-3.5 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
-                    diag.needsVerification
-                      ? "bg-amber-50/60 border-amber-300 ring-1 ring-amber-400/20"
-                      : "bg-slate-50/70 border-slate-200"
-                  }`}
+                  key={detail?.id || `detail-${index}`}
+                  className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-3"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-900">
-                      {diag.value || diag.name}
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400">
+                      {detail?.label || "Detail"}
                     </p>
-                    {diag.needsVerification && (
-                      <p className="text-[11px] text-amber-800 mt-1 font-medium flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
-                        <span>{diag.verificationReason || (isHindi ? "मूल पर्चे पर वर्तनी जांचें" : "Verify spelling on original slip")}</span>
+
+                    <p className="text-sm font-bold text-slate-800 mt-0.5">
+                      {detail?.value || ""}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingEntity({
+                        type: "recordDetail",
+                        data: detail,
+                      })
+                    }
+                    className="shrink-0 text-xs font-bold text-teal-800 cursor-pointer"
+                  >
+                    {isHindi ? "संपादित करें" : "Edit"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Procedure */}
+        {procedures.length > 0 && (
+          <Section
+            title={isHindi ? "प्रक्रिया विवरण" : "Procedure Details"}
+            icon={ClipboardList}
+          >
+            <div className="space-y-2.5">
+              {procedures.map((procedure, index) => (
+                <div
+                  key={
+                    procedure?.id ||
+                    `procedure-${index}`
+                  }
+                  className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-3"
+                >
+                  <div>
+                    <p className="text-sm font-black text-slate-900">
+                      {procedure?.name ||
+                        (isHindi ? "प्रक्रिया" : "Procedure")}
+                    </p>
+
+                    {procedure?.notes && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        {procedure.notes}
                       </p>
                     )}
                   </div>
 
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    {diag.needsVerification ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
-                        <AlertCircle className="w-3 h-3 text-amber-600" />
-                        {isHindi ? "सत्यापित करें" : "Verify"}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        {isHindi ? "सत्यापित" : "Verified"}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEditingEntity({
-                          type: "diagnosis",
-                          data: {
-                            id: diag.id || idx,
-                            name: diag.value || diag.name,
-                          },
-                        })
-                      }
-                      className="text-xs font-bold text-teal-800 hover:text-teal-950 p-1 flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      <span>{isHindi ? "संपादित करें" : "Edit"}</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingEntity({
+                        type: "procedure",
+                        data: procedure,
+                      })
+                    }
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    {isHindi ? "संपादित करें" : "Edit"}
+                  </button>
                 </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 italic py-2">
-                {isHindi ? "कोई विशिष्ट निदान नहीं मिला।" : "No specific diagnosis line extracted."}
-              </p>
-            )}
+              ))}
+            </div>
+          </Section>
+        )}
 
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 w-fit mt-2">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <span>
-                {isHindi ? "पर्चे की तारीख" : "Prescription Date"}: <strong>{extracted.prescriptionDate || doc.displayDate}</strong>
-              </span>
+        {/* Source metadata */}
+        <section className="p-4 rounded-2xl bg-slate-100 border border-slate-200">
+          <div className="flex items-start gap-2">
+            <FileText className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+
+            <div>
+              <p className="text-xs font-bold text-slate-700">
+                {isHindi ? "स्रोत" : "Source"}
+              </p>
+
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                {source}
+                {record.doctor ? ` · ${record.doctor}` : ""}
+              </p>
+
+              <p className="text-[10px] text-slate-400 mt-1">
+                {isHindi
+                  ? "यह जानकारी रिकॉर्ड में उपलब्ध स्रोत विवरण पर आधारित है।"
+                  : "This information is based on source details available with the record."}
+              </p>
             </div>
           </div>
         </section>
 
-        {/* Back to Records Action */}
-        <div className="pt-2 pb-6">
+        {/* Back */}
+        <div className="pb-6">
           <button
             type="button"
             onClick={prevScreen}
             className="w-full h-12 rounded-2xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-xs"
           >
-            <ArrowLeft className="w-4 h-4 text-slate-600" />
-            <span>{isHindi ? "चिकित्सीय रिकॉर्ड पर वापस जाएं" : "Back to Medical Records"}</span>
+            <ArrowLeft className="w-4 h-4" />
+            {isHindi
+              ? "चिकित्सीय रिकॉर्ड पर वापस जाएं"
+              : "Back to Medical Records"}
           </button>
         </div>
       </main>
 
-      {/* Persistent Bottom Navigation */}
       <BottomNavBar />
 
-      {/* Original Document Modal Sheet */}
       <OriginalDocModal />
 
-      {/* Edit Entity Modal */}
       <EditItemModal />
     </div>
   );

@@ -1,118 +1,116 @@
-import React, { useState, useRef } from "react";
-import {
-  IdCard,
-  Fingerprint,
-  Phone,
-  ShieldCheck,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  Info,
-  QrCode,
-  Globe,
-} from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import {
-  AUTH_METHODS,
-  requestAbhaOtp,
-  verifyAbhaOtp,
-  requestAadhaarOtp,
-  verifyAadhaarOtp,
-  requestMobileOtp,
-  verifyMobileOtp,
+  loginPatient,
+  MOCK_OTP,
 } from "../../services/authService";
-import PrimaryButton from "../../components/mobile/PrimaryButton";
-import BottomActionBar from "../../components/mobile/BottomActionBar";
-import useLanguage from "../../i18n/translations";
+import {
+  createMobileSession,
+  touchMobileSession,
+} from "../../services/mobileSessionService";
+import { useLanguage } from "../../i18n/translations";
 
-export const AuthScreen = () => {
-  const { setScreen, setVerifiedPatient } = useMobileStore();
-  const { t, isHindi, toggleLanguage } = useLanguage();
+const AUTH_METHODS = [
+  {
+    id: "ABHA",
+    label: "ABHA ID",
+    hindi: "ABHA ID",
+    placeholder: "Enter your ABHA ID",
+    hindiPlaceholder: "अपना ABHA ID दर्ज करें",
+  },
+  {
+    id: "AADHAAR",
+    label: "Aadhaar",
+    hindi: "आधार",
+    placeholder: "Enter Aadhaar number",
+    hindiPlaceholder: "आधार नंबर दर्ज करें",
+  },
+  {
+    id: "MOBILE",
+    label: "Mobile Number",
+    hindi: "मोबाइल नंबर",
+    placeholder: "Enter mobile number",
+    hindiPlaceholder: "मोबाइल नंबर दर्ज करें",
+  },
+];
 
-  const [activeTab, setActiveTab] = useState(AUTH_METHODS.ABHA);
+function maskIdentifierValue(identifier, method) {
+  const value = String(identifier || "").trim();
+
+  if (!value) return "";
+
+  if (method === "MOBILE" || method === "AADHAAR") {
+    if (value.length <= 4) {
+      return `••••${value}`;
+    }
+
+    return `••••••${value.slice(-4)}`;
+  }
+
+  if (value.length <= 4) {
+    return `••${value}`;
+  }
+
+  return `${value.slice(0, 2)}••••${value.slice(-2)}`;
+}
+
+function normalizePatient(authResult, method, identifier) {
+  const user = authResult?.user || {};
+  const session = authResult?.session || {};
+
+  return {
+    id: user.id || user.patientId || "PATIENT-001",
+    patientId: user.patientId || "PATIENT-001",
+    name: user.name || "Rajesh Kumar Sharma",
+    authMethod: method,
+    identifier,
+    verifiedAt: new Date().toISOString(),
+    sessionId: session.sessionId || null,
+  };
+}
+
+export default function AuthScreen() {
+  const {
+    setScreen,
+    setVerifiedPatient,
+    selectedLanguage,
+  } = useMobileStore();
+
+  const { isHindi } = useLanguage();
+
+  const [method, setMethod] = useState("ABHA");
   const [identifier, setIdentifier] = useState("");
-  const [step, setStep] = useState("INPUT"); // "INPUT" | "OTP"
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState("identifier");
+  const [maskedIdentifier, setMaskedIdentifier] = useState("");
+  const [expiresIn, setExpiresIn] = useState(300);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [transactionData, setTransactionData] = useState(null);
 
-  const otpInputsRef = useRef([]);
+  const selectedMethod = useMemo(
+    () =>
+      AUTH_METHODS.find((item) => item.id === method) ||
+      AUTH_METHODS[0],
+    [method]
+  );
 
-  const TABS = [
-    {
-      id: AUTH_METHODS.ABHA,
-      title: isHindi ? "आभा संख्या" : "ABHA Number",
-      subtitle: isHindi ? "14-अंकों का हेल्थ आईडी" : "14-digit Health ID",
-      icon: IdCard,
-      length: 14,
-      placeholder: isHindi ? "उदा. 91-4432-8812-9012" : "e.g. 91-4432-8812-9012",
-      demoValue: "91443288129012",
-    },
-    {
-      id: AUTH_METHODS.AADHAAR,
-      title: isHindi ? "आधार कार्ड" : "Aadhaar Card",
-      subtitle: isHindi ? "12-अंकों का यूआईडी" : "12-digit UID",
-      icon: Fingerprint,
-      length: 12,
-      placeholder: isHindi ? "उदा. 7288 9123 0144" : "e.g. 7288 9123 0144",
-      demoValue: "728891230144",
-    },
-    {
-      id: AUTH_METHODS.MOBILE,
-      title: isHindi ? "मोबाइल नंबर" : "Mobile Number",
-      subtitle: isHindi ? "10-अंकों का फ़ोन" : "10-digit Phone",
-      icon: Phone,
-      length: 10,
-      placeholder: isHindi ? "उदा. 98765 43210" : "e.g. 98765 43210",
-      demoValue: "9876543210",
-    },
-  ];
-
-  const currentTabConfig = TABS.find((t) => t.id === activeTab);
-
-  // Clean and format input value
-  const handleInputChange = (e) => {
-    const rawValue = e.target.value.replace(/\D/g, "");
-    if (rawValue.length <= currentTabConfig.length) {
-      setIdentifier(rawValue);
-      setError("");
-    }
+  const changeMethod = (nextMethod) => {
+    setMethod(nextMethod);
+    setIdentifier("");
+    setOtp("");
+    setStep("identifier");
+    setError("");
   };
 
-  const formatDisplayValue = (raw) => {
-    if (!raw) return "";
-    if (activeTab === AUTH_METHODS.ABHA) {
-      const parts = [];
-      if (raw.length > 0) parts.push(raw.slice(0, 2));
-      if (raw.length > 2) parts.push(raw.slice(2, 6));
-      if (raw.length > 6) parts.push(raw.slice(6, 10));
-      if (raw.length > 10) parts.push(raw.slice(10, 14));
-      return parts.join("-");
-    }
-    if (activeTab === AUTH_METHODS.AADHAAR) {
-      const parts = [];
-      for (let i = 0; i < raw.length; i += 4) {
-        parts.push(raw.slice(i, i + 4));
-      }
-      return parts.join(" ");
-    }
-    if (activeTab === AUTH_METHODS.MOBILE) {
-      if (raw.length > 5) {
-        return `${raw.slice(0, 5)} ${raw.slice(5, 10)}`;
-      }
-      return raw;
-    }
-    return raw;
-  };
+  const handleRequestOtp = async () => {
+    const cleanIdentifier = identifier.trim();
 
-  // Request OTP handler
-  const handleSendOtp = async () => {
-    if (identifier.length !== currentTabConfig.length) {
+    if (!cleanIdentifier) {
       setError(
         isHindi
-          ? `कृपया वैध ${currentTabConfig.length}-अंकों का ${currentTabConfig.title} दर्ज करें`
-          : `Please enter a valid ${currentTabConfig.length}-digit ${currentTabConfig.title}`
+          ? "कृपया अपना विवरण दर्ज करें।"
+          : "Please enter your details."
       );
       return;
     }
@@ -121,64 +119,47 @@ export const AuthScreen = () => {
     setError("");
 
     try {
-      let res;
-      if (activeTab === AUTH_METHODS.ABHA) {
-        res = await requestAbhaOtp(identifier);
-      } else if (activeTab === AUTH_METHODS.AADHAAR) {
-        res = await requestAadhaarOtp(identifier);
-      } else {
-        res = await requestMobileOtp(identifier);
+      const result = await loginPatient({
+        authType: method,
+        identifier: cleanIdentifier,
+        otp: MOCK_OTP,
+      });
+
+      if (!result?.success) {
+        throw new Error(
+          result?.message || "Unable to verify details."
+        );
       }
 
-      setTransactionData(res);
-      setStep("OTP");
-      setOtp(["", "", "", "", "", ""]);
-      setTimeout(() => {
-        otpInputsRef.current[0]?.focus();
-      }, 100);
-    } catch (err) {
-      setError(isHindi ? "ओटीपी भेजने में विफल। कृपया पुनः प्रयास करें।" : "Failed to generate OTP. Please try again.");
+      setMaskedIdentifier(
+        result.maskedIdentifier ||
+          maskIdentifierValue(cleanIdentifier, method)
+      );
+
+      setExpiresIn(
+        result?.session?.expiresInSeconds || 300
+      );
+
+      setStep("otp");
+    } catch (requestError) {
+      setError(
+        requestError?.message ||
+          (isHindi
+            ? "सत्यापन अनुरोध पूरा नहीं हो सका।"
+            : "Verification request failed.")
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOtpDigitChange = (index, value) => {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const newOtp = [...otp];
-    newOtp[index] = digit;
-    setOtp(newOtp);
-    setError("");
-
-    if (digit && index < 5) {
-      otpInputsRef.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpInputsRef.current[index - 1]?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length > 0) {
-      const newOtp = [...otp];
-      for (let i = 0; i < pasted.length; i++) {
-        newOtp[i] = pasted[i];
-      }
-      setOtp(newOtp);
-      const nextFocus = Math.min(pasted.length, 5);
-      otpInputsRef.current[nextFocus]?.focus();
-    }
-  };
-
   const handleVerifyOtp = async () => {
-    const fullOtp = otp.join("");
-    if (fullOtp.length !== 6) {
-      setError(isHindi ? "कृपया पूरा 6-अंकों का ओटीपी दर्ज करें" : "Please enter the complete 6-digit OTP");
+    if (otp.trim() !== MOCK_OTP) {
+      setError(
+        isHindi
+          ? `डेमो OTP ${MOCK_OTP} दर्ज करें।`
+          : `For this demo, enter OTP ${MOCK_OTP}.`
+      );
       return;
     }
 
@@ -186,308 +167,275 @@ export const AuthScreen = () => {
     setError("");
 
     try {
-      let res;
-      if (activeTab === AUTH_METHODS.ABHA) {
-        res = await verifyAbhaOtp(transactionData?.transactionId, fullOtp, identifier);
-      } else if (activeTab === AUTH_METHODS.AADHAAR) {
-        res = await verifyAadhaarOtp(transactionData?.txnId, fullOtp, identifier);
-      } else {
-        res = await verifyMobileOtp(transactionData?.txnId, fullOtp, identifier);
+      const result = await loginPatient({
+        authType: method,
+        identifier: identifier.trim(),
+        otp: otp.trim(),
+      });
+
+      if (!result?.success) {
+        throw new Error(
+          result?.message || "OTP verification failed."
+        );
       }
 
-      if (res.success && res.patient) {
-        setVerifiedPatient(res.patient);
-        setScreen(SCREENS.M1);
-      } else {
-        setError(isHindi ? "अमान्य ओटीपी। कृपया पुनः प्रयास करें।" : "Invalid OTP. Please try again.");
-      }
-    } catch (err) {
-      setError(isHindi ? "प्रमाणीकरण विफल। कृपया ओटीपी जांचें।" : "Authentication failed. Please verify the OTP.");
+      const patient = normalizePatient(
+        result,
+        method,
+        identifier.trim()
+      );
+
+      setVerifiedPatient(patient, method);
+
+      createMobileSession({
+        patientId: patient.patientId,
+        authType: method,
+        sessionId: patient.sessionId,
+        language: selectedLanguage || "en",
+      });
+
+      touchMobileSession();
+
+      setScreen(SCREENS.M1);
+    } catch (verifyError) {
+      setError(
+        verifyError?.message ||
+          (isHindi
+            ? "OTP सत्यापन विफल हुआ।"
+            : "OTP verification failed.")
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFillDemo = () => {
-    setIdentifier(currentTabConfig.demoValue);
-    setError("");
-  };
+  const handleBack = () => {
+    if (step === "otp") {
+      setStep("identifier");
+      setOtp("");
+      setError("");
+      return;
+    }
 
-  const handleFillDemoOtp = () => {
-    setOtp(["1", "2", "3", "4", "5", "6"]);
-    setError("");
+    setScreen(SCREENS.M1);
   };
 
   return (
-    <div className="min-h-full flex flex-col justify-between bg-slate-50 text-slate-900 selection:bg-teal-100 selection:text-teal-900">
-      {/* Top Header */}
-      <header className="w-full px-4 sm:px-6 pt-safe pb-3 bg-white border-b border-slate-200/80">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 h-14">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-800 text-white flex items-center justify-center font-black text-sm">
-              +
-            </div>
-            <div>
-              <span className="text-sm font-black tracking-wider text-teal-800">
-                {t("app_name")}
-              </span>
-              <span className="text-[10px] ml-2 font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-                {t("patient_portal")}
-              </span>
-            </div>
+    <div className="min-h-screen bg-slate-50 px-4 py-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mb-6 flex w-fit items-center gap-2 rounded-xl px-2 py-2 text-sm font-medium text-slate-600 transition active:scale-[0.98]"
+        >
+          <ArrowLeft size={18} />
+          {isHindi ? "वापस" : "Back"}
+        </button>
+
+        <div className="mb-7">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+            <ShieldCheck size={28} />
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Functional Language Toggle */}
-            <button
-              type="button"
-              onClick={toggleLanguage}
-              aria-label={isHindi ? "Switch to English" : "हिन्दी में बदलें"}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 active:scale-95 transition cursor-pointer shadow-2xs"
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>{isHindi ? "हिन्दी" : "EN"}</span>
-            </button>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {isHindi
+              ? "AyushCare में प्रवेश करें"
+              : "Sign in to AyushCare"}
+          </h1>
 
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-              <span>{isHindi ? "डिजिटल स्वास्थ्य अनुपालित" : "ABDM Compliant"}</span>
-            </div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            {isHindi
+              ? "अपनी पहचान सत्यापित करके अपने स्वास्थ्य रिकॉर्ड और विज़िट देखें।"
+              : "Verify your identity to access your visits and health records."}
+          </p>
+        </div>
+
+        <div className="mb-5 grid grid-cols-3 gap-2 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
+          {AUTH_METHODS.map((item) => {
+            const active = item.id === method;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => changeMethod(item.id)}
+                className={`rounded-xl px-2 py-3 text-xs font-semibold transition ${
+                  active
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {isHindi ? item.hindi : item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          {step === "identifier" ? (
+            <>
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                {isHindi
+                  ? selectedMethod.hindi
+                  : selectedMethod.label}
+              </label>
+
+              <input
+                type={method === "MOBILE" ? "tel" : "text"}
+                value={identifier}
+                onChange={(event) => {
+                  setIdentifier(event.target.value);
+                  setError("");
+                }}
+                placeholder={
+                  isHindi
+                    ? selectedMethod.hindiPlaceholder
+                    : selectedMethod.placeholder
+                }
+                inputMode={
+                  method === "MOBILE" || method === "AADHAAR"
+                    ? "numeric"
+                    : "text"
+                }
+                autoComplete="off"
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              />
+
+              {error ? (
+                <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleRequestOtp}
+                disabled={loading}
+                className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading
+                  ? isHindi
+                    ? "जाँच हो रही है..."
+                    : "Checking..."
+                  : isHindi
+                    ? "OTP भेजें"
+                    : "Send OTP"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="mb-5 rounded-2xl bg-emerald-50 p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2
+                    size={20}
+                    className="mt-0.5 shrink-0 text-emerald-700"
+                  />
+
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">
+                      {isHindi
+                        ? "OTP भेज दिया गया है"
+                        : "OTP sent"}
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-emerald-800">
+                      {maskedIdentifier ||
+                        maskIdentifierValue(
+                          identifier,
+                          method
+                        )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                {isHindi ? "OTP दर्ज करें" : "Enter OTP"}
+              </label>
+
+              <input
+                type="tel"
+                value={otp}
+                onChange={(event) => {
+                  setOtp(
+                    event.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 6)
+                  );
+                  setError("");
+                }}
+                placeholder={
+                  isHindi
+                    ? "6 अंकों का OTP"
+                    : "6-digit OTP"
+                }
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="one-time-code"
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-center text-xl font-bold tracking-[0.35em] text-slate-900 outline-none transition placeholder:tracking-normal placeholder:text-sm placeholder:font-normal placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              />
+
+              <p className="mt-3 text-xs text-slate-500">
+                {isHindi
+                  ? `OTP की वैधता लगभग ${Math.ceil(
+                      expiresIn / 60
+                    )} मिनट है।`
+                  : `OTP is valid for about ${Math.ceil(
+                      expiresIn / 60
+                    )} minutes.`}
+              </p>
+
+              {error ? (
+                <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={loading || otp.length !== 6}
+                className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading
+                  ? isHindi
+                    ? "सत्यापन हो रहा है..."
+                    : "Verifying..."
+                  : isHindi
+                    ? "सत्यापित करें"
+                    : "Verify & Continue"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("identifier");
+                  setOtp("");
+                  setError("");
+                }}
+                className="mt-3 flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                {isHindi ? "विवरण बदलें" : "Change details"}
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="mt-auto pt-6">
+          <div className="flex items-start gap-3 rounded-2xl bg-slate-100 p-4">
+            <LockKeyhole
+              size={18}
+              className="mt-0.5 shrink-0 text-slate-600"
+            />
+
+            <p className="text-xs leading-5 text-slate-600">
+              {isHindi
+                ? "यह डेमो वातावरण है। वास्तविक OTP सेवा के स्थान पर परीक्षण OTP का उपयोग किया जाता है।"
+                : "This is a demo environment. A test OTP is used instead of a live OTP service."}
+            </p>
           </div>
         </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 px-4 sm:px-6 py-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full space-y-6">
-        {step === "INPUT" ? (
-          <>
-            {/* Step 1 Title */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 px-2.5 py-0.5 rounded-full">
-                {t("auth_step_badge")}
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                {t("auth_title")}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                {t("auth_subtitle")}
-              </p>
-            </div>
-
-            {/* 3-Method Tabs */}
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                {isHindi ? "लॉगिन विधि चुनें" : "Select Login Method"}
-              </p>
-              <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-slate-200/70 border border-slate-200">
-                {TABS.map((tab) => {
-                  const Icon = tab.icon;
-                  const isSelected = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setIdentifier("");
-                        setError("");
-                      }}
-                      className={`min-h-[58px] p-2 rounded-xl text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer select-none ${
-                        isSelected
-                          ? "bg-white text-teal-900 font-bold shadow-xs border border-teal-600/30"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-white/50 font-medium"
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isSelected ? "text-teal-700" : "text-slate-400"}`} />
-                      <span className="text-xs leading-none truncate w-full">
-                        {tab.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Input Card */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    {currentTabConfig.title}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleFillDemo}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition cursor-pointer"
-                  >
-                    {isHindi ? "नमूना भरें" : `Use Sample ${currentTabConfig.title}`}
-                  </button>
-                </div>
-
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatDisplayValue(identifier)}
-                    onChange={handleInputChange}
-                    placeholder={currentTabConfig.placeholder}
-                    className="w-full h-14 px-4 pr-16 rounded-2xl border-2 border-slate-200 text-base font-bold text-slate-900 outline-none transition focus:border-teal-600 focus:ring-4 focus:ring-teal-100 placeholder:text-slate-400 placeholder:font-normal"
-                  />
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
-                    {identifier.length}/{currentTabConfig.length}
-                  </div>
-                </div>
-
-                {error && (
-                  <p className="text-xs font-bold text-rose-600 mt-2 flex items-center gap-1">
-                    <span>⚠</span> {error}
-                  </p>
-                )}
-              </div>
-
-              {/* Notice Banner */}
-              <div className="p-3 rounded-2xl bg-teal-50/80 border border-teal-200/60 text-xs text-teal-900 flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  {t("auth_notice")}
-                </p>
-              </div>
-            </div>
-
-            {/* PATH B: KIOSK QR AUTO-CONNECT */}
-            <div className="p-4 rounded-3xl bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/80 shadow-xs flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-teal-800 text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <QrCode className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="text-[10px] font-black uppercase tracking-wider text-teal-800">
-                      {t("auth_at_hospital")}
-                    </h4>
-                    <span className="text-[9px] font-bold bg-teal-200/70 text-teal-900 px-1.5 py-0.2 rounded">
-                      {t("auth_fast_track_badge")}
-                    </span>
-                  </div>
-                  <p className="text-xs font-bold text-slate-900">
-                    {t("auth_scan_kiosk_qr")}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {t("auth_skip_login_sub")}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setScreen(SCREENS.KIOSK_CONNECT)}
-                className="px-3 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shrink-0 shadow-xs active:scale-95"
-              >
-                <span>{t("auth_btn_scan_qr")}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </>
-        ) : (
-          /* Step 2: OTP Verification */
-          <>
-            <div className="space-y-1.5">
-              <button
-                type="button"
-                onClick={() => setStep("INPUT")}
-                className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 mb-1 cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>{isHindi ? "वापस बदलें" : `Change ${currentTabConfig.title}`}</span>
-              </button>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
-                {t("auth_otp_title")}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-                {t("auth_otp_subtitle")}{" "}
-                <strong className="text-slate-800">{transactionData?.maskedMobile || "+91 ******3210"}</strong>.
-              </p>
-            </div>
-
-            {/* OTP Input Card */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                    {isHindi ? "वन-टाइम पासवर्ड (ओटीपी)" : "One-Time Password"}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleFillDemoOtp}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded transition cursor-pointer"
-                  >
-                    {t("auth_otp_autofill")}
-                  </button>
-                </div>
-
-                {/* 6 OTP boxes */}
-                <div className="grid grid-cols-6 gap-2 sm:gap-3" onPaste={handleOtpPaste}>
-                  {otp.map((digit, idx) => (
-                    <input
-                      key={idx}
-                      ref={(el) => (otpInputsRef.current[idx] = el)}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      className="w-full h-14 sm:h-16 text-center text-xl sm:text-2xl font-black rounded-2xl border-2 border-slate-200 focus:border-teal-600 focus:ring-4 focus:ring-teal-100 outline-none text-slate-900 transition"
-                    />
-                  ))}
-                </div>
-
-                {error && (
-                  <p className="text-xs font-bold text-rose-600 mt-2.5 flex items-center gap-1">
-                    <span>⚠</span> {error}
-                  </p>
-                )}
-              </div>
-
-              <div className="pt-2 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100">
-                <span>{t("auth_didnt_receive")}</span>
-                <button
-                  type="button"
-                  onClick={handleSendOtp}
-                  disabled={loading}
-                  className="font-bold text-teal-700 hover:text-teal-900 cursor-pointer disabled:opacity-50"
-                >
-                  {t("auth_resend_otp")}
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </main>
-
-      {/* Bottom Action Bar */}
-      <BottomActionBar>
-        {step === "INPUT" ? (
-          <PrimaryButton
-            onClick={handleSendOtp}
-            loading={loading}
-            disabled={identifier.length !== currentTabConfig.length}
-            icon={ArrowRight}
-          >
-            {t("auth_btn_get_otp")}
-          </PrimaryButton>
-        ) : (
-          <PrimaryButton
-            onClick={handleVerifyOtp}
-            loading={loading}
-            disabled={otp.join("").length !== 6}
-            icon={CheckCircle2}
-          >
-            {t("auth_btn_verify")}
-          </PrimaryButton>
-        )}
-      </BottomActionBar>
+      </div>
     </div>
   );
-};
-
-export default AuthScreen;
+}

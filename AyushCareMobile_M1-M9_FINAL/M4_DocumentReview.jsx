@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,10 +15,7 @@ import {
   normalizeDocumentPages,
 } from "../../services/documentService";
 
-const isUsableString = (value) =>
-  typeof value === "string" && value.trim().length > 0;
-
-const getStringPreview = (page) => {
+const getPreviewUrl = (page) => {
   const candidates = [
     page?.previewUrl,
     page?.preview,
@@ -28,21 +25,10 @@ const getStringPreview = (page) => {
     page?.dataUrl,
   ];
 
-  return candidates.find(isUsableString) || "";
+  return candidates.find(
+    (value) => typeof value === "string" && value.trim()
+  ) || "";
 };
-
-const getBlobSource = (page) => {
-  const candidates = [page?.file, page?.blob, page?.sourceFile, page?.rawFile];
-
-  return (
-    candidates.find(
-      (value) => typeof Blob !== "undefined" && value instanceof Blob,
-    ) || null
-  );
-};
-
-const getFileName = (page, index) =>
-  page?.fileName || page?.name || `Document_Page_${index + 1}.jpg`;
 
 export default function M4_DocumentReview() {
   const {
@@ -52,21 +38,26 @@ export default function M4_DocumentReview() {
     documentType,
     setCapturedDocument,
     setCapturedDocuments,
-    setRetargetPageForRetake,
     setScreen,
   } = useMobileStore();
 
   const [selectedPage, setSelectedPage] = useState(0);
-  const [blobPreviews, setBlobPreviews] = useState({});
 
   const pages = useMemo(
     () =>
       normalizeDocumentPages({
         capturedDocuments,
         capturedDocument,
-        documentType: selectedDocumentType || documentType,
+        documentType:
+          selectedDocumentType ||
+          documentType,
       }),
-    [capturedDocuments, capturedDocument, selectedDocumentType, documentType],
+    [
+      capturedDocuments,
+      capturedDocument,
+      selectedDocumentType,
+      documentType,
+    ]
   );
 
   const document = useMemo(
@@ -74,70 +65,29 @@ export default function M4_DocumentReview() {
       buildDocumentPayload({
         capturedDocuments: pages,
         capturedDocument,
-        documentType: selectedDocumentType || documentType,
+        documentType:
+          selectedDocumentType ||
+          documentType,
       }),
-    [pages, capturedDocument, selectedDocumentType, documentType],
+    [
+      pages,
+      capturedDocument,
+      selectedDocumentType,
+      documentType,
+    ]
   );
 
-  /*
-   * Resolve Blob/File objects into browser-previewable
-   * object URLs.
-   *
-   * M3 should normally create preview URLs itself, but
-   * this makes M4 resilient if a File/Blob reaches the
-   * review screen.
-   */
-  useEffect(() => {
-    const createdUrls = [];
-    const nextBlobPreviews = {};
-
-    pages.forEach((page, index) => {
-      const existingPreview = getStringPreview(page);
-
-      if (existingPreview) {
-        return;
-      }
-
-      const blob = getBlobSource(page);
-
-      if (!blob) {
-        return;
-      }
-
-      const key = page?.id || `page-${index}`;
-      const objectUrl = URL.createObjectURL(blob);
-
-      nextBlobPreviews[key] = objectUrl;
-      createdUrls.push(objectUrl);
-    });
-
-    setBlobPreviews(nextBlobPreviews);
-
-    return () => {
-      createdUrls.forEach((url) => {
-        URL.revokeObjectURL(url);
-      });
-    };
-  }, [pages]);
-
-  const getPreviewUrl = (page, index) => {
-    const directPreview = getStringPreview(page);
-
-    if (directPreview) {
-      return directPreview;
-    }
-
-    const key = page?.id || `page-${index}`;
-
-    return blobPreviews[key] || "";
-  };
-
-  const activePage = pages[selectedPage] || pages[0] || null;
+  const activePage =
+    pages[selectedPage] ||
+    pages[0] ||
+    null;
 
   const syncPages = (nextPages) => {
     const normalized = normalizeDocumentPages({
       capturedDocuments: nextPages,
-      documentType: selectedDocumentType || documentType,
+      documentType:
+        selectedDocumentType ||
+        documentType,
     });
 
     if (typeof setCapturedDocuments === "function") {
@@ -156,21 +106,31 @@ export default function M4_DocumentReview() {
         ...(capturedDocument || {}),
         ...firstPage,
 
-        id: capturedDocument?.id || document.id,
+        id:
+          capturedDocument?.id ||
+          document.id,
 
-        documentId: capturedDocument?.documentId || document.id,
+        documentId:
+          capturedDocument?.documentId ||
+          document.id,
 
         documentType:
-          selectedDocumentType || documentType || normalized[0]?.documentType,
+          selectedDocumentType ||
+          documentType ||
+          normalized[0]?.documentType,
 
         pages: normalized,
+
         pageCount: normalized.length,
       });
     }
   };
 
   const removePage = (index) => {
-    const nextPages = pages.filter((_, pageIndex) => pageIndex !== index);
+    const nextPages = pages.filter(
+      (_, pageIndex) =>
+        pageIndex !== index
+    );
 
     syncPages(nextPages);
 
@@ -179,19 +139,22 @@ export default function M4_DocumentReview() {
       return;
     }
 
-    setSelectedPage(Math.min(selectedPage, nextPages.length - 1));
+    setSelectedPage(
+      Math.min(
+        selectedPage,
+        nextPages.length - 1
+      )
+    );
   };
 
   const handleRetake = () => {
     /*
-     * Tell the store exactly which page is being retaken.
-     * M3 can then replace this page instead of creating
-     * an unexpected duplicate.
+     * Do not clear the current pages.
+     *
+     * The next capture will be appended safely by M3.
+     * Explicit page replacement will be handled by the
+     * store migration in the next batch.
      */
-    if (typeof setRetargetPageForRetake === "function") {
-      setRetargetPageForRetake(selectedPage);
-    }
-
     setScreen("M3");
   };
 
@@ -229,7 +192,10 @@ export default function M4_DocumentReview() {
           </div>
 
           <div className="rounded-xl bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800">
-            {pages.length} {pages.length === 1 ? "page" : "pages"}
+            {pages.length}{" "}
+            {pages.length === 1
+              ? "page"
+              : "pages"}
           </div>
         </div>
       </header>
@@ -246,7 +212,8 @@ export default function M4_DocumentReview() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Capture or upload a document before continuing.
+              Capture or upload a document before
+              continuing.
             </p>
 
             <button
@@ -262,48 +229,41 @@ export default function M4_DocumentReview() {
           <>
             <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="relative flex min-h-[340px] items-center justify-center bg-slate-900 p-3">
-                {getPreviewUrl(activePage, selectedPage) ? (
-                  <>
-                    <img
-                      src={getPreviewUrl(activePage, selectedPage)}
-                      alt={`Document page ${selectedPage + 1}`}
-                      className="max-h-[500px] w-full rounded-xl object-contain"
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-
-                        const fallback =
-                          event.currentTarget.parentElement?.querySelector(
-                            "[data-preview-fallback]",
-                          );
-
-                        fallback?.classList.remove("hidden");
-                      }}
-                    />
-
-                    <div
-                      data-preview-fallback
-                      className="hidden flex-col items-center text-center text-white/70"
-                    >
-                      <ImageIcon size={40} />
-
-                      <p className="mt-3 text-sm">Preview unavailable</p>
-                    </div>
-                  </>
+                {getPreviewUrl(activePage) ? (
+                  <img
+                    src={getPreviewUrl(activePage)}
+                    alt={`Document page ${
+                      selectedPage + 1
+                    }`}
+                    className="max-h-[500px] w-full rounded-xl object-contain"
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                      event.currentTarget.parentElement?.
+                        querySelector("[data-preview-fallback]")?.
+                        classList.remove("hidden");
+                    }}
+                  />
+                  <div
+                    data-preview-fallback
+                    className="hidden flex-col items-center text-center text-white/70"
+                  >
+                    <ImageIcon size={40} />
+                    <p className="mt-3 text-sm">
+                      Preview unavailable
+                    </p>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center text-center text-white/70">
                     <ImageIcon size={40} />
-
-                    <p className="mt-3 text-sm">Preview unavailable</p>
-
-                    <p className="mt-1 max-w-xs text-xs text-white/50">
-                      The document was captured, but its preview image is not
-                      available.
+                    <p className="mt-3 text-sm">
+                      Preview unavailable
                     </p>
                   </div>
                 )}
 
                 <div className="absolute left-4 top-4 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white">
-                  Page {selectedPage + 1} of {pages.length}
+                  Page {selectedPage + 1} of{" "}
+                  {pages.length}
                 </div>
               </div>
 
@@ -319,7 +279,9 @@ export default function M4_DocumentReview() {
 
                 <button
                   type="button"
-                  onClick={() => removePage(selectedPage)}
+                  onClick={() =>
+                    removePage(selectedPage)
+                  }
                   className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 font-semibold text-red-700"
                 >
                   <Trash2 size={18} />
@@ -331,41 +293,49 @@ export default function M4_DocumentReview() {
             {pages.length > 1 && (
               <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="font-semibold text-slate-900">Pages</h2>
+                  <h2 className="font-semibold text-slate-900">
+                    Pages
+                  </h2>
 
-                  <span className="text-xs text-slate-500">Tap to preview</span>
+                  <span className="text-xs text-slate-500">
+                    Tap to preview
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-4 gap-3">
                   {pages.map((page, index) => {
-                    const preview = getPreviewUrl(page, index);
+                    const preview =
+                      getPreviewUrl(page);
 
                     return (
                       <button
                         type="button"
-                        key={page.id || `page-${index}`}
-                        onClick={() => setSelectedPage(index)}
+                        key={
+                          page.id ||
+                          `page-${index}`
+                        }
+                        onClick={() =>
+                          setSelectedPage(index)
+                        }
                         className={`relative overflow-hidden rounded-xl border-2 ${
                           selectedPage === index
                             ? "border-teal-600"
                             : "border-slate-200"
                         } bg-slate-100`}
-                        aria-label={`Select page ${index + 1}`}
+                        aria-label={`Select page ${
+                          index + 1
+                        }`}
                       >
                         <div className="aspect-[3/4]">
                           {preview ? (
                             <img
                               src={preview}
-                              alt={`Thumbnail of page ${index + 1}`}
+                              alt=""
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <div className="flex h-full flex-col items-center justify-center text-slate-400">
+                            <div className="flex h-full items-center justify-center text-slate-400">
                               <ImageIcon size={22} />
-
-                              <span className="mt-1 px-1 text-center text-[9px]">
-                                Preview unavailable
-                              </span>
                             </div>
                           )}
                         </div>
@@ -387,12 +357,17 @@ export default function M4_DocumentReview() {
                 </div>
 
                 <div>
-                  <p className="font-semibold text-slate-900">Document ready</p>
+                  <p className="font-semibold text-slate-900">
+                    Document ready
+                  </p>
 
                   <p className="mt-1 text-sm leading-5 text-slate-600">
                     {document.pageCount}{" "}
-                    {document.pageCount === 1 ? "page" : "pages"} will be
-                    processed together as one document.
+                    {document.pageCount === 1
+                      ? "page"
+                      : "pages"}{" "}
+                    will be processed together as one
+                    document.
                   </p>
                 </div>
               </div>

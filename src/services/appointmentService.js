@@ -1,78 +1,390 @@
 /**
  * Appointment Service
- * Provides upcoming, past, and today's appointment data integrated with hospital OPD queue.
  *
- * NOTE: Currently operates in prototype simulation mode with mock promises.
+ * Appointment = planned/scheduled consultation.
+ *
+ * Visit = actual healthcare encounter.
+ *
+ * Current implementation:
+ * - local mock data
+ * - async service boundary
+ *
+ * Production:
+ * - authenticated hospital API
+ * - real-time queue events
  */
 
-import { mockAppointments } from "../data/mockData";
+import { mockAppointments } from "../data/mockData.js";
+
+const wait = (ms) =>
+  new Promise((resolve) =>
+    setTimeout(resolve, ms),
+  );
+
+const clone = (value) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return value;
+  }
+
+  try {
+    return structuredClone(value);
+  } catch {
+    try {
+      return JSON.parse(
+        JSON.stringify(value),
+      );
+    } catch {
+      return value;
+    }
+  }
+};
+
+const normalizeId = (
+  value,
+) =>
+  String(value || "")
+    .trim();
+
+const getAllAppointments =
+  () => {
+    if (
+      Array.isArray(
+        mockAppointments,
+      )
+    ) {
+      return mockAppointments.filter(
+        Boolean,
+      );
+    }
+
+    return [
+      mockAppointments?.today,
+
+      ...(Array.isArray(
+        mockAppointments?.upcoming,
+      )
+        ? mockAppointments.upcoming
+        : []),
+
+      ...(Array.isArray(
+        mockAppointments?.past,
+      )
+        ? mockAppointments.past
+        : []),
+    ].filter(Boolean);
+  };
+
+const filterByPatient = (
+  appointments,
+  patientId,
+) => {
+  if (!patientId) {
+    return appointments;
+  }
+
+  const normalizedPatientId =
+    normalizeId(
+      patientId,
+    );
+
+  return appointments.filter(
+    (appointment) => {
+      const candidate =
+        normalizeId(
+          appointment?.patientId ||
+            appointment?.patient?.id ||
+            appointment?.patient?.patientId,
+        );
+
+      return (
+        !candidate ||
+        candidate ===
+          normalizedPatientId
+      );
+    },
+  );
+};
+
+const sortByDateTime = (
+  appointments,
+) =>
+  [...appointments].sort(
+    (a, b) => {
+      const aTime =
+        new Date(
+          `${a?.date || ""} ${
+            a?.time || ""
+          }`,
+        ).getTime();
+
+      const bTime =
+        new Date(
+          `${b?.date || ""} ${
+            b?.time || ""
+          }`,
+        ).getTime();
+
+      if (
+        Number.isNaN(aTime) ||
+        Number.isNaN(bTime)
+      ) {
+        return 0;
+      }
+
+      return aTime - bTime;
+    },
+  );
 
 /**
- * Fetches today's active checked-in appointment and live queue tracking.
- * Future API: GET /api/v1/mobile/appointments/today?patientId=...
+ * Fetch today's appointment.
+ *
+ * Production:
+ * GET /api/v1/mobile/appointments/today
  */
-export async function fetchTodayAppointment(patientId) {
-  // TODO: Replace with GET /api/v1/mobile/appointments/today
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        appointment: mockAppointments.today,
-      });
-    }, 150);
-  });
+export async function fetchTodayAppointment(
+  patientId,
+) {
+  await wait(150);
+
+  const appointment =
+    mockAppointments?.today ||
+    null;
+
+  return {
+    success: true,
+
+    patientId:
+      patientId || null,
+
+    appointment:
+      clone(appointment),
+  };
 }
 
 /**
- * Fetches upcoming scheduled hospital appointments.
- * Future API: GET /api/v1/mobile/appointments/upcoming
+ * Fetch upcoming appointments.
+ *
+ * Production:
+ * GET /api/v1/mobile/appointments/upcoming
  */
-export async function fetchUpcomingAppointments() {
-  // TODO: Replace with GET /api/v1/mobile/appointments/upcoming
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        appointments: mockAppointments.upcoming,
-      });
-    }, 150);
-  });
+export async function fetchUpcomingAppointments(
+  patientId,
+) {
+  await wait(150);
+
+  let appointments =
+    Array.isArray(
+      mockAppointments?.upcoming,
+    )
+      ? mockAppointments.upcoming
+      : [];
+
+  appointments =
+    filterByPatient(
+      appointments,
+      patientId,
+    );
+
+  appointments =
+    sortByDateTime(
+      appointments,
+    );
+
+  return {
+    success: true,
+
+    patientId:
+      patientId || null,
+
+    appointments:
+      clone(appointments),
+  };
 }
 
 /**
- * Fetches historical OPD consultations, diagnoses, and issued prescriptions.
- * Future API: GET /api/v1/mobile/appointments/past
+ * Fetch historical appointments.
+ *
+ * Production:
+ * GET /api/v1/mobile/appointments/past
  */
-export async function fetchPastAppointments() {
-  // TODO: Replace with GET /api/v1/mobile/appointments/past
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        appointments: mockAppointments.past,
-      });
-    }, 150);
-  });
+export async function fetchPastAppointments(
+  patientId,
+) {
+  await wait(150);
+
+  let appointments =
+    Array.isArray(
+      mockAppointments?.past,
+    )
+      ? mockAppointments.past
+      : [];
+
+  appointments =
+    filterByPatient(
+      appointments,
+      patientId,
+    );
+
+  appointments =
+    sortByDateTime(
+      appointments,
+    ).reverse();
+
+  return {
+    success: true,
+
+    patientId:
+      patientId || null,
+
+    appointments:
+      clone(appointments),
+  };
 }
 
 /**
- * Fetches detailed info for a single appointment.
- * Future API: GET /api/v1/mobile/appointments/:id
+ * Fetch one appointment by ID.
+ *
+ * Production:
+ * GET /api/v1/mobile/appointments/:appointmentId
  */
-export async function fetchAppointmentDetails(appointmentId) {
-  // TODO: Replace with GET /api/v1/mobile/appointments/:id
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const all = [
-        mockAppointments.today,
-        ...mockAppointments.upcoming,
-        ...mockAppointments.past,
-      ];
-      const match = all.find((a) => a.id === appointmentId) || mockAppointments.today;
-      resolve({
-        success: true,
-        appointment: match,
-      });
-    }, 100);
-  });
+export async function fetchAppointmentDetails(
+  appointmentId,
+) {
+  await wait(100);
+
+  const normalizedId =
+    normalizeId(
+      appointmentId,
+    );
+
+  if (!normalizedId) {
+    return {
+      success: false,
+
+      appointment:
+        null,
+
+      error:
+        "Appointment ID is required.",
+    };
+  }
+
+  const appointment =
+    getAllAppointments().find(
+      (item) =>
+        normalizeId(
+          item?.id ||
+            item?.appointmentId,
+        ) ===
+        normalizedId,
+    ) || null;
+
+  if (!appointment) {
+    return {
+      success: false,
+
+      appointment:
+        null,
+
+      error:
+        "Appointment not found.",
+    };
+  }
+
+  return {
+    success: true,
+
+    appointment:
+      clone(appointment),
+  };
 }
+
+/**
+ * Fetch every appointment.
+ *
+ * Useful for dashboard aggregation.
+ */
+export async function fetchAppointments(
+  patientId,
+) {
+  await wait(150);
+
+  const appointments =
+    filterByPatient(
+      getAllAppointments(),
+      patientId,
+    );
+
+  return {
+    success: true,
+
+    patientId:
+      patientId || null,
+
+    appointments:
+      clone(appointments),
+  };
+}
+
+/**
+ * Get the currently active queue appointment.
+ */
+export async function fetchActiveAppointment(
+  patientId,
+) {
+  await wait(120);
+
+  const appointments =
+    filterByPatient(
+      getAllAppointments(),
+      patientId,
+    );
+
+  const appointment =
+    appointments.find(
+      (item) => {
+        const status =
+          String(
+            item?.status || "",
+          ).toUpperCase();
+
+        return (
+          status ===
+            "IN_QUEUE" ||
+          status ===
+            "WAITING" ||
+          status ===
+            "CONFIRMED" ||
+          status ===
+            "ACTIVE"
+        );
+      },
+    ) || null;
+
+  return {
+    success: true,
+
+    patientId:
+      patientId || null,
+
+    appointment:
+      clone(appointment),
+  };
+}
+
+export default {
+  fetchAppointments,
+
+  fetchTodayAppointment,
+
+  fetchUpcomingAppointments,
+
+  fetchPastAppointments,
+
+  fetchAppointmentDetails,
+
+  fetchActiveAppointment,
+};
