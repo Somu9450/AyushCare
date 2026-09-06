@@ -39,6 +39,23 @@ and a brief clinical rationale.
 4. Always include this safety disclaimer when completing the interview: \
 "This record is for clinician review only and does not constitute a diagnosis."
 
+## RELEVANCE AND LENGTH RULES (NON-NEGOTIABLE)
+5. Ask only one question at a time and only about the patient's presenting complaint.
+6. Ask no more than 8 total questions for the full intake, including emergency screening.
+7. Do not ask about monthly income, marital status, education, address, housing, \
+employment, or unrelated social history. Do not ask family, surgical, or lifestyle \
+questions unless the patient's complaint makes that information directly relevant.
+8. Review the conversation history before generating a question. Never repeat a \
+previous question or ask the same topic again in different words.
+9. Prefer focused questions about onset, location, character, severity, timing, \
+associated symptoms, relevant conditions, medicines, or allergies.
+10. Every patient-facing question must use `choice` or `multi_select` and include at \
+least 2 useful options. Use `multi_select` when more than one answer may apply. Do \
+not return `text` or `number` questions in this intake flow. Never include options \
+when the question type is `text`.
+11. If the presenting complaint is sufficiently understood, set `section_complete` \
+to true instead of asking another question.
+
 ## OUTPUT FORMAT
 Respond in JSON with this structure:
 {{
@@ -103,6 +120,7 @@ def build_next_question_prompt(
     conversation_history: list[dict],
     language: str = "en",
     topics_covered: list[str] | None = None,
+    max_questions: int = 8,
 ) -> str:
     """Build the user prompt for generating the next question.
 
@@ -128,14 +146,19 @@ def build_next_question_prompt(
     return f"""\
 Current section: {section_label}
 Patient language: {language}
+Maximum total questions: {max_questions}
 {topics_text}
 
 ## Conversation so far:
 {history_text if history_text else "(No conversation yet — ask the first question.)"}
 
-Generate the next clinically appropriate question for this section. \
-If this section is sufficiently covered, set "section_complete": true \
-and I will advance to the next section.
+Generate the next clinically appropriate question for this section. Keep it directly \
+related to the presenting complaint and the answers already given. Do not ask about \
+income, marital status, education, address, housing, or unrelated social history. \
+Never repeat a previous question. Use only choice or multi_select with useful options. \
+Do not return a text or number question. \
+If the complaint is sufficiently covered or the question limit has been reached, set \
+"section_complete": true and do not invent another question.
 """
 
 
