@@ -16,9 +16,9 @@ const Screen10_TokenSuccess = lazy(() => import('./pages/Screen10_TokenSuccess')
 
 function ScreenLoader() {
   return (
-    <div className="screen-loader" role="status" aria-live="polite">
-      <div className="loader-mark">A</div>
-      <div className="loader-bar"><span /></div>
+    <div className="screen-loading" role="status" aria-live="polite">
+      <div className="loading-spinner" />
+      <span>Loading</span>
     </div>
   );
 }
@@ -41,8 +41,8 @@ export default function App() {
   return (
     <div className={`kiosk-app ${highContrast ? 'high-contrast' : ''}`}>
       <Navbar />
-      <main className="kiosk-main" aria-live="polite">
-        <div className="kiosk-main-inner">
+      <main className="kiosk-main" aria-label="AyushCare patient kiosk">
+        <div className="kiosk-main-scroll">
           <Suspense fallback={<ScreenLoader />}>
             {screen}
           </Suspense>

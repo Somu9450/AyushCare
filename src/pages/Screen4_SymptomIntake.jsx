@@ -19,7 +19,8 @@ export default function Screen4_SymptomIntake(){
  const chunks=useRef([]);
 
  useEffect(()=>{
-   document.querySelector('.kiosk-main')?.scrollTo({top:0,behavior:'smooth'});
+   const container=document.querySelector('.kiosk-main-scroll');
+   if(container) container.scrollTo({top:0, behavior:'smooth'});
  },[question?.question_id]);
 
  useEffect(()=>{
@@ -118,7 +119,7 @@ export default function Screen4_SymptomIntake(){
      <div>
        <p className="eyebrow">04 • {t('interview')}</p>
        <h2>{t('interview')}</h2>
-       
+       <p>{t('interviewHelp')}</p>
      </div>
      <div className="progress-ring">{Math.round(sessionData.progress||0)}%</div>
    </div>
@@ -160,8 +161,8 @@ export default function Screen4_SymptomIntake(){
          <textarea value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={t('typeAnswer')}/>
        }
        <div className="answer-actions">
-         <button className={`secondary-btn ${recording?'recording':''}`} onClick={toggleRecording} disabled={loading} aria-label={recording ? t('listening') : t('listen')}>
-           {recording ? <><Square size={20}/><span>{t('listening')}</span></> : <><Mic size={22}/><span>{t('listen')}</span></> }
+         <button className={`secondary-btn ${recording?'recording':''}`} onClick={toggleRecording} disabled={loading}>
+           {recording?<><Square size={17}/>{t('listening')}</>:<><Mic size={17}/>{t('listen')}</>}
          </button>
          <button className="primary-btn" disabled={loading||!answer.trim()} onClick={submit}>
            {loading?<Loader2 className="spin"/>:<Send size={18}/>} {t('submit')}

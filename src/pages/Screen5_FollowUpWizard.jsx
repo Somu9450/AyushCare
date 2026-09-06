@@ -443,7 +443,7 @@ export const Screen5_FollowUpWizard = () => {
             <button
               type="button"
               onClick={goBack}
-              className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              className="wizard-inline-back h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>{t('nav.back', 'Back')}</span>
