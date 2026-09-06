@@ -19,6 +19,8 @@ export default function M3_DocumentCapture() {
     documentType,
     capturedDocument,
     capturedDocuments,
+    retargetPageForRetake,
+    setRetargetPageForRetake,
     setCapturedDocument,
     setCapturedDocuments,
     setScreen,
@@ -27,6 +29,7 @@ export default function M3_DocumentCapture() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mountedRef = useRef(true);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -38,94 +41,29 @@ export default function M3_DocumentCapture() {
       capturedDocument?.documentType
   );
 
-  const existingPages =
-    Array.isArray(capturedDocuments) &&
-    capturedDocuments.length > 0
+  const rawPages =
+    Array.isArray(capturedDocuments) && capturedDocuments.length > 0
       ? capturedDocuments
       : Array.isArray(capturedDocument?.pages) &&
           capturedDocument.pages.length > 0
         ? capturedDocument.pages
-        : capturedDocument
+        : capturedDocument &&
+            (capturedDocument.previewUrl ||
+              capturedDocument.dataUrl ||
+              capturedDocument.imageUrl ||
+              capturedDocument.image)
           ? [capturedDocument]
           : [];
 
-  useEffect(() => {
-    let mounted = true;
-
-    const startCamera = async () => {
-      setIsStarting(true);
-      setCameraError("");
-
-      try {
-        if (
-          !navigator.mediaDevices ||
-          !navigator.mediaDevices.getUserMedia
-        ) {
-          throw new Error(
-            "Camera access is not supported in this browser."
-          );
-        }
-
-        const stream =
-          await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: {
-                ideal: "environment",
-              },
-            },
-            audio: false,
-          });
-
-        if (!mounted) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-
-          // Do not wait for play() before displaying the camera.
-          setCameraActive(true);
-
-          try {
-            await videoRef.current.play();
-          } catch {
-            // Some mobile browsers delay playback until interaction.
-          }
-        }
-      } catch (error) {
-        console.error("Camera initialization failed:", error);
-
-        if (mounted) {
-          setCameraError(
-            error?.message ||
-              "Camera access could not be started."
-          );
-          setCameraActive(false);
-        }
-      } finally {
-        if (mounted) {
-          setIsStarting(false);
-        }
-      }
-    };
-
-    startCamera();
-
-    return () => {
-      mounted = false;
-
-      if (streamRef.current) {
-        streamRef.current
-          .getTracks()
-          .forEach((track) => track.stop());
-
-        streamRef.current = null;
-      }
-    };
-  }, []);
+  const existingPages = rawPages.filter(
+    (p) =>
+      p &&
+      (p.previewUrl ||
+        p.dataUrl ||
+        p.imageUrl ||
+        p.image ||
+        p.preview)
+  );
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -138,6 +76,87 @@ export default function M3_DocumentCapture() {
 
     setCameraActive(false);
   };
+
+  const startCamera = async () => {
+    setIsStarting(true);
+    setCameraError("");
+
+    try {
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        throw new Error(
+          "Camera access is not supported in this browser. (Requires HTTPS or localhost)."
+        );
+      }
+
+      if (streamRef.current) {
+        streamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: {
+            ideal: "environment",
+          },
+        },
+        audio: false,
+      });
+
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+
+        try {
+          await videoRef.current.play();
+        } catch {
+          // Some mobile browsers delay playback until interaction.
+        }
+      }
+    } catch (error) {
+      console.error("Camera initialization failed:", error);
+
+      if (mountedRef.current) {
+        setCameraError(
+          error?.name === "NotAllowedError" ||
+            error?.name === "PermissionDeniedError"
+            ? "Camera permission was denied. Please enable camera access in your browser settings or upload a photo."
+            : error?.message || "Camera access could not be started."
+        );
+        setCameraActive(false);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsStarting(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    startCamera();
+
+    return () => {
+      mountedRef.current = false;
+      if (streamRef.current) {
+        streamRef.current
+          .getTracks()
+          .forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   const persistPages = (nextPages) => {
     const normalizedPages = nextPages.map(
@@ -186,55 +205,82 @@ export default function M3_DocumentCapture() {
     }
   };
 
-  const savePage = (source) => {
-    const safeSource = source || {};
+  const savePages = (sources) => {
+    const safeSources = Array.isArray(sources) ? sources : [sources];
+    if (!safeSources.length) return;
 
-    /*
-     * Keep every browser-displayable representation together. This is
-     * important because the review screen and legacy store APIs may read
-     * different fields. Strings are used for preview; File/Blob objects are
-     * converted before they reach the store.
-     */
-    const preview =
-      typeof safeSource.dataUrl === "string"
-        ? safeSource.dataUrl
-        : typeof safeSource.previewUrl === "string"
-          ? safeSource.previewUrl
-          : typeof safeSource.imageUrl === "string"
-            ? safeSource.imageUrl
-            : "";
+    let nextPages;
+    if (
+      safeSources.length === 1 &&
+      typeof retargetPageForRetake === "number" &&
+      retargetPageForRetake >= 0 &&
+      retargetPageForRetake < existingPages.length
+    ) {
+      const singleSource = safeSources[0] || {};
+      const preview =
+        typeof singleSource.dataUrl === "string"
+          ? singleSource.dataUrl
+          : typeof singleSource.previewUrl === "string"
+            ? singleSource.previewUrl
+            : typeof singleSource.imageUrl === "string"
+              ? singleSource.imageUrl
+              : "";
 
-    const normalizedSource = {
-      ...safeSource,
-      dataUrl: preview,
-      previewUrl: preview,
-      imageUrl: preview,
-    };
+      const normalizedSource = {
+        ...singleSource,
+        dataUrl: preview,
+        previewUrl: preview,
+        imageUrl: preview,
+      };
 
-    const page = createDocumentPage({
-      source: normalizedSource,
-      documentType: type,
-      pageNumber: existingPages.length + 1,
-    });
+      const replacementPage = createDocumentPage({
+        source: normalizedSource,
+        documentType: type,
+        pageNumber: retargetPageForRetake + 1,
+      });
 
-    /*
-     * IMPORTANT:
-     * Never use setCapturedDocument() as the only source of truth here.
-     * It may reset capturedDocuments in older store implementations.
-     *
-     * We therefore build the complete collection first.
-     */
-    const nextPages = [
-      ...existingPages,
-      page,
-    ];
+      nextPages = existingPages.map((p, idx) =>
+        idx === retargetPageForRetake ? replacementPage : p
+      );
+
+      if (typeof setRetargetPageForRetake === "function") {
+        setRetargetPageForRetake(null);
+      }
+    } else {
+      const newCreatedPages = safeSources.map((source, idx) => {
+        const safeSource = source || {};
+        const preview =
+          typeof safeSource.dataUrl === "string"
+            ? safeSource.dataUrl
+            : typeof safeSource.previewUrl === "string"
+              ? safeSource.previewUrl
+              : typeof safeSource.imageUrl === "string"
+                ? safeSource.imageUrl
+                : "";
+
+        const normalizedSource = {
+          ...safeSource,
+          dataUrl: preview,
+          previewUrl: preview,
+          imageUrl: preview,
+        };
+
+        return createDocumentPage({
+          source: normalizedSource,
+          documentType: type,
+          pageNumber: existingPages.length + idx + 1,
+        });
+      });
+
+      nextPages = [...existingPages, ...newCreatedPages];
+    }
 
     persistPages(nextPages);
-
     stopCamera();
-
     setScreen("M4");
   };
+
+  const savePage = (source) => savePages([source]);
 
   const capturePhoto = () => {
     const video = videoRef.current;
@@ -291,42 +337,65 @@ export default function M3_DocumentCapture() {
     });
   };
 
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
+  const handleFileChange = async (event) => {
+    const fileList = event.target.files;
+    if (!fileList || !fileList.length) return;
 
+    const files = Array.from(fileList);
     event.target.value = "";
 
-    if (!file) return;
+    const validFiles = files.filter((file) => {
+      const isImage = file.type.startsWith("image/");
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+      return isImage || isPdf;
+    });
 
-    if (!file.type.startsWith("image/")) {
+    if (!validFiles.length) {
       setCameraError(
-        "Please select an image file."
+        "Please select valid image (JPG, PNG) or PDF files."
       );
       return;
     }
 
-    const reader = new FileReader();
+    try {
+      const readPromises = validFiles.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            const isPdf =
+              file.type === "application/pdf" ||
+              file.name.toLowerCase().endsWith(".pdf");
 
-    reader.onload = () => {
-      const result = reader.result;
-
-      savePage({
-        dataUrl: result,
-        previewUrl: result,
-        imageUrl: result,
-        mimeType: file.type,
-        fileName: file.name,
-        source: "mobile-upload",
-      });
-    };
-
-    reader.onerror = () => {
-      setCameraError(
-        "The selected image could not be opened."
+            reader.onload = () => {
+              const result = reader.result;
+              resolve({
+                dataUrl: result,
+                previewUrl: result,
+                imageUrl: isPdf ? "" : result,
+                mimeType: isPdf
+                  ? "application/pdf"
+                  : file.type || "image/jpeg",
+                fileName: file.name,
+                fileSize: file.size
+                  ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                  : "1.0 MB",
+                source: "mobile-upload",
+              });
+            };
+            reader.onerror = () =>
+              reject(new Error(`Failed to read file ${file.name}`));
+            reader.readAsDataURL(file);
+          })
       );
-    };
 
-    reader.readAsDataURL(file);
+      const parsedPages = await Promise.all(readPromises);
+      savePages(parsedPages);
+    } catch (err) {
+      console.error("File upload error:", err);
+      setCameraError("One or more selected files could not be opened.");
+    }
   };
 
   const handleBack = () => {
@@ -370,15 +439,15 @@ export default function M3_DocumentCapture() {
 
       <main className="flex min-h-screen flex-col">
         <div className="relative flex min-h-[62vh] flex-1 items-center justify-center overflow-hidden bg-black pt-20">
-          {cameraActive ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-full max-h-[72vh] w-full object-cover"
-            />
-          ) : (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`h-full max-h-[72vh] w-full object-cover ${cameraActive ? "block" : "hidden"}`}
+          />
+
+          {!cameraActive && (
             <div className="flex max-w-sm flex-col items-center px-6 text-center text-white">
               {isStarting ? (
                 <>
@@ -410,7 +479,7 @@ export default function M3_DocumentCapture() {
 
                   <p className="mt-2 text-sm leading-6 text-white/70">
                     {cameraError ||
-                      "You can still upload a photo from your device."}
+                      "You can select multiple photos or PDF documents from your device."}
                   </p>
 
                   <button
@@ -421,7 +490,7 @@ export default function M3_DocumentCapture() {
                     className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-slate-900"
                   >
                     <Upload size={18} />
-                    Upload photo
+                    Upload photos or PDF
                   </button>
                 </>
               )}
@@ -449,8 +518,8 @@ export default function M3_DocumentCapture() {
           <div className="mx-auto max-w-2xl">
             <p className="text-center text-sm text-white/70">
               {existingPages.length
-                ? "Capture another page or review the pages already captured."
-                : "Position the document clearly inside the frame."}
+                ? `${existingPages.length} ${existingPages.length === 1 ? "page" : "pages"} captured. Capture more or upload multiple photos/PDFs.`
+                : "Position the document inside the frame or upload photos/PDF."}
             </p>
 
             <div className="mt-6 flex items-center justify-center gap-6">
@@ -460,7 +529,8 @@ export default function M3_DocumentCapture() {
                   fileInputRef.current?.click()
                 }
                 className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10"
-                aria-label="Upload image"
+                aria-label="Upload photos or PDF"
+                title="Upload photos or PDF"
               >
                 <ImageIcon size={22} />
               </button>
@@ -479,9 +549,7 @@ export default function M3_DocumentCapture() {
                 type="button"
                 onClick={() => {
                   stopCamera();
-                  window.setTimeout(() => {
-                    window.location.reload();
-                  }, 50);
+                  startCamera();
                 }}
                 className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10"
                 aria-label="Restart camera"
@@ -507,8 +575,7 @@ export default function M3_DocumentCapture() {
             )}
 
             <p className="mt-5 text-center text-xs leading-5 text-white/50">
-              For best results, use good lighting and avoid
-              glare or shadows.
+              Supports photos (JPEG, PNG) and PDF documents. Multiple files can be selected at once.
             </p>
           </div>
         </section>
@@ -517,8 +584,8 @@ export default function M3_DocumentCapture() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
+        multiple
+        accept="image/*,application/pdf,.pdf"
         className="hidden"
         onChange={handleFileChange}
       />

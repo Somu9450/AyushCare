@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
+  FileText,
   Image as ImageIcon,
   Plus,
   RotateCcw,
@@ -29,6 +30,17 @@ const getStringPreview = (page) => {
   ];
 
   return candidates.find(isUsableString) || "";
+};
+
+const isPdfPage = (page, previewUrl = "") => {
+  const mime = String(page?.mimeType || page?.fileType || "").toLowerCase();
+  const name = String(page?.fileName || page?.name || "").toLowerCase();
+  const preview = previewUrl || getStringPreview(page);
+  return (
+    mime.includes("pdf") ||
+    name.endsWith(".pdf") ||
+    (typeof preview === "string" && preview.startsWith("data:application/pdf"))
+  );
 };
 
 const getBlobSource = (page) => {
@@ -262,7 +274,53 @@ export default function M4_DocumentReview() {
           <>
             <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="relative flex min-h-[340px] items-center justify-center bg-slate-900 p-3">
-                {getPreviewUrl(activePage, selectedPage) ? (
+                {isPdfPage(activePage, getPreviewUrl(activePage, selectedPage)) ? (
+                  <div className="flex flex-col items-center justify-center w-full min-h-[340px] max-h-[500px] p-4 text-white">
+                    <object
+                      data={getPreviewUrl(activePage, selectedPage)}
+                      type="application/pdf"
+                      className="w-full h-[420px] rounded-xl bg-white hidden sm:block shadow-inner"
+                    >
+                      <div className="flex flex-col items-center justify-center h-full text-slate-700 p-4">
+                        <FileText size={48} className="text-red-500 mb-2" />
+                        <p className="font-semibold text-sm text-slate-900">
+                          {getFileName(activePage, selectedPage)}
+                        </p>
+                      </div>
+                    </object>
+
+                    <div className="flex flex-col items-center justify-center sm:hidden py-8 px-4 text-center">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-red-500/20 text-red-400 mb-4 border border-red-400/30">
+                        <FileText size={44} />
+                      </div>
+                      <span className="rounded-full bg-red-500/20 px-3 py-1 text-xs font-bold text-red-300 border border-red-500/30">
+                        PDF DOCUMENT
+                      </span>
+                      <h3 className="mt-3 text-base font-bold text-white max-w-xs truncate">
+                        {getFileName(activePage, selectedPage)}
+                      </h3>
+                      <p className="mt-1 text-xs text-white/60">
+                        {activePage?.fileSize || "Ready for analysis"}
+                      </p>
+                    </div>
+
+                    {getPreviewUrl(activePage, selectedPage) && (
+                      <div className="mt-3 flex items-center justify-between w-full px-3 py-2 rounded-xl bg-white/10 text-xs">
+                        <span className="truncate max-w-[200px] font-medium text-white/90">
+                          📄 {getFileName(activePage, selectedPage)}
+                        </span>
+                        <a
+                          href={getPreviewUrl(activePage, selectedPage)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-teal-300 hover:text-teal-200 underline font-semibold ml-2 shrink-0"
+                        >
+                          Open PDF ↗
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : getPreviewUrl(activePage, selectedPage) ? (
                   <>
                     <img
                       src={getPreviewUrl(activePage, selectedPage)}
@@ -353,7 +411,15 @@ export default function M4_DocumentReview() {
                         aria-label={`Select page ${index + 1}`}
                       >
                         <div className="aspect-[3/4]">
-                          {preview ? (
+                          {isPdfPage(page, preview) ? (
+                            <div className="flex h-full flex-col items-center justify-center bg-red-50 text-red-600 p-1 text-center">
+                              <FileText size={22} className="text-red-500" />
+                              <span className="mt-1 text-[10px] font-bold text-red-700">PDF</span>
+                              <span className="text-[8px] text-slate-500 truncate max-w-full px-1">
+                                {getFileName(page, index)}
+                              </span>
+                            </div>
+                          ) : preview ? (
                             <img
                               src={preview}
                               alt={`Thumbnail of page ${index + 1}`}

@@ -210,23 +210,34 @@ const createDefaultDocument = () => ({
 const normalizePage = (page, index = 0, documentType = "prescription") => {
   const source = page || {};
 
-  const image = source.image || source.dataUrl || source.preview || null;
+  const resolvedImage =
+    source.previewUrl ||
+    source.imageUrl ||
+    source.dataUrl ||
+    source.image ||
+    source.preview ||
+    source.url ||
+    null;
 
   return {
     id: source.id || createPageId(),
 
     pageNumber: Number(source.pageNumber) || index + 1,
 
-    image,
+    image: resolvedImage,
 
-    dataUrl: source.dataUrl || source.image || source.preview || null,
+    dataUrl: source.dataUrl || resolvedImage,
 
-    preview: source.preview || source.image || source.dataUrl || null,
+    preview: source.preview || resolvedImage,
+
+    previewUrl: source.previewUrl || resolvedImage,
+
+    imageUrl: source.imageUrl || resolvedImage,
 
     fileName:
       source.fileName || source.name || `Document_Page_${index + 1}.jpg`,
 
-    fileType: source.fileType || source.type || "image/jpeg",
+    fileType: source.fileType || source.type || source.mimeType || "image/jpeg",
 
     fileSize: source.fileSize || "1.4 MB",
 
@@ -290,6 +301,27 @@ const buildLegacyDocumentSet = (documentDraft) => {
 
 const getDraftPages = (documentDraft) =>
   normalizePages(documentDraft?.pages, documentDraft?.type || "prescription");
+
+const createCapturedDocumentFromPages = (
+  pages,
+  type = "prescription",
+  draftId = null,
+) => {
+  const normalizedPages = Array.isArray(pages) ? pages : [];
+  const firstPage = normalizedPages[0] || null;
+  if (!firstPage) {
+    return null;
+  }
+  const id = draftId || firstPage.id || createDocumentId("DOC");
+  return {
+    ...clone(firstPage),
+    id,
+    documentId: id,
+    documentType: type || firstPage.documentType || "prescription",
+    pages: normalizedPages,
+    pageCount: normalizedPages.length,
+  };
+};
 
 /* ========================================================================== */
 /* PREFERENCES                                                                */
@@ -686,6 +718,14 @@ export const useMobileStore = create((set, get) => ({
    */
   documentDraft: createEmptyDocumentDraft("prescription"),
 
+  capturedDocuments: [],
+
+  capturedDocument: null,
+
+  documentSets: [],
+
+  activeSetId: null,
+
   selectedDocumentType: "prescription",
 
   setSelectedDocumentType: (type) => {
@@ -717,18 +757,24 @@ export const useMobileStore = create((set, get) => ({
     );
 
     const pages = normalizePages(draft.pages, type);
+    const updatedDraft = {
+      ...clone(draft),
+      type,
+      pages,
+      status: draft.status || (pages.length > 0 ? "CAPTURED" : "DRAFT"),
+    };
+    const capturedDoc = createCapturedDocumentFromPages(
+      pages,
+      type,
+      updatedDraft.id,
+    );
 
     set({
-      documentDraft: {
-        ...clone(draft),
-
-        type,
-
-        pages,
-
-        status: draft.status || (pages.length > 0 ? "CAPTURED" : "DRAFT"),
-      },
-
+      documentDraft: updatedDraft,
+      capturedDocuments: pages,
+      capturedDocument: capturedDoc,
+      documentSets: buildLegacyDocumentSet(updatedDraft),
+      activeSetId: updatedDraft.id || null,
       selectedDocumentType: type,
     });
   },
@@ -748,17 +794,25 @@ export const useMobileStore = create((set, get) => ({
           ? normalizePages(fields.pages, nextType)
           : state.documentDraft.pages;
 
+      const updatedDraft = {
+        ...state.documentDraft,
+        ...clone(fields),
+        type: nextType,
+        pages: nextPages,
+      };
+
+      const capturedDoc = createCapturedDocumentFromPages(
+        nextPages,
+        nextType,
+        updatedDraft.id,
+      );
+
       return {
-        documentDraft: {
-          ...state.documentDraft,
-
-          ...clone(fields),
-
-          type: nextType,
-
-          pages: nextPages,
-        },
-
+        documentDraft: updatedDraft,
+        capturedDocuments: nextPages,
+        capturedDocument: capturedDoc,
+        documentSets: buildLegacyDocumentSet(updatedDraft),
+        activeSetId: updatedDraft.id || null,
         selectedDocumentType: nextType,
       };
     });
@@ -788,17 +842,26 @@ export const useMobileStore = create((set, get) => ({
         }),
       );
 
+      const updatedDraft = {
+        ...state.documentDraft,
+        pages,
+        status: "CAPTURED",
+        uploadedAt:
+          state.documentDraft.uploadedAt || new Date().toISOString(),
+      };
+
+      const capturedDoc = createCapturedDocumentFromPages(
+        pages,
+        type,
+        updatedDraft.id,
+      );
+
       return {
-        documentDraft: {
-          ...state.documentDraft,
-
-          pages,
-
-          status: "CAPTURED",
-
-          uploadedAt:
-            state.documentDraft.uploadedAt || new Date().toISOString(),
-        },
+        documentDraft: updatedDraft,
+        capturedDocuments: pages,
+        capturedDocument: capturedDoc,
+        documentSets: buildLegacyDocumentSet(updatedDraft),
+        activeSetId: updatedDraft.id || null,
       };
     });
 
@@ -846,15 +909,24 @@ export const useMobileStore = create((set, get) => ({
             },
       );
 
+      const updatedDraft = {
+        ...state.documentDraft,
+        pages,
+        status: "CAPTURED",
+      };
+
+      const capturedDoc = createCapturedDocumentFromPages(
+        pages,
+        type,
+        updatedDraft.id,
+      );
+
       return {
-        documentDraft: {
-          ...state.documentDraft,
-
-          pages,
-
-          status: "CAPTURED",
-        },
-
+        documentDraft: updatedDraft,
+        capturedDocuments: pages,
+        capturedDocument: capturedDoc,
+        documentSets: buildLegacyDocumentSet(updatedDraft),
+        activeSetId: updatedDraft.id || null,
         retargetPageForRetake: null,
       };
     });
@@ -873,15 +945,26 @@ export const useMobileStore = create((set, get) => ({
           pageNumber: index + 1,
         }));
 
+      const type = state.documentDraft.type || state.selectedDocumentType;
+
+      const updatedDraft = {
+        ...state.documentDraft,
+        pages,
+        status: pages.length > 0 ? "CAPTURED" : "DRAFT",
+      };
+
+      const capturedDoc = createCapturedDocumentFromPages(
+        pages,
+        type,
+        updatedDraft.id,
+      );
+
       return {
-        documentDraft: {
-          ...state.documentDraft,
-
-          pages,
-
-          status: pages.length > 0 ? "CAPTURED" : "DRAFT",
-        },
-
+        documentDraft: updatedDraft,
+        capturedDocuments: pages,
+        capturedDocument: capturedDoc,
+        documentSets: buildLegacyDocumentSet(updatedDraft),
+        activeSetId: updatedDraft.id || null,
         retargetPageForRetake: null,
       };
     });
@@ -889,16 +972,17 @@ export const useMobileStore = create((set, get) => ({
 
   clearDocumentDraft: () => {
     const type = get().selectedDocumentType || "prescription";
+    const newDraft = createEmptyDocumentDraft(type);
 
     set({
-      documentDraft: createEmptyDocumentDraft(type),
-
+      documentDraft: newDraft,
+      capturedDocuments: [],
+      capturedDocument: null,
+      documentSets: buildLegacyDocumentSet(newDraft),
+      activeSetId: newDraft.id || null,
       extractedData: clone(mockExtractedData),
-
       analysisStep: 0,
-
       isAnalyzing: false,
-
       retargetPageForRetake: null,
 
       uploadVisitId: null,
@@ -928,27 +1012,13 @@ export const useMobileStore = create((set, get) => ({
   /* LEGACY DOCUMENT-SET COMPATIBILITY                                     */
   /* ---------------------------------------------------------------------- */
 
-  /**
-   * Existing screens may still read documentSets.
-   *
-   * It is now a DERIVED compatibility projection.
-   *
-   * There is never more than one document set.
-   */
-  get documentSets() {
-    return buildLegacyDocumentSet(get().documentDraft);
-  },
-
-  get activeSetId() {
-    return get().documentDraft?.id || null;
-  },
-
   setActiveSetId: (id) => {
     if (!id) {
       return;
     }
 
     set((state) => ({
+      activeSetId: id,
       documentDraft: {
         ...state.documentDraft,
         id,
@@ -961,26 +1031,36 @@ export const useMobileStore = create((set, get) => ({
 
     const documentId = createDocumentId("DOC");
 
+    const newDraft = {
+      id: documentId,
+
+      type: normalizedType,
+
+      title: title || getDocumentTypeLabel(normalizedType),
+
+      fileName: null,
+
+      status: "DRAFT",
+
+      uploadedAt: null,
+
+      pages: [],
+
+      extraction: null,
+    };
+
     set({
       selectedDocumentType: normalizedType,
 
-      documentDraft: {
-        id: documentId,
+      documentDraft: newDraft,
 
-        type: normalizedType,
+      capturedDocuments: [],
 
-        title: title || getDocumentTypeLabel(normalizedType),
+      capturedDocument: null,
 
-        fileName: null,
+      documentSets: buildLegacyDocumentSet(newDraft),
 
-        status: "DRAFT",
-
-        uploadedAt: null,
-
-        pages: [],
-
-        extraction: null,
-      },
+      activeSetId: documentId,
 
       retargetPageForRetake: null,
 
@@ -1043,34 +1123,31 @@ export const useMobileStore = create((set, get) => ({
   },
 
   /* ---------------------------------------------------------------------- */
-  /* LEGACY CAPTURE API                                                     */
+  /* CAPTURE API                                                            */
   /* ---------------------------------------------------------------------- */
-
-  get capturedDocuments() {
-    return getDraftPages(get().documentDraft);
-  },
-
-  get capturedDocument() {
-    const pages = getDraftPages(get().documentDraft);
-
-    return pages[0] || createDefaultDocument();
-  },
 
   setCapturedDocument: (document) => {
     if (!document) {
+      set({
+        capturedDocument: null,
+        capturedDocuments: [],
+      });
       return;
     }
 
     const state = get();
-
-    const normalized = normalizePage(
-      {
-        ...createDefaultDocument(),
-        ...clone(document),
-      },
-      0,
-      state.selectedDocumentType,
+    const type = normalizeDocumentType(
+      document.documentType || state.selectedDocumentType,
     );
+
+    let pages = [];
+    if (Array.isArray(document.pages) && document.pages.length > 0) {
+      pages = normalizePages(document.pages, type);
+    } else {
+      pages = [normalizePage(document, 0, type)];
+    }
+
+    const firstPage = pages[0];
 
     /**
      * Legacy setter means:
@@ -1082,48 +1159,86 @@ export const useMobileStore = create((set, get) => ({
      *   replace the current document pages
      *   with this single page
      */
-    if (state.retargetPageForRetake) {
-      get().replaceDocumentPage(
-        state.retargetPageForRetake.pageId || state.retargetPageForRetake,
-        normalized,
-      );
+    if (
+      state.retargetPageForRetake !== null &&
+      state.retargetPageForRetake !== undefined
+    ) {
+      const targetId =
+        typeof state.retargetPageForRetake === "object"
+          ? state.retargetPageForRetake.pageId || state.retargetPageForRetake.id
+          : typeof state.retargetPageForRetake === "number" &&
+              state.documentDraft.pages[state.retargetPageForRetake]
+            ? state.documentDraft.pages[state.retargetPageForRetake].id
+            : state.retargetPageForRetake;
 
-      return;
+      if (targetId) {
+        get().replaceDocumentPage(targetId, firstPage);
+        return;
+      }
     }
 
-    set((current) => ({
-      documentDraft: {
-        ...current.documentDraft,
+    const docId =
+      document.id ||
+      document.documentId ||
+      state.documentDraft.id ||
+      firstPage.id ||
+      createDocumentId("DOC");
 
-        pages: [normalized],
+    const normalizedDoc = {
+      ...clone(document),
+      ...firstPage,
+      id: docId,
+      documentId: docId,
+      documentType: type,
+      pages,
+      pageCount: pages.length,
+    };
 
-        status: "CAPTURED",
+    const updatedDraft = {
+      ...state.documentDraft,
+      id: docId,
+      type,
+      pages,
+      status: "CAPTURED",
+      uploadedAt:
+        state.documentDraft.uploadedAt || new Date().toISOString(),
+    };
 
-        uploadedAt:
-          current.documentDraft.uploadedAt || new Date().toISOString(),
-      },
-    }));
+    set({
+      documentDraft: updatedDraft,
+      capturedDocument: normalizedDoc,
+      capturedDocuments: pages,
+      documentSets: buildLegacyDocumentSet(updatedDraft),
+      activeSetId: docId,
+    });
   },
 
   setCapturedDocuments: (documents) => {
     const state = get();
+    const type = normalizeDocumentType(state.selectedDocumentType);
+    const pages = normalizePages(documents, type);
 
-    const pages = normalizePages(documents, state.selectedDocumentType);
+    const docId = state.documentDraft.id || createDocumentId("DOC");
+    const capturedDoc = createCapturedDocumentFromPages(pages, type, docId);
 
-    set((current) => ({
-      documentDraft: {
-        ...current.documentDraft,
+    const updatedDraft = {
+      ...state.documentDraft,
+      id: docId,
+      pages,
+      status: pages.length > 0 ? "CAPTURED" : "DRAFT",
+      uploadedAt:
+        pages.length > 0
+          ? state.documentDraft.uploadedAt || new Date().toISOString()
+          : null,
+    };
 
-        pages,
-
-        status: pages.length > 0 ? "CAPTURED" : "DRAFT",
-
-        uploadedAt:
-          pages.length > 0
-            ? current.documentDraft.uploadedAt || new Date().toISOString()
-            : null,
-      },
-    }));
+    set({
+      documentDraft: updatedDraft,
+      capturedDocuments: pages,
+      capturedDocument: capturedDoc,
+      documentSets: buildLegacyDocumentSet(updatedDraft),
+      activeSetId: docId,
+    });
   },
 
   addCapturedDocument: (document) => {
@@ -2606,6 +2721,14 @@ export const useMobileStore = create((set, get) => ({
       selectedDocumentType: "prescription",
 
       documentDraft: createEmptyDocumentDraft("prescription"),
+
+      capturedDocuments: [],
+
+      capturedDocument: null,
+
+      documentSets: [],
+
+      activeSetId: null,
 
       extractedData: clone(mockExtractedData),
 

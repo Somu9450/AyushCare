@@ -102,6 +102,7 @@ export function createDocumentPage({
       source?.previewUrl ||
       source?.preview ||
       source?.imageUrl ||
+      source?.image ||
       source?.url ||
       source?.dataUrl ||
       "",
@@ -110,11 +111,34 @@ export function createDocumentPage({
       source?.imageUrl ||
       source?.previewUrl ||
       source?.preview ||
+      source?.image ||
       source?.url ||
       source?.dataUrl ||
       "",
 
-    dataUrl: source?.dataUrl || "",
+    dataUrl:
+      source?.dataUrl ||
+      source?.previewUrl ||
+      source?.imageUrl ||
+      source?.image ||
+      source?.preview ||
+      "",
+
+    preview:
+      source?.preview ||
+      source?.previewUrl ||
+      source?.imageUrl ||
+      source?.image ||
+      source?.dataUrl ||
+      "",
+
+    image:
+      source?.image ||
+      source?.previewUrl ||
+      source?.imageUrl ||
+      source?.preview ||
+      source?.dataUrl ||
+      "",
 
     fileName:
       source?.fileName ||
