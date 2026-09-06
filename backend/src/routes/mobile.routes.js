@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import {
-    pairKioskSession, getUploadUrl, registerDocument, deleteDocument, syncKioskUpload,
+    pairKioskSession, getUploadUrl, registerDocument,  syncKioskUpload,
     sendPortalOtp, verifyPortalOtp, getPortalDashboard, getAudioSummary, getPortalDocuments,
     updatePortalPrivacy, getPortalPrivacy
 } from '../controllers/mobile.controller.js';
-
+//deleteDocument
 import { verifyPatientJWT } from '../middleware/auth.middleware.js';
 
 const router = Router();
