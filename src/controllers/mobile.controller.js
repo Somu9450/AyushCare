@@ -22,8 +22,8 @@ const s3Client = new S3Client({
 
 const cookieOptions = {
     httpOnly: true,
-    secure: true,
-    sameSite: 'None'
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
 };
 
 
@@ -38,6 +38,14 @@ const streamToBuffer = async (stream) => {
 
 const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, docType) => {
     try {
+        const consultation = await pool.query(
+            "SELECT ai_session_id FROM consultations WHERE id = $1",
+            [consultationId]
+        );
+        if (!consultation.rowCount || !consultation.rows[0]?.ai_session_id) {
+            throw new Error("Consultation AI session is unavailable for document processing");
+        }
+
         await pool.query("UPDATE uploaded_documents SET status = 'processing' WHERE id = $1", [documentId]);
 
         const command = new GetObjectCommand({
@@ -51,8 +59,7 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
         const fileName = fileKey.split("/").pop();
 
         const extractedData = await AiServiceGateway.uploadDocument(
-            consultationId,
-            documentId,
+            consultation.rows[0].ai_session_id,
             buffer,
             mimeType,
             fileName
@@ -75,7 +82,7 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
 // ==========================================
 
 export const pairKioskSession = asyncHandler(async (req, res) => {
-    const session = await pool.query('SELECT * FROM kiosk_sessions WHERE pairing_token = $1 AND is_active = TRUE', [req.params.pairing_token]);
+    const session = await pool.query("SELECT * FROM kiosk_sessions WHERE pairing_token = $1 AND is_active = TRUE AND expires_at > NOW()", [req.params.pairing_token]);
     if (session.rowCount === 0) throw new ApiError(410, "Pairing token expired or invalid");
     return res.status(200).json(new ApiResponse(200, session.rows[0], "Mobile successfully paired to Kiosk"));
 });
@@ -93,7 +100,7 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
         throw new ApiError(415, "Unsupported image type. Only JPEG, JPG, and PNG are allowed.");
     }
 
-    const folder = req.user ? `vault/${req.user.id}` : 'uploads';
+    const folder = req.user ? `vault/${req.user.id}` : `kiosk/${req.params.session_id || 'uploads'}`;
     const fileKey = `${folder}/${Date.now()}-${file_name}`;
 
     try {
@@ -126,14 +133,13 @@ export const registerDocument = asyncHandler(async (req, res) => {
     }
 
     const sessionQuery = await pool.query(
-        "SELECT consultation_id FROM kiosk_sessions WHERE id = $1 AND is_active = TRUE",
+        "SELECT consultation_id FROM kiosk_sessions WHERE id = $1 AND is_active = TRUE AND expires_at > NOW()",
         [session_id]
     );
-
-    let consultationId = session_id;
-    if (sessionQuery.rowCount > 0) {
-        consultationId = sessionQuery.rows[0].consultation_id;
-    }
+    if (!sessionQuery.rowCount || !sessionQuery.rows[0].consultation_id) throw new ApiError(410, 'Kiosk pairing session expired or invalid');
+    const consultationId = sessionQuery.rows[0].consultation_id;
+    const consultation = await pool.query('SELECT ai_session_id FROM consultations WHERE id=$1', [consultationId]);
+    if (!consultation.rowCount) throw new ApiError(404, 'Consultation not found');
 
     const document = await pool.query(
         "INSERT INTO uploaded_documents (consultation_id, file_path_hash, document_type, status) VALUES ($1, $2, $3, 'pending') RETURNING id, file_path_hash, document_type, status",
@@ -155,8 +161,16 @@ export const registerDocument = asyncHandler(async (req, res) => {
 });
 
 export const deleteDocument = asyncHandler(async (req, res) => {
-    await pool.query('DELETE FROM uploaded_documents WHERE id = $1', [req.params.document_id]);
-    return res.status(200).json(new ApiResponse(200, {}, "File preview deleted"));
+    const result = await pool.query(`DELETE FROM uploaded_documents d USING kiosk_sessions k WHERE d.id=$1 AND k.id=$2 AND d.consultation_id=k.consultation_id RETURNING d.id`, [req.params.document_id, req.params.session_id]);
+    if (!result.rowCount) throw new ApiError(404, 'Document not found for this kiosk session');
+    return res.status(200).json(new ApiResponse(200, {document_id:req.params.document_id}, 'File preview deleted'));
+});
+
+export const getKioskDocuments = asyncHandler(async (req,res)=>{
+    const session=await pool.query('SELECT consultation_id FROM kiosk_sessions WHERE id=$1 AND is_active=TRUE AND expires_at>NOW()',[req.params.session_id]);
+    if(!session.rowCount) throw new ApiError(410,'Kiosk pairing session expired or invalid');
+    const docs=await pool.query('SELECT * FROM uploaded_documents WHERE consultation_id=$1 ORDER BY created_at DESC',[session.rows[0].consultation_id]);
+    return res.json(new ApiResponse(200,docs.rows,'Kiosk documents loaded'));
 });
 
 export const syncKioskUpload = asyncHandler(async (req, res) => {
@@ -195,35 +209,74 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Mobile number and OTP are required");
     }
 
-    const formattedNumber = mobileNumber.startsWith('+') ? mobileNumber : `+91${mobileNumber}`;
+    // Normalize the number in the same way as sendPortalOtp().
+    // This allows both:
+    //   8699085590
+    //   +918699085590
+    // to refer to the same patient.
+    const rawNumber = String(mobileNumber).trim();
 
+    const formattedNumber = rawNumber.startsWith('+')
+        ? rawNumber
+        : `+91${rawNumber}`;
+
+    // Verify the OTP against the normalized number.
     const isValid = verifyOTP(formattedNumber, otp);
+
     if (!isValid) {
         throw new ApiError(401, "Invalid or expired verification OTP");
     }
 
-    let patientQuery = await pool.query('SELECT * FROM patients WHERE mobile_number = $1', [mobileNumber]);
-    let patient = patientQuery.rows[0];
+    // Patient records created by the Kiosk may contain the local
+    // 10-digit number, while portal login may provide +91XXXXXXXXXX.
+    // Try both formats.
+    const localNumber = formattedNumber.startsWith('+91')
+        ? formattedNumber.substring(3)
+        : rawNumber.replace(/^\+/, '');
+
+    const patientQuery = await pool.query(
+        `SELECT *
+         FROM patients
+         WHERE mobile_number = $1
+            OR mobile_number = $2
+         LIMIT 1`,
+        [localNumber, formattedNumber]
+    );
+
+    const patient = patientQuery.rows[0];
 
     if (!patient) {
-        const insertQuery = await pool.query(
-            `INSERT INTO patients (full_name, gender, date_of_birth, mobile_number, consent_granted)
-             VALUES ($1, 'U', '1990-01-01', $2, TRUE) RETURNING *`,
-            ["Somu Sharma", mobileNumber]
+        throw new ApiError(
+            404,
+            'No registered patient found for this mobile number'
         );
-        patient = insertQuery.rows[0];
     }
 
     const token = jwt.sign(
-        { id: patient.id, email: patient.mobile_number, role: "patient" },
+        {
+            id: patient.id,
+            email: patient.mobile_number,
+            role: "patient"
+        },
         process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: '1d' }
+        {
+            expiresIn: '1d'
+        }
     );
 
     return res
         .status(200)
         .cookie("accessToken", token, cookieOptions)
-        .json(new ApiResponse(200, { patient, accessToken: token }, "Home Portal access granted"));
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    patient,
+                    accessToken: token
+                },
+                "Home Portal access granted"
+            )
+        );
 });
 
 export const getPortalDashboard = asyncHandler(async (req, res) => {
@@ -244,23 +297,28 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
         hospital_name: "AyushCare Center"
     };
 
+    const summaryQuery = await pool.query(`SELECT cs.* FROM clinical_summaries cs JOIN consultations c ON c.id=cs.consultation_id WHERE c.patient_id=$1 ORDER BY cs.generated_at DESC LIMIT 1`, [patientId]);
     const dashboardData = {
         patient_name: req.user.full_name,
         appointment: {
             token: appointment.token_number,
             status: appointment.status,
             hospital: appointment.hospital_name,
-            department: "Ayush General OPD"
+            department: "AyushCare OPD"
         },
-        ai_summary: "Patient has structured history logs matching standard allergy classifications. Vitals are currently recorded as stable. Next visit schedule queued."
+        ai_summary: summaryQuery.rows[0] || null
     };
 
     return res.status(200).json(new ApiResponse(200, dashboardData, "Dashboard data loaded"));
 });
 
 export const getAudioSummary = asyncHandler(async (req, res) => {
-    const audioPayload = { audio_url: "https://ayushcare-tts.s3.ap-south-1.amazonaws.com/samples/summary_eng.mp3" };
-    return res.status(200).json(new ApiResponse(200, audioPayload, "Text-to-speech audio url generated"));
+    const summary = await pool.query(`SELECT cs.ai_payload, cs.chief_complaint, cs.history_of_present_illness, c.ai_session_id, c.language FROM clinical_summaries cs JOIN consultations c ON c.id=cs.consultation_id WHERE c.patient_id=$1 ORDER BY cs.generated_at DESC LIMIT 1`, [req.user.id]);
+    if (!summary.rowCount) throw new ApiError(404, 'No clinical summary is available');
+    const row=summary.rows[0];
+    const text=[row.chief_complaint,row.history_of_present_illness].filter(Boolean).join('. ');
+    const audio=await AiServiceGateway.tts(row.ai_session_id,text,row.language||'en');
+    return res.json(new ApiResponse(200,audio,'Text-to-speech audio generated'));
 });
 
 export const getPortalDocuments = asyncHandler(async (req, res) => {
