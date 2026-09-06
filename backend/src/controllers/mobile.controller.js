@@ -4,15 +4,14 @@ import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
 import jwt from 'jsonwebtoken';
 
-// Import S3 SDK Client modules
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// Import SMS and OTP helpers
 import { sendSMS } from '../utilities/smsHelper.js';
 import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
-// Initialize S3 Client
+import AiServiceGateway from '../services/aiService.js';
+
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
     credentials: {
@@ -27,6 +26,50 @@ const cookieOptions = {
     sameSite: 'None'
 };
 
+
+const streamToBuffer = async (stream) => {
+    const chunks = [];
+    for await (const chunk of stream) {
+        chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+};
+
+
+const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, docType) => {
+    try {
+        await pool.query("UPDATE uploaded_documents SET status = 'processing' WHERE id = $1", [documentId]);
+
+        const command = new GetObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: fileKey
+        });
+        const s3Object = await s3Client.send(command);
+        const buffer = await streamToBuffer(s3Object.Body);
+
+        const mimeType = s3Object.ContentType || "image/jpeg";
+        const fileName = fileKey.split("/").pop();
+
+        const extractedData = await AiServiceGateway.uploadDocument(
+            consultationId,
+            documentId,
+            buffer,
+            mimeType,
+            fileName
+        );
+
+        await pool.query(
+            "UPDATE uploaded_documents SET extracted_data = $1, status = 'completed' WHERE id = $2",
+            [JSON.stringify(extractedData), documentId]
+        );
+
+        console.log(`[OCR Integration] Successfully processed document ID: ${documentId}`);
+    } catch (error) {
+        console.error(`[OCR Integration Error] Processing failed for document ID: ${documentId}`, error);
+        await pool.query("UPDATE uploaded_documents SET status = 'failed' WHERE id = $1", [documentId]);
+    }
+};
+
 // ==========================================
 // --- FLOW A: Zero-Login QR Upload ---
 // ==========================================
@@ -37,10 +80,7 @@ export const pairKioskSession = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, session.rows[0], "Mobile successfully paired to Kiosk"));
 });
 
-/**
- * Generates a real S3 Presigned PUT URL.
- * Shared by both Flow A (Kiosk Session Uploads) and Flow B (Portal Vault uploads) .
- */
+
 export const getUploadUrl = asyncHandler(async (req, res) => {
     const { file_name, content_type } = req.body;
 
@@ -53,7 +93,6 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
         throw new ApiError(415, "Unsupported image type. Only JPEG, JPG, and PNG are allowed.");
     }
 
-    // Determine path based on user context (Patient Portal Vault vs Kiosk Intake)
     const folder = req.user ? `vault/${req.user.id}` : 'uploads';
     const fileKey = `${folder}/${Date.now()}-${file_name}`;
 
@@ -80,11 +119,39 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
 
 export const registerDocument = asyncHandler(async (req, res) => {
     const { file_key, document_type } = req.body;
-    const document = await pool.query(
-        'INSERT INTO uploaded_documents (consultation_id, file_path_hash, document_type, status) VALUES ($1, $2, $3, \'pending\') RETURNING id',
-        [req.params.session_id, file_key, document_type]
+    const { session_id } = req.params;
+
+    if (!file_key || !document_type) {
+        throw new ApiError(400, "file_key and document_type are required fields");
+    }
+
+    const sessionQuery = await pool.query(
+        "SELECT consultation_id FROM kiosk_sessions WHERE id = $1 AND is_active = TRUE",
+        [session_id]
     );
-    return res.status(202).json(new ApiResponse(202, document.rows[0], "Document registered for extraction"));
+
+    let consultationId = session_id;
+    if (sessionQuery.rowCount > 0) {
+        consultationId = sessionQuery.rows[0].consultation_id;
+    }
+
+    const document = await pool.query(
+        "INSERT INTO uploaded_documents (consultation_id, file_path_hash, document_type, status) VALUES ($1, $2, $3, 'pending') RETURNING id, file_path_hash, document_type, status",
+        [consultationId, file_key, document_type]
+    );
+
+    const registeredDoc = document.rows[0];
+
+    executeOcrStreamingPipeline(consultationId, registeredDoc.id, file_key, document_type)
+        .catch(err => console.error("[OCR Background Process Crash] ", err));
+
+    return res.status(202).json(
+        new ApiResponse(
+            202,
+            registeredDoc,
+            "Document registered. Processing asynchronously through FastAPI AI backend."
+        )
+    );
 });
 
 export const deleteDocument = asyncHandler(async (req, res) => {
