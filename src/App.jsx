@@ -1,125 +1,54 @@
 import React, { Suspense, lazy } from 'react';
-
-import { useKioskStore } from './store/useKioskStore';
-
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
-import EmergencyModal from './components/kiosk/EmergencyModal';
-import StepProgressIndicator from './components/kiosk/StepProgressIndicator';
-import { KeyboardProvider } from './context/KeyboardContext';
-import OnscreenKeyboard from './components/common/OnscreenKeyboard';
-import { KioskPageSkeleton } from './components/common/KioskSkeleton';
+import { useKioskStore } from './store/useKioskStore';
+import './App.css';
 
 const Screen1_Welcome = lazy(() => import('./pages/Screen1_Welcome'));
 const Screen2_Auth = lazy(() => import('./pages/Screen2_Auth'));
 const Screen3_DepartmentSelector = lazy(() => import('./pages/Screen3_DepartmentSelector'));
+const Screen4_Consent = lazy(() => import('./pages/Screen4_Consent'));
 const Screen4_SymptomIntake = lazy(() => import('./pages/Screen4_SymptomIntake'));
-const Screen5_FollowUpWizard = lazy(() => import('./pages/Screen5_FollowUpWizard'));
 const Screen6_HealthHistory = lazy(() => import('./pages/Screen6_HealthHistory'));
-const Screen7_PreparingSession = lazy(() => import('./pages/Screen7_PreparingSession'));
 const Screen8_QRUpload = lazy(() => import('./pages/Screen8_QRUpload'));
 const Screen9_ReviewSubmission = lazy(() => import('./pages/Screen9_ReviewSubmission'));
 const Screen10_TokenSuccess = lazy(() => import('./pages/Screen10_TokenSuccess'));
 
-const App = () => {
-  const {
-    currentScreen,
-    highContrast,
-    audioEnabled,
-    sessionData,
-    nextScreen,
-  } = useKioskStore();
+function ScreenLoader() {
+  return (
+    <div className="screen-loader" role="status" aria-live="polite">
+      <div className="loader-mark">A</div>
+      <div className="loader-bar"><span /></div>
+    </div>
+  );
+}
 
-  const renderScreen = () => {
-    switch (currentScreen) {
-      case 1:
-        return <Screen1_Welcome />;
+export default function App() {
+  const { currentScreen, highContrast } = useKioskStore();
 
-      case 2:
-        return <Screen2_Auth />;
-
-      case 3:
-        return <Screen3_DepartmentSelector />;
-
-      case 4:
-        return <Screen4_SymptomIntake />;
-
-      case 5:
-        return <Screen5_FollowUpWizard />;
-
-      case 6:
-        return <Screen6_HealthHistory />;
-
-      case 7:
-        return <Screen7_PreparingSession />;
-
-      case 8:
-        return <Screen8_QRUpload />;
-
-      case 9:
-        return <Screen9_ReviewSubmission />;
-
-      case 10:
-        return <Screen10_TokenSuccess />;
-
-      default:
-        return <Screen1_Welcome />;
-    }
-  };
-
-  const canContinue = () => {
-    switch (currentScreen) {
-      case 2:
-        return Boolean(
-          sessionData.isVerified &&
-          sessionData.patientProfile
-        );
-
-      case 3:
-        return Boolean(
-          sessionData.selectedDepartment
-        );
-
-      default:
-        return false;
-    }
-  };
-
-  const appClasses = [
-    'kiosk-app',
-    highContrast ? 'kiosk-high-contrast' : '',
-    !audioEnabled ? 'kiosk-silent-mode' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const screen = {
+    1: <Screen1_Welcome />,
+    2: <Screen2_Auth />,
+    3: <Screen3_DepartmentSelector />,
+    4: <Screen4_Consent />,
+    5: <Screen4_SymptomIntake />,
+    6: <Screen6_HealthHistory />,
+    7: <Screen8_QRUpload />,
+    8: <Screen9_ReviewSubmission />,
+    9: <Screen10_TokenSuccess />,
+  }[currentScreen] || <Screen1_Welcome />;
 
   return (
-    <KeyboardProvider>
-      <div className={appClasses}>
-
-        <Navbar />
-
-        <StepProgressIndicator />
-
-        <main className="kiosk-main">
-          <Suspense fallback={<KioskPageSkeleton />}>
-            {renderScreen()}
+    <div className={`kiosk-app ${highContrast ? 'high-contrast' : ''}`}>
+      <Navbar />
+      <main className="kiosk-main" aria-live="polite">
+        <div className="kiosk-main-inner">
+          <Suspense fallback={<ScreenLoader />}>
+            {screen}
           </Suspense>
-        </main>
-
-        <Footer
-          showContinue={canContinue()}
-          onContinue={nextScreen}
-          continueLabel="Continue"
-          continueDisabled={!canContinue()}
-        />
-
-        <EmergencyModal />
-        <OnscreenKeyboard />
-
-      </div>
-    </KeyboardProvider>
+        </div>
+      </main>
+      {currentScreen < 9 && <Footer showContinue={false} />}
+    </div>
   );
-};
-
-export default App;
+}
