@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     pairKioskSession,
+    getUploadUrl,
     registerDocument,
     syncKioskUpload,
     sendPortalOtp,
@@ -18,7 +19,7 @@ const router = Router();
 
 // --- Flow A: Zero-Login QR Upload ---
 router.route("/kiosk-session/pair/:pairing_token").get(pairKioskSession);
-router.route("/kiosk-session/:session_id/upload-url").post(getPortalUploadUrl);
+router.route("/kiosk-session/:session_id/upload-url").post(getploadUrl);
 router.route("/kiosk-session/:session_id/register-document").post(registerDocument);
 // router.route("/kiosk-session/:session_id/documents/:document_id").delete(deleteDocument); 
 router.route("/kiosk-session/:session_id/sync").post(syncKioskUpload);

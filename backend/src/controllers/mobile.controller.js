@@ -1,14 +1,18 @@
-import jwt from 'jsonwebtoken';
 import { ApiResponse } from '../utilities/ApiResponse.js';
 import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
-import { sendSMS } from '../utilities/smsHelper.js';
-import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
+import jwt from 'jsonwebtoken';
 
+// Import S3 SDK Client modules
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
+// Import SMS and OTP helpers
+import { sendSMS } from '../utilities/smsHelper.js';
+import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
+
+// Initialize S3 Client
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
     credentials: {
@@ -23,6 +27,79 @@ const cookieOptions = {
     sameSite: 'None'
 };
 
+// ==========================================
+// --- FLOW A: Zero-Login QR Upload ---
+// ==========================================
+
+export const pairKioskSession = asyncHandler(async (req, res) => {
+    const session = await pool.query('SELECT * FROM kiosk_sessions WHERE pairing_token = $1 AND is_active = TRUE', [req.params.pairing_token]);
+    if (session.rowCount === 0) throw new ApiError(410, "Pairing token expired or invalid");
+    return res.status(200).json(new ApiResponse(200, session.rows[0], "Mobile successfully paired to Kiosk"));
+});
+
+/**
+ * Generates a real S3 Presigned PUT URL.
+ * Shared by both Flow A (Kiosk Session Uploads) and Flow B (Portal Vault uploads) .
+ */
+export const getUploadUrl = asyncHandler(async (req, res) => {
+    const { file_name, content_type } = req.body;
+
+    if (!file_name || !content_type) {
+        throw new ApiError(400, "file_name and content_type are required fields");
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!allowedTypes.includes(content_type)) {
+        throw new ApiError(415, "Unsupported image type. Only JPEG, JPG, and PNG are allowed.");
+    }
+
+    // Determine path based on user context (Patient Portal Vault vs Kiosk Intake)
+    const folder = req.user ? `vault/${req.user.id}` : 'uploads';
+    const fileKey = `${folder}/${Date.now()}-${file_name}`;
+
+    try {
+        const command = new PutObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: fileKey,
+            ContentType: content_type
+        });
+
+        const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                { upload_url: presignedUrl, file_key: fileKey },
+                "Presigned upload URL generated successfully"
+            )
+        );
+    } catch (error) {
+        throw new ApiError(500, "Failed to generate upload URL", [error.message]);
+    }
+});
+
+export const registerDocument = asyncHandler(async (req, res) => {
+    const { file_key, document_type } = req.body;
+    const document = await pool.query(
+        'INSERT INTO uploaded_documents (consultation_id, file_path_hash, document_type, status) VALUES ($1, $2, $3, \'pending\') RETURNING id',
+        [req.params.session_id, file_key, document_type]
+    );
+    return res.status(202).json(new ApiResponse(202, document.rows[0], "Document registered for extraction"));
+});
+
+export const deleteDocument = asyncHandler(async (req, res) => {
+    await pool.query('DELETE FROM uploaded_documents WHERE id = $1', [req.params.document_id]);
+    return res.status(200).json(new ApiResponse(200, {}, "File preview deleted"));
+});
+
+export const syncKioskUpload = asyncHandler(async (req, res) => {
+    await pool.query('UPDATE kiosk_sessions SET is_active = FALSE WHERE id = $1', [req.params.session_id]);
+    return res.status(200).json(new ApiResponse(200, {}, "Mobile sync completed. Connection purged."));
+});
+
+// ==========================================
+// --- FLOW B: SMS Portal & Authentication ---
+// ==========================================
 
 export const sendPortalOtp = asyncHandler(async (req, res) => {
     const { mobileNumber } = req.body;
@@ -34,7 +111,7 @@ export const sendPortalOtp = asyncHandler(async (req, res) => {
     const formattedNumber = mobileNumber.startsWith('+') ? mobileNumber : `+91${mobileNumber}`;
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    saveOTP(formattedNumber, generatedOtp, 300); 
+    saveOTP(formattedNumber, generatedOtp, 300); // 5 mins expiry
 
     const message = `Your AyushCare Patient Portal verification OTP is: ${generatedOtp}. Valid for 5 minutes.`;
     await sendSMS(formattedNumber, message);
@@ -43,7 +120,6 @@ export const sendPortalOtp = asyncHandler(async (req, res) => {
         new ApiResponse(200, { mobile: formattedNumber }, "Verification OTP sent successfully")
     );
 });
-
 
 export const verifyPortalOtp = asyncHandler(async (req, res) => {
     const { mobileNumber, otp } = req.body;
@@ -83,11 +159,9 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, { patient, accessToken: token }, "Home Portal access granted"));
 });
 
-
 export const getPortalDashboard = asyncHandler(async (req, res) => {
     const patientId = req.user.id;
 
-    // Fetch details of active upcoming appointment if registered
     const appointmentQuery = await pool.query(
         `SELECT c.token_number, c.status, h.name as hospital_name 
          FROM consultations c
@@ -117,13 +191,10 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, dashboardData, "Dashboard data loaded"));
 });
 
-
 export const getAudioSummary = asyncHandler(async (req, res) => {
-    // Returns mock audio payload (can connect to real TTS engine)
     const audioPayload = { audio_url: "https://ayushcare-tts.s3.ap-south-1.amazonaws.com/samples/summary_eng.mp3" };
     return res.status(200).json(new ApiResponse(200, audioPayload, "Text-to-speech audio url generated"));
 });
-
 
 export const getPortalDocuments = asyncHandler(async (req, res) => {
     const documents = await pool.query(
@@ -135,30 +206,6 @@ export const getPortalDocuments = asyncHandler(async (req, res) => {
     );
     return res.status(200).json(new ApiResponse(200, documents.rows, "Patient Document Vault loaded"));
 });
-
-
-export const getPortalUploadUrl = asyncHandler(async (req, res) => {
-    const { file_name, content_type } = req.body;
-
-    if (!file_name || !content_type) {
-        throw new ApiError(400, "file_name and content_type are required");
-    }
-
-    const fileKey = `vault/${req.user.id}/${Date.now()}-${file_name}`;
-
-    const command = new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: fileKey,
-        ContentType: content_type
-    });
-
-    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
-
-    return res.status(200).json(
-        new ApiResponse(200, { upload_url: presignedUrl, file_key: fileKey }, "Portal S3 upload URL generated")
-    );
-});
-
 
 export const getPortalPrivacy = asyncHandler(async (req, res) => {
     let privacyQuery = await pool.query('SELECT * FROM privacy_settings WHERE patient_id = $1', [req.user.id]);
@@ -174,7 +221,6 @@ export const getPortalPrivacy = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, privacyQuery.rows[0], "Patient privacy records loaded"));
 });
 
-
 export const updatePortalPrivacy = asyncHandler(async (req, res) => {
     const { isolate_past_history, consent_voice_processing } = req.body;
 
@@ -189,5 +235,3 @@ export const updatePortalPrivacy = asyncHandler(async (req, res) => {
 
     return res.status(200).json(new ApiResponse(200, privacyQuery.rows[0], "Preferences saved successfully"));
 });
-
-//delete document functionality
