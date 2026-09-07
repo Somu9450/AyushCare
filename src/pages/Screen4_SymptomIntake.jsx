@@ -1,4 +1,4 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useRef,useState,useCallback} from 'react';
 import { Mic, Send, Loader2, Square } from 'lucide-react';
 import { kioskApi,getErrorMessage } from '../services/api';
 import { useKioskStore } from '../store/useKioskStore';
@@ -19,6 +19,7 @@ export default function Screen4_SymptomIntake(){
  const [recording,setRecording]=useState(false);
  const recorder=useRef(null);
  const chunks=useRef([]);
+ const streamRef=useRef(null);
 
  useEffect(()=>{
    const container=document.querySelector('.kiosk-main-scroll');
@@ -75,12 +76,18 @@ export default function Screen4_SymptomIntake(){
    setLoading(true);
    setError('');
    try{
-     const r=await kioskApi.answer(sessionData.consultationId,{
+     let r=await kioskApi.answer(sessionData.consultationId,{
        question_id:question.question_id,
        answer:answerText,
        input_mode:isMultiSelect ? 'multi_select' : 'text',
        confidence:1
      });
+     if(r && !r.next_question && !r.is_complete){
+       try{
+         const state=await kioskApi.dialogueState(sessionData.consultationId);
+         r={...r,next_question:state?.next_question||state?.current_question||null,is_complete:Boolean(state?.is_complete)};
+       }catch{}
+     }
      applyResult(r,answerText,'text');
    }catch(e){
      setError(getErrorMessage(e));
@@ -89,23 +96,44 @@ export default function Screen4_SymptomIntake(){
    }
  };
 
- const toggleRecording=async()=>{
-   if(recording){recorder.current?.stop();return}
+ // -- Hold-to-speak: start recording on press, stop + send on release --
+ const startRecording=useCallback(async()=>{
+   if(recording || loading)return;
    try{
      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+     streamRef.current=stream;
      const mr=new MediaRecorder(stream);
      chunks.current=[];
      mr.ondataavailable=e=>e.data.size&&chunks.current.push(e.data);
      mr.onstop=async()=>{
        stream.getTracks().forEach(t=>t.stop());
+       streamRef.current=null;
        setRecording(false);
+       if(chunks.current.length===0)return;
        setLoading(true);
        try{
          const blob=new Blob(chunks.current,{type:mr.mimeType||'audio/webm'});
-         const r=await kioskApi.speech(sessionData.consultationId,question.question_id,language,blob);
-         const transcript=r?.transcript||r?.answer||'';
-         if(transcript)setAnswer(transcript);
-         applyResult(r,transcript,'speech');
+         let r=await kioskApi.speech(sessionData.consultationId,question.question_id,language,blob);
+         // If speech processing returns no next question, recover the canonical
+         // conversation state instead of ending the interview accidentally.
+         if(r && !r.next_question && !r.is_complete){
+           try{
+             const state=await kioskApi.dialogueState(sessionData.consultationId);
+             r={...r,next_question:state?.next_question||state?.current_question||null,is_complete:Boolean(state?.is_complete)};
+           }catch{}
+         }
+         // The speech endpoint returns a ConversationTurnResponse.
+         // answer_confirmed contains the transcribed text; next_question has the follow-up.
+         const transcript=r?.answer_confirmed||r?.transcript||r?.answer||'';
+         if(transcript){
+           setAnswer(transcript);
+         }
+         // Only apply the result if we got a valid response with next_question or is_complete
+         if(r && (r.next_question !== undefined || r.is_complete !== undefined)){
+           applyResult(r,transcript,'speech');
+         } else if(!transcript){
+           setError('Could not understand the speech. Please try again or type your answer.');
+         }
        }catch(e){
          setError(getErrorMessage(e));
        }finally{
@@ -118,7 +146,22 @@ export default function Screen4_SymptomIntake(){
    }catch(e){
      setError('Microphone access is unavailable. You can type your answer instead.');
    }
- };
+ },[recording,loading,sessionData.consultationId,question,language]);
+
+ const stopRecording=useCallback(()=>{
+   if(recorder.current && recorder.current.state==='recording'){
+     recorder.current.stop();
+   }
+ },[]);
+
+ // Clean up stream on unmount
+ useEffect(()=>{
+   return ()=>{
+     if(streamRef.current){
+       streamRef.current.getTracks().forEach(t=>t.stop());
+     }
+   };
+ },[]);
 
  return <section className="screen-card interview">
    <div className="section-head">
@@ -151,7 +194,7 @@ export default function Screen4_SymptomIntake(){
      <div className="question-box">
        <div className="question-top">
          <div className="question-text">{question.prompt_local||question.prompt}</div>
-         <AudioButton textToRead={question.prompt_local||question.prompt} label={t('listen')}/>
+         <AudioButton textToRead={question.prompt_local||question.prompt} label={t('speak') || 'Speak'}/>
        </div>
        {question.helper&&<p className="helper">{question.helper}</p>}
        {question.options?.length>0&&
@@ -180,9 +223,18 @@ export default function Screen4_SymptomIntake(){
          <KioskInput id={`ai-answer-${question.question_id}`} value={answer} onChange={setAnswer} multiline label="Your answer" placeholder={t('typeAnswer')} />
        }
        <div className="answer-actions">
-         <button className={`secondary-btn ${recording?'recording':''}`} onClick={toggleRecording} disabled={loading}>
-           {recording?<><Square size={17}/>{t('listening')}</>:<><Mic size={17}/>{t('listen')}</>}
+         <button
+           className={`secondary-btn hold-to-speak-btn ${recording?'recording':''}`}
+           onMouseDown={startRecording}
+           onMouseUp={stopRecording}
+           onMouseLeave={stopRecording}
+           onTouchStart={(e)=>{e.preventDefault();startRecording();}}
+           onTouchEnd={(e)=>{e.preventDefault();stopRecording();}}
+           disabled={loading}
+         >
+           {recording?<><Mic size={17} className="pulse-mic"/>{t('releaseToSend') || 'Release to send'}</>:<><Mic size={17}/>{t('speak') || 'Speak'}</>}
          </button>
+         {!recording && <small className="hold-hint">{t('holdToSpeak') || 'Hold to speak'}</small>}
          <button className="primary-btn" disabled={loading||(isMultiSelect ? !multiAnswer.length : !answer.trim())} onClick={submit}>
            {loading?<Loader2 className="spin"/>:<Send size={18}/>} {t('submit')}
          </button>
@@ -194,3 +246,4 @@ export default function Screen4_SymptomIntake(){
    {error&&<div className="error-box">{error}</div>}
  </section>
 }
+

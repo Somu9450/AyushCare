@@ -113,9 +113,8 @@ export default function Screen3_DepartmentSelector() {
         isVerified: true,
       });
 
-      // Screen 5 is the old standalone consent screen. It is deliberately
-      // bypassed because consent is now collected here before session creation.
-      setScreen(6);
+      // Navigate to language selection screen (screen 5) before AI interview.
+      setScreen(5);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {

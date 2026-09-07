@@ -18,11 +18,22 @@ export default function Screen9_ReviewSubmission(){
      return;
    }
 
+   // Build conversation history from the kiosk's question history so the
+   // summary model receives all AI interview responses even if the proxy
+   // layer did not persist them to the same session store.
+   const conversationHistory = (sessionData.questionHistory || []).map(item => ({
+     question_id: item.question?.question_id || '',
+     question: item.question?.prompt || item.question?.prompt_local || '',
+     answer: item.answer || '',
+     input_mode: item.input_mode || 'text',
+   }));
+
    setLoading(true);
    kioskApi.summaryGenerate(
      sessionData.consultationId,
      language,
-     sessionData.pathway==='ayurveda'
+     sessionData.pathway==='ayurveda',
+     conversationHistory
    )
    .then(s=>{
      const value=s?.ai_summary||s;
