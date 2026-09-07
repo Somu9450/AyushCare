@@ -114,7 +114,15 @@ function KioskConnectScreen() {
             null,
 
           name:
+            result.session?.patient?.full_name ||
+            result.kiosk?.full_name ||
             store.patient?.name ||
+            null,
+
+          patientCode:
+            result.session?.patient?.patient_code ||
+            result.kiosk?.patient_code ||
+            store.patient?.patient_code ||
             null,
         }
       );

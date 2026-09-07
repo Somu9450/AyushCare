@@ -193,6 +193,17 @@ export default function M5_DocumentAnalysis() {
           return;
         }
 
+        if (!result?.success) {
+          const failed = (result?.documents || [])
+            .filter((doc) => String(doc?.status || "").toLowerCase() === "failed")
+            .map((doc) => doc?.processing_error || doc?.extracted_data?.error)
+            .filter(Boolean);
+          throw new Error(
+            failed[0] ||
+              "The document was uploaded, but image analysis could not be completed. Please retake a clear photo and try again."
+          );
+        }
+
         setProgress(100);
         setStage("Document analyzed");
 

@@ -44,8 +44,17 @@ function normalizePatient(authResult, method, identifier) {
 
   return {
     id: user.id || user.patientId || null,
-    patientId: user.patientId || user.id || null,
+    patientId:
+      authResult?.patient?.patient_code ||
+      user.patientId ||
+      user.id ||
+      null,
+    patient_code: authResult?.patient?.patient_code || null,
     name: user.name || authResult?.patient?.full_name || "Patient",
+    full_name: authResult?.patient?.full_name || user.name || "Patient",
+    gender: authResult?.patient?.gender || "",
+    date_of_birth: authResult?.patient?.date_of_birth || null,
+    mobile_number: authResult?.patient?.mobile_number || identifier,
     authMethod: method,
     identifier,
     verifiedAt: new Date().toISOString(),
@@ -57,6 +66,7 @@ export default function AuthScreen() {
   const {
     setScreen,
     setVerifiedPatient,
+    loadPortalData,
     selectedLanguage,
   } = useMobileStore();
 
@@ -164,6 +174,7 @@ export default function AuthScreen() {
       );
 
       setVerifiedPatient(patient, method);
+      await loadPortalData?.();
 
       createMobileSession({
         patient: result.patient || patient,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ChevronRight,
   Clock3,
@@ -48,11 +48,19 @@ export default function PrivacyScreen() {
     consentHistory,
     accessHistory,
     setScreen,
-    toggleHealthHistorySharing,
+    toggleHealthHistoryAccess,
     endKioskSession,
+    updatePrivacySetting,
+    loadPrivacySettings,
   } = useMobileStore();
 
   const { isHindi } = useLanguage();
+
+  useEffect(() => {
+    if (typeof loadPrivacySettings === "function") {
+      void loadPrivacySettings();
+    }
+  }, [loadPrivacySettings]);
 
   const sharingEnabled =
     healthHistorySharing !== false &&
@@ -92,10 +100,12 @@ export default function PrivacyScreen() {
       ? privacyData.consentHistory.slice(0, 5)
       : [];
 
-  const handleToggleSharing = () => {
-    if (typeof toggleHealthHistorySharing === "function") {
-      toggleHealthHistorySharing();
+  const handleToggleSharing = async () => {
+    const nextLocked = !isHealthHistoryLocked;
+    if (typeof toggleHealthHistoryAccess === "function") {
+      toggleHealthHistoryAccess();
     }
+    await updatePrivacySetting?.("isolate_past_history", nextLocked);
   };
 
   return (
@@ -194,6 +204,35 @@ export default function PrivacyScreen() {
                 ? "साझाकरण सक्षम करें"
                 : "Enable sharing"}
           </button>
+        </section>
+
+        <section className="mt-6">
+          <SectionTitle
+            title={isHindi ? "त्वरित नियंत्रण" : "Quick controls"}
+          />
+          <div className="space-y-3">
+            <QuickPrivacyToggle
+              title={isHindi ? "निदान / AI निष्कर्ष" : "Diagnosis & AI findings"}
+              description={isHindi ? "निदान संबंधी जानकारी को साझा करने से रोकें।" : "Prevent diagnosis and AI findings from being shared."}
+              enabled={!Boolean(privacyData?.serverSettings?.lock_diagnosis)}
+              onChange={(enabled) => updatePrivacySetting?.("lock_diagnosis", !enabled)}
+              isHindi={isHindi}
+            />
+            <QuickPrivacyToggle
+              title={isHindi ? "विज़िट इतिहास" : "Visit history"}
+              description={isHindi ? "पुरानी विज़िट जानकारी को लॉक या अनलॉक करें।" : "Quickly lock or unlock your visit history."}
+              enabled={!Boolean(privacyData?.serverSettings?.lock_visits)}
+              onChange={(enabled) => updatePrivacySetting?.("lock_visits", !enabled)}
+              isHindi={isHindi}
+            />
+            <QuickPrivacyToggle
+              title={isHindi ? "रिपोर्ट और दस्तावेज़" : "Reports & documents"}
+              description={isHindi ? "रिपोर्ट और दस्तावेज़ साझा करने की अनुमति नियंत्रित करें।" : "Control sharing of reports and uploaded documents."}
+              enabled={!Boolean(privacyData?.serverSettings?.lock_reports)}
+              onChange={(enabled) => updatePrivacySetting?.("lock_reports", !enabled)}
+              isHindi={isHindi}
+            />
+          </div>
         </section>
 
         <section className="mt-6">
@@ -372,6 +411,27 @@ export default function PrivacyScreen() {
       </main>
 
       <BottomNavBar />
+    </div>
+  );
+}
+
+function QuickPrivacyToggle({ title, description, enabled, onChange, isHindi }) {
+  return (
+    <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className={`h-3 w-3 rounded-full shrink-0 ${enabled ? "bg-emerald-500" : "bg-slate-300"}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-slate-800">{title}</p>
+        <p className="mt-1 text-[11px] leading-5 text-slate-500">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={() => onChange(!enabled)}
+        className={`relative h-7 w-12 shrink-0 rounded-full transition ${enabled ? "bg-teal-700" : "bg-slate-300"}`}
+      >
+        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${enabled ? "left-6" : "left-1"}`} />
+      </button>
     </div>
   );
 }

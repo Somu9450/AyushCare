@@ -58,8 +58,8 @@ async function uploadBlob(sessionId, page, documentType) {
         return response.blob();
       })();
 
-  if (!["image/jpeg", "image/png", "image/jpg"].includes(blob.type || page.mimeType)) {
-    throw new Error("The live kiosk upload flow currently accepts JPG/PNG images.");
+  if (!["image/jpeg", "image/png", "image/jpg", "image/webp"].includes(blob.type || page.mimeType)) {
+    throw new Error("The kiosk upload flow accepts JPEG, PNG, or WebP images.");
   }
 
   const fileName = page.fileName || `document-${page.pageNumber}.jpg`;
@@ -70,12 +70,25 @@ async function uploadBlob(sessionId, page, documentType) {
     body: JSON.stringify({ file_name: fileName, content_type: type }),
   }));
 
-  const putResponse = await fetch(uploadInfo.upload_url, {
-    method: "PUT",
-    headers: { "Content-Type": type },
-    body: blob,
-  });
-  if (!putResponse.ok) throw new Error(`Cloud upload failed (${putResponse.status}).`);
+  let putResponse = null;
+  let lastUploadError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      putResponse = await fetch(uploadInfo.upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": type },
+        body: blob,
+      });
+      if (putResponse.ok) break;
+      lastUploadError = new Error(`Cloud upload failed (${putResponse.status}).`);
+    } catch (error) {
+      lastUploadError = error;
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 700));
+  }
+  if (!putResponse?.ok) {
+    throw lastUploadError || new Error("Cloud upload failed.");
+  }
 
   const registered = unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/register-document`, {
     method: "POST",

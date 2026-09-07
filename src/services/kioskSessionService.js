@@ -30,6 +30,17 @@ export async function connectKioskSession(sessionReference) {
       kioskName: payload.kiosk_id,
       terminalId: payload.kiosk_id,
       consultationId: payload.consultation_id,
+      patient: payload.patient_code ? {
+        id: payload.patient_id || null,
+        patient_code: payload.patient_code,
+        full_name: payload.full_name || "",
+        gender: payload.gender || "",
+        date_of_birth: payload.date_of_birth || null,
+        mobile_number: payload.mobile_number || "",
+        address: payload.address || "",
+      } : null,
+      department: payload.department_name || null,
+      language: payload.language || null,
       status: payload.is_active ? "CONNECTED" : "DISCONNECTED",
       startedAt: payload.created_at,
       connectedAt: new Date().toISOString(),
@@ -49,6 +60,14 @@ export function validateKioskSession(session) {
 export const isKioskSessionActive = (session) => validateKioskSession(session).valid;
 export const getRemainingSessionSeconds = (session) => validateKioskSession(session).remainingSeconds || 0;
 
+export async function updateKioskSessionLanguage(sessionId, language) {
+  if (!sessionId || !language) throw new Error("Kiosk session and language are required.");
+  return unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/language`, {
+    method: "PUT",
+    body: JSON.stringify({ language }),
+  }));
+}
+
 export async function syncKioskUpload(sessionId) {
   if (!sessionId) throw new Error("Kiosk session is required.");
   const payload = unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/sync`, {
@@ -67,5 +86,5 @@ export function getDefaultDemoToken() { return ""; }
 export default {
   SESSION_TTL_SECONDS, DEFAULT_DEMO_TOKEN, parseKioskQrReference, connectKioskSession,
   validateKioskSession, isKioskSessionActive, getRemainingSessionSeconds,
-  syncKioskUpload, disconnectKioskSession, endKioskSession, createDemoKioskSession, buildKioskQrValue, getDefaultDemoToken,
+  syncKioskUpload, updateKioskSessionLanguage, disconnectKioskSession, endKioskSession, createDemoKioskSession, buildKioskQrValue, getDefaultDemoToken,
 };

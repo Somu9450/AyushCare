@@ -2,10 +2,11 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Languages } from "lucide-react";
 import { createPortal } from "react-dom";
 import useMobileStore from "../../store/useMobileStore";
+import { updateKioskSessionLanguage } from "../../services/kioskSessionService";
 import { OFFICIAL_INDIAN_LANGUAGES } from "../../constants/indianLanguages";
 
 export default function LanguageSwitcher({ floating = false }) {
-  const { selectedLanguage, setSelectedLanguage } = useMobileStore();
+  const { selectedLanguage, setSelectedLanguage, kioskSession } = useMobileStore();
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(null);
   const buttonRef = useRef(null);
@@ -89,6 +90,11 @@ export default function LanguageSwitcher({ floating = false }) {
                     onClick={() => {
                       setSelectedLanguage(item.code);
                       setOpen(false);
+                      if (kioskSession?.id && kioskSession?.status === "CONNECTED") {
+                        void updateKioskSessionLanguage(kioskSession.id, item.code).catch((error) => {
+                          console.warn("Kiosk language sync failed:", error?.message || error);
+                        });
+                      }
                     }}
                   >
                     <span className="mobile-language-native">{item.native}</span>

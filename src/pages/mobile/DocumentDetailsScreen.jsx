@@ -191,7 +191,16 @@ export const DocumentDetailsScreen = () => {
   const pages =
     Array.isArray(record?.pages) && record.pages.length > 0
       ? record.pages
-      : [];
+      : record?.download_url
+        ? [{
+            id: `${record.id || "record"}-page-1`,
+            fileName: record.fileName || record.title || "Medical document",
+            dataUrl: record.download_url,
+            image: record.download_url,
+            previewUrl: record.download_url,
+            imageUrl: record.download_url,
+          }]
+        : [];
 
   const totalPages =
     pages.length > 0
@@ -231,6 +240,7 @@ export const DocumentDetailsScreen = () => {
       clinic: source,
       dataUrl:
         record.dataUrl ||
+        record.download_url ||
         record.image ||
         documentPages[0]?.dataUrl ||
         null,

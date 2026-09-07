@@ -346,15 +346,12 @@ export default function M3_DocumentCapture() {
 
     const validFiles = files.filter((file) => {
       const isImage = file.type.startsWith("image/");
-      const isPdf =
-        file.type === "application/pdf" ||
-        file.name.toLowerCase().endsWith(".pdf");
-      return isImage || isPdf;
+      return isImage;
     });
 
     if (!validFiles.length) {
       setCameraError(
-        "Please select valid image (JPG, PNG) or PDF files."
+        "Please select a valid image (JPEG, PNG, or WebP)."
       );
       return;
     }
@@ -364,19 +361,14 @@ export default function M3_DocumentCapture() {
         (file) =>
           new Promise((resolve, reject) => {
             const reader = new FileReader();
-            const isPdf =
-              file.type === "application/pdf" ||
-              file.name.toLowerCase().endsWith(".pdf");
-
             reader.onload = () => {
               const result = reader.result;
               resolve({
+                file,
                 dataUrl: result,
                 previewUrl: result,
-                imageUrl: isPdf ? "" : result,
-                mimeType: isPdf
-                  ? "application/pdf"
-                  : file.type || "image/jpeg",
+                imageUrl: result,
+                mimeType: file.type || "image/jpeg",
                 fileName: file.name,
                 fileSize: file.size
                   ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
@@ -404,20 +396,20 @@ export default function M3_DocumentCapture() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <header className="absolute inset-x-0 top-0 z-20 border-b border-white/10 bg-black/30 text-white backdrop-blur">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="absolute inset-x-0 top-0 z-20 border-b border-slate-200 bg-white/95 text-slate-900 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
           <button
             type="button"
             onClick={handleBack}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100"
             aria-label="Back"
           >
             <ArrowLeft size={20} />
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-200">
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
               Step 2 of 6
             </p>
 
@@ -427,7 +419,7 @@ export default function M3_DocumentCapture() {
           </div>
 
           {existingPages.length > 0 && (
-            <div className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold">
+            <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold">
               {existingPages.length}{" "}
               {existingPages.length === 1
                 ? "page"
@@ -438,7 +430,7 @@ export default function M3_DocumentCapture() {
       </header>
 
       <main className="flex min-h-screen flex-col">
-        <div className="relative flex min-h-[62vh] flex-1 items-center justify-center overflow-hidden bg-black pt-20">
+        <div className="relative flex min-h-[62vh] flex-1 items-center justify-center overflow-hidden bg-slate-100 pt-20">
           <video
             ref={videoRef}
             autoPlay
@@ -448,10 +440,10 @@ export default function M3_DocumentCapture() {
           />
 
           {!cameraActive && (
-            <div className="flex max-w-sm flex-col items-center px-6 text-center text-white">
+            <div className="flex max-w-sm flex-col items-center px-6 text-center text-slate-900">
               {isStarting ? (
                 <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
                     <Camera
                       size={34}
                       className="animate-pulse"
@@ -462,14 +454,14 @@ export default function M3_DocumentCapture() {
                     Starting camera...
                   </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-white/70">
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
                     Please allow camera access when your
                     browser asks.
                   </p>
                 </>
               ) : (
                 <>
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100">
                     <AlertCircle size={34} />
                   </div>
 
@@ -477,7 +469,7 @@ export default function M3_DocumentCapture() {
                     Camera unavailable
                   </h2>
 
-                  <p className="mt-2 text-sm leading-6 text-white/70">
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
                     {cameraError ||
                       "You can select multiple photos or PDF documents from your device."}
                   </p>
@@ -499,24 +491,24 @@ export default function M3_DocumentCapture() {
 
           {cameraActive && (
             <>
-              <div className="pointer-events-none absolute inset-x-8 top-1/2 h-[55%] -translate-y-1/2 rounded-2xl border-2 border-white/70" />
+              <div className="pointer-events-none absolute inset-x-8 top-1/2 h-[55%] -translate-y-1/2 rounded-2xl border-2 border-teal-500" />
 
-              <div className="pointer-events-none absolute inset-x-12 top-1/2 -translate-y-1/2 text-center text-xs font-medium text-white/80">
+              <div className="pointer-events-none absolute inset-x-12 top-1/2 -translate-y-1/2 text-center text-xs font-medium text-slate-600">
                 Keep the entire document inside the frame
               </div>
             </>
           )}
 
           {cameraError && cameraActive && (
-            <div className="absolute inset-x-4 bottom-4 rounded-xl bg-red-950/90 p-3 text-sm text-white">
+            <div className="absolute inset-x-4 bottom-4 rounded-xl bg-red-950/90 p-3 text-sm text-slate-900">
               {cameraError}
             </div>
           )}
         </div>
 
-        <section className="rounded-t-3xl bg-slate-950 px-5 pb-8 pt-5 text-white">
+        <section className="rounded-t-3xl bg-white border-t border-slate-200 shadow-[0_-8px_30px_rgba(15,23,42,0.06)] px-5 pb-8 pt-5 text-slate-900">
           <div className="mx-auto max-w-2xl">
-            <p className="text-center text-sm text-white/70">
+            <p className="text-center text-sm text-slate-600">
               {existingPages.length
                 ? `${existingPages.length} ${existingPages.length === 1 ? "page" : "pages"} captured. Capture more or upload multiple photos/PDFs.`
                 : "Position the document inside the frame or upload photos/PDF."}
@@ -528,7 +520,7 @@ export default function M3_DocumentCapture() {
                 onClick={() =>
                   fileInputRef.current?.click()
                 }
-                className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10"
+                className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50"
                 aria-label="Upload photos or PDF"
                 title="Upload photos or PDF"
               >
@@ -539,7 +531,7 @@ export default function M3_DocumentCapture() {
                 type="button"
                 onClick={capturePhoto}
                 disabled={!cameraActive}
-                className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white/80 bg-white text-slate-900 shadow-xl disabled:opacity-40"
+                className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-teal-700 bg-white text-teal-800 shadow-xl disabled:opacity-40"
                 aria-label="Take photo"
               >
                 <Camera size={30} />
@@ -551,7 +543,7 @@ export default function M3_DocumentCapture() {
                   stopCamera();
                   startCamera();
                 }}
-                className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10"
+                className="flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50"
                 aria-label="Restart camera"
               >
                 <RotateCcw size={21} />
@@ -565,7 +557,7 @@ export default function M3_DocumentCapture() {
                   stopCamera();
                   setScreen("M4");
                 }}
-                className="mt-6 flex min-h-12 w-full items-center justify-center rounded-xl border border-white/20 bg-white/10 px-4 font-semibold"
+                className="mt-6 flex min-h-12 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 font-semibold"
               >
                 Review {existingPages.length}{" "}
                 {existingPages.length === 1
@@ -574,8 +566,8 @@ export default function M3_DocumentCapture() {
               </button>
             )}
 
-            <p className="mt-5 text-center text-xs leading-5 text-white/50">
-              Supports photos (JPEG, PNG) and PDF documents. Multiple files can be selected at once.
+            <p className="mt-5 text-center text-xs leading-5 text-slate-500">
+              Supports JPEG, PNG, and WebP images. Multiple images can be selected at once.
             </p>
           </div>
         </section>
@@ -585,7 +577,7 @@ export default function M3_DocumentCapture() {
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,application/pdf,.pdf"
+        accept="image/jpeg,image/png,image/webp" capture="environment"
         className="hidden"
         onChange={handleFileChange}
       />

@@ -1841,6 +1841,80 @@ export const useMobileStore = create((set, get) => ({
    * It only prevents the mobile companion from
    * sharing health history through the handoff.
    */
+  loadPortalData: async () => {
+    try {
+      const [dashboard, visits, documents] = await Promise.all([
+        getPortalDashboard().catch(() => null),
+        getPortalVisits().catch(() => []),
+        getPortalDocuments().catch(() => []),
+      ]);
+      const normalizedVisits = Array.isArray(visits) ? visits : [];
+      const normalizedDocuments = Array.isArray(documents)
+        ? documents.map(normalizePortalDocument)
+        : [];
+      set((state) => ({
+        patient: dashboard?.patient || state.patient,
+        session: {
+          ...state.session,
+          patient: dashboard?.patient || state.session?.patient,
+        },
+        visits: normalizedVisits,
+        appointments: normalizedVisits.filter((visit) => visit.status !== "complete" && visit.status !== "cancelled"),
+        medicalRecords: normalizedDocuments,
+      }));
+      return { dashboard, visits: normalizedVisits, documents: normalizedDocuments };
+    } catch (error) {
+      console.warn("Portal data could not be loaded:", error?.message || error);
+      return null;
+    }
+  },
+
+  loadPrivacySettings: async () => {
+    try {
+      const response = await apiRequest("/mobile/portal/privacy-settings");
+      const settings = unwrapApiResponse(response);
+      set((state) => ({
+        privacyData: { ...state.privacyData, serverSettings: settings },
+      }));
+      return settings;
+    } catch (error) {
+      console.warn("Privacy settings could not be loaded:", error?.message || error);
+      return null;
+    }
+  },
+
+  updatePrivacySetting: async (field, value) => {
+    const allowed = new Set([
+      "isolate_past_history",
+      "consent_voice_processing",
+      "lock_diagnosis",
+      "lock_visits",
+      "lock_reports",
+    ]);
+    if (!allowed.has(field)) return { success: false, error: "Unsupported privacy setting" };
+    const current = get().privacyData?.serverSettings || {};
+    const payload = { ...current, [field]: Boolean(value) };
+    try {
+      const response = await apiRequest("/mobile/portal/privacy-settings", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      const saved = unwrapApiResponse(response);
+      set((state) => ({
+        privacyData: {
+          ...state.privacyData,
+          serverSettings: saved,
+        },
+        isHealthHistoryLocked:
+          field === "isolate_past_history" ? Boolean(value) : state.isHealthHistoryLocked,
+      }));
+      return { success: true, data: saved };
+    } catch (error) {
+      console.error("Privacy setting update failed:", error);
+      return { success: false, error: error?.message || "Unable to save privacy setting" };
+    }
+  },
+
   setHealthHistoryLocked: (locked) => {
     const value = Boolean(locked);
 

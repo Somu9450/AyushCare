@@ -404,6 +404,11 @@ export const M1_MobileHome =
                       : "Not Linked"
                   )}
               </span>
+              {(resolvedPatient.patient_code || resolvedPatient.patientId || resolvedPatient.patient_id) && (
+                <span className="mt-1 inline-block text-[11px] font-bold text-slate-600 bg-white px-2.5 py-1 rounded-full border border-slate-200">
+                  {isHindi ? "रोगी ID:" : "Patient ID:"} {resolvedPatient.patient_code || resolvedPatient.patientId || resolvedPatient.patient_id}
+                </span>
+              )}
             </div>
           </section>
 
