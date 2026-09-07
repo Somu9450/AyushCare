@@ -57,10 +57,11 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-120b"
     groq_max_tokens: int = 8192
     groq_temperature: float = 0.2
+    groq_vision_model: str = "qwen/qwen3-vl-32b-instruct"
     llm_request_timeout_seconds: float = 10.0
 
     # ── OCR ──────────────────────────────────────────────────────────────
-    ocr_provider: str = "gemini_vision"  # "gemini_vision" (free with Gemini) | "tesseract"
+    ocr_provider: str = "groq_vision"  # "groq_vision" | "gemini_vision" | "tesseract"
     tesseract_cmd: Optional[str] = None
 
     # ── ASR — Speech-to-Text ─────────────────────────────────────────────
