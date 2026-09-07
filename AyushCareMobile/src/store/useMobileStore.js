@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
-import { syncKioskUpload } from "../services/kioskSessionService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -26,8 +25,6 @@ export const SCREENS = {
   PRIVACY: "PRIVACY",
   CONSENT_DETAILS: "CONSENT_DETAILS",
 
-  KIOSK_CONNECT: "KIOSK_CONNECT",
-  KIOSK_SESSION: "KIOSK_SESSION",
 
   PROFILE: "PROFILE",
   SETTINGS: "SETTINGS",
@@ -73,8 +70,6 @@ export const SCREEN_FALLBACK_PARENTS = {
   [SCREENS.SETTINGS]: SCREENS.MORE,
   [SCREENS.ABOUT]: SCREENS.MORE,
 
-  [SCREENS.KIOSK_CONNECT]: SCREENS.M1,
-  [SCREENS.KIOSK_SESSION]: SCREENS.M1,
 
   [SCREENS.M2]: SCREENS.M1,
   [SCREENS.M3]: SCREENS.M2,
@@ -496,6 +491,20 @@ export const useMobileStore = create((set, get) => ({
     patient: null,
   },
 
+  documentUploadContext: {
+    consultationId: null,
+    source: null,
+  },
+
+  setDocumentUploadContext: (context = {}) => {
+    set({
+      documentUploadContext: {
+        consultationId: context.consultationId || null,
+        source: context.source || null,
+      },
+    });
+  },
+
   /* ---------------------------------------------------------------------- */
   /* APPOINTMENTS                                                           */
   /* ---------------------------------------------------------------------- */
@@ -718,6 +727,9 @@ export const useMobileStore = create((set, get) => ({
   activeSetId: null,
 
   selectedDocumentType: "prescription",
+  documentProcessingConsent: false,
+
+  setDocumentProcessingConsent: (value) => set({ documentProcessingConsent: Boolean(value) }),
 
   setSelectedDocumentType: (type) => {
     const normalizedType = normalizeDocumentType(type);
@@ -1298,7 +1310,7 @@ export const useMobileStore = create((set, get) => ({
           "Medical Document",
 
         pages,
-        kioskSessionId: state.kioskSession?.id,
+        consultationId: state.documentUploadContext?.consultationId || null,
       };
 
       const result = await analyzeDocumentOCR(
@@ -1663,7 +1675,7 @@ export const useMobileStore = create((set, get) => ({
 
       patientId,
 
-      sessionId: state.session?.sessionId || state.kioskSession?.id || null,
+      sessionId: state.documentUploadContext?.consultationId || state.session?.sessionId || null,
 
       fileSize: document.fileSize || `${(pages.length * 1.2).toFixed(1)} MB`,
 
@@ -2505,10 +2517,7 @@ export const useMobileStore = create((set, get) => ({
     try {
       const current = get();
 
-      const sessionId =
-        current.session?.sessionId ||
-        current.kioskSession?.id ||
-        "mobile-session";
+      const sessionId = current.session?.sessionId || null;
 
       const payload = {
         extracted: clone(current.extractedData),
@@ -2528,12 +2537,7 @@ export const useMobileStore = create((set, get) => ({
         },
       };
 
-      let result;
-      if (current.kioskSession?.id) {
-        result = await syncKioskUpload(current.kioskSession.id);
-      } else {
-        result = await sendSummaryToDoctor(sessionId, payload);
-      }
+      const result = await sendSummaryToDoctor(sessionId, payload);
 
       set((latest) => ({
         isSendingToDoctor: false,
@@ -2691,9 +2695,9 @@ export const useMobileStore = create((set, get) => ({
 
         session: {
           ...state.session,
-
           patient: null,
         },
+        documentUploadContext: { consultationId: null, source: null },
 
         kioskSession: {
           ...state.kioskSession,
@@ -2778,6 +2782,7 @@ export const useMobileStore = create((set, get) => ({
       isSessionExpired: false,
 
       selectedDocumentType: "prescription",
+      documentUploadContext: { consultationId: null, source: null },
 
       documentDraft: createEmptyDocumentDraft("prescription"),
 

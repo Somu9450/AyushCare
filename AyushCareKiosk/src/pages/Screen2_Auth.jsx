@@ -7,6 +7,7 @@ import KioskInput from '../components/common/KioskInput';
 const cleanDigits = (v) => String(v || '').replace(/\D/g, '');
 const normalizePatient = (p = {}) => ({
   ...p,
+  id: p.id || p.patient_uuid || null,
   patientId: p.patientId || p.patient_id || p.patient_code || p.code || '',
   full_name: p.full_name || p.fullName || p.name || '',
   age: p.age ?? '',
@@ -200,14 +201,14 @@ export default function Screen2_Auth() {
               <h3>Multiple patients found</h3>
               {matches.map((p) => (
                 <button
-                  key={p.patientId}
-                  className={`patient-match ${selected?.patientId === p.patientId ? 'selected' : ''}`}
+                  key={p.id || p.patientId}
+                  className={`patient-match ${selected?.id === p.id ? 'selected' : ''}`}
                   onClick={() => selectOldPatient(p)}
                 >
                   <span>
                     <strong>{p.full_name || 'Patient'}</strong>
                     <small>ID: {p.patientId} · Age {p.age || '—'} · {p.gender || '—'}</small>
-                    <small>{p.mobileNumber || '—'}</small>
+                    <small>{p.mobileNumber || '—'}</small>{Array.isArray(p.recent_visits) && p.recent_visits.length > 0 && <small>{p.recent_visits.slice(0, 2).map((v) => v.department_name).filter(Boolean).join(' • ')}</small>}
                   </span>
                   <ArrowRight size={19} />
                 </button>

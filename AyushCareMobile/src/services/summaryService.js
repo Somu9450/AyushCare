@@ -2,7 +2,7 @@
 import { apiRequest, unwrapApiResponse } from "./apiClient";
 
 export async function fetchHealthSummary(state = {}) {
-  const sessionId = state.kioskSession?.consultationId || state.session?.sessionId || state.kioskSession?.id;
+  const sessionId = state.documentUploadContext?.consultationId || state.session?.sessionId || null;
   if (!sessionId) return { success: true, summary: { status: "EMPTY", title: "Health summary" } };
   try {
     const data = unwrapApiResponse(await apiRequest(`/intake/session/${encodeURIComponent(sessionId)}/summary`));
@@ -16,7 +16,6 @@ export async function fetchMedicalTimeline() { return { success: true, timeline:
 export function buildDoctorHandoffPayload(state = {}) {
   return {
     patient: state.patient || null,
-    kioskSession: state.kioskSession || null,
     summary: state.healthSummary || null,
     extracted: state.extractedData || {},
     timeline: state.timeline || [],
@@ -25,10 +24,10 @@ export function buildDoctorHandoffPayload(state = {}) {
   };
 }
 export async function sendSummaryToDoctor(sessionId, payload = {}) {
-  if (!sessionId) throw new Error("A valid kiosk session is required.");
+  if (!sessionId) throw new Error("A valid mobile visit is required.");
   return { success: true, status: "LOCAL_HANDOFF_READY", sessionId, payload };
 }
 export async function sendCurrentStateToDoctor(state = {}) {
-  return sendSummaryToDoctor(state.kioskSession?.id || state.session?.sessionId, buildDoctorHandoffPayload(state));
+  return sendSummaryToDoctor(state.documentUploadContext?.consultationId || state.session?.sessionId, buildDoctorHandoffPayload(state));
 }
 export default { fetchHealthSummary, fetchMedicalTimeline, buildDoctorHandoffPayload, sendSummaryToDoctor, sendCurrentStateToDoctor };

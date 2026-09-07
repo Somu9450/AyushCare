@@ -9,7 +9,7 @@ pydantic-settings
 google-generativeai
 groq
 
-# OCR & Vision (Gemini Vision + Tesseract)
+# OCR & Vision (Groq Vision + Tesseract)
 Pillow
 pytesseract
 

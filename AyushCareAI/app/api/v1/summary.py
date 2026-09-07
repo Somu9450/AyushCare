@@ -33,6 +33,11 @@ async def generate_summary(
         raise HTTPException(status_code=404, detail="Session not found.")
 
     conversation_history = data.get("conversation_history", [])
+    # Use frontend-provided history as fallback when the backend session
+    # has no history (e.g. when the kiosk intake proxy doesn't share the
+    # same Redis session store as the AI conversation service).
+    if not conversation_history and body.conversation_history:
+        conversation_history = body.conversation_history
     if not conversation_history:
         raise HTTPException(status_code=400, detail="No conversation history. Complete the interview first.")
 

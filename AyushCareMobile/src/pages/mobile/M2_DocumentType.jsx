@@ -45,13 +45,15 @@ const DOCUMENT_TYPES = [
 export default function M2_DocumentType() {
   const {
     selectedDocumentType,
+    documentProcessingConsent,
     setSelectedDocumentType,
+    setDocumentProcessingConsent,
     setScreen,
   } = useMobileStore();
 
   const handleSelect = (type) => {
+    if (!documentProcessingConsent) return;
     setSelectedDocumentType(type.id);
-
     setScreen("M3");
   };
 
@@ -107,9 +109,8 @@ export default function M2_DocumentType() {
                   <button
                     key={type.id}
                     type="button"
-                    onClick={() =>
-                      handleSelect(type)
-                    }
+                    onClick={() => handleSelect(type)}
+                    disabled={!documentProcessingConsent}
                     className={`flex w-full items-center gap-4 rounded-3xl border bg-white p-4 text-left shadow-sm transition active:scale-[0.99] ${
                       selected
                         ? "border-blue-300 ring-2 ring-blue-50"
@@ -152,6 +153,11 @@ export default function M2_DocumentType() {
               },
             )}
           </div>
+
+          <label className="mt-6 flex items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50 p-4 text-left">
+            <input type="checkbox" checked={Boolean(documentProcessingConsent)} onChange={(e) => setDocumentProcessingConsent(e.target.checked)} className="mt-1 h-5 w-5 accent-teal-700" />
+            <span className="text-sm leading-5 text-teal-950"><strong>I agree to secure document analysis.</strong><br/><span className="text-xs text-teal-800">AyushCare will read this image to extract useful medical information and save it to my account.</span></span>
+          </label>
 
           {/* Privacy note */}
           <section className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-4">

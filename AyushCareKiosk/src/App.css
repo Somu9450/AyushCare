@@ -660,3 +660,118 @@ button:disabled { cursor: not-allowed; }
 .consent-card-heading h3 { margin: 0; }
 .consent-card-heading p { margin: 5px 0 0; color: var(--muted); line-height: 1.5; }
 .consent-line strong { color: var(--teal-800); }
+
+/* ── Language Selection Screen ─────────────────────────────────────────── */
+.language-select-screen .language-select-icon { color: var(--teal-700); }
+
+.language-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.language-select-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all .2s ease;
+  text-align: left;
+}
+
+.language-select-card:hover {
+  border-color: var(--teal-600);
+  background: var(--teal-50);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(11, 141, 130, .12);
+}
+
+.language-select-card.selected {
+  border-color: var(--teal-700);
+  background: var(--teal-50);
+  box-shadow: 0 0 0 3px rgba(11, 141, 130, .15);
+}
+
+.language-select-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.language-select-native {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.language-select-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--teal-700);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.language-select-name {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.language-select-features {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--teal-700);
+  margin-top: 2px;
+}
+
+/* ── Hold-to-Speak Button ──────────────────────────────────────────────── */
+.hold-to-speak-btn {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.hold-to-speak-btn.recording {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-color: #f59e0b;
+  color: #92400e;
+  animation: hold-pulse 1.2s ease-in-out infinite;
+}
+
+.hold-hint {
+  display: block;
+  font-size: .72rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin-top: -4px;
+  text-align: center;
+}
+
+.pulse-mic {
+  animation: mic-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes hold-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .3); }
+  50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+}
+
+@keyframes mic-pulse {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: .6; transform: scale(1.15); }
+}

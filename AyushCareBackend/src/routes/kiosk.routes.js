@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { performAbhaRegister, lookupPatients, createKioskSession, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth } from '../controllers/kiosk.controller.js';
+import { performAbhaRegister, lookupPatients, createKioskSession, createPatientUploadQr, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth } from '../controllers/kiosk.controller.js';
 import { rawAudio } from '../middleware/rawAudio.middleware.js';
 
 const router = Router();
@@ -33,6 +33,7 @@ router.post('/session/:session_id/token', generateToken);
 router.post('/session/:session_id/complete', completeSession);
 router.post('/session/:session_id/cancel', cancelSession);
 router.get('/session/:session_id/fhir/preview', fhirPreview);
+router.post('/session/:session_id/patient-upload-qr', createPatientUploadQr);
 
 // Backward-compatible endpoint used by the first kiosk prototype.
 router.post('/dialogue/next', async (req,res,next) => {
