@@ -69,7 +69,9 @@ class TTSService:
         try:
             import edge_tts
 
-            voice = _EDGE_VOICE_MAP.get(language, "en-IN-NeerjaNeural")
+            voice = _EDGE_VOICE_MAP.get(language)
+            if not voice:
+                raise TTSError(f"TTS voice is not configured for language: {language}")
             rate_diff = int((speaking_rate - 1.0) * 100)
             rate_str = f"{rate_diff:+d}%"
 
