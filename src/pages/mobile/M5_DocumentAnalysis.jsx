@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Sparkles,
 } from "lucide-react";
+
 import { useMobileStore } from "../../store/useMobileStore";
 import { analyzeDocumentOCR } from "../../services/documentService";
 
@@ -24,9 +25,13 @@ const normalizePages = (capturedDocuments, capturedDocument) => {
 const getProgressValue = (value) => {
   const numeric = Number(value);
 
-  if (!Number.isFinite(numeric)) return 0;
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
 
-  if (numeric <= 1) return Math.round(numeric * 100);
+  if (numeric <= 1) {
+    return Math.round(numeric * 100);
+  }
 
   return Math.max(0, Math.min(100, Math.round(numeric)));
 };
@@ -37,16 +42,23 @@ export default function M5_DocumentAnalysis() {
     capturedDocuments,
     selectedDocumentType,
     documentType,
+    kioskSession,
     setExtractedData,
     setScreen,
   } = useMobileStore();
 
   const [progress, setProgress] = useState(0);
-  const [stage, setStage] = useState("Preparing your document...");
+  const [stage, setStage] = useState(
+    "Preparing your document..."
+  );
   const [error, setError] = useState("");
 
   const pages = useMemo(
-    () => normalizePages(capturedDocuments, capturedDocument),
+    () =>
+      normalizePages(
+        capturedDocuments,
+        capturedDocument
+      ),
     [capturedDocuments, capturedDocument]
   );
 
@@ -56,24 +68,69 @@ export default function M5_DocumentAnalysis() {
     capturedDocument?.documentType ||
     "other";
 
+  /*
+   * The QR pairing creates the active kiosk session.
+   *
+   * Different parts of the backend/store may expose the
+   * identifier using different names, so accept all known forms.
+   */
+  const kioskSessionId =
+    kioskSession?.id ||
+    kioskSession?.session_id ||
+    kioskSession?.sessionId ||
+    null;
+
   useEffect(() => {
     let cancelled = false;
 
     const runAnalysis = async () => {
       if (!pages.length) {
-        setError("No document is available for analysis.");
+        setError(
+          "No document is available for analysis."
+        );
+        return;
+      }
+
+      if (!kioskSessionId) {
+        console.error(
+          "Document analysis blocked: no active kiosk session.",
+          {
+            kioskSession,
+          }
+        );
+
+        setError(
+          "The kiosk connection was lost. Please reconnect to the kiosk and try again."
+        );
         return;
       }
 
       try {
         setProgress(8);
-        setStage("Preparing document images...");
+        setStage(
+          "Preparing document images..."
+        );
 
+        /*
+         * IMPORTANT:
+         *
+         * This was the missing value in the previous version.
+         *
+         * documentService.analyzeDocumentOCR() expects:
+         *
+         * input.kioskSessionId
+         */
         const input = {
+          kioskSessionId,
+
           documentType: activeType,
+
           pages,
+
           images: pages,
+
           pageCount: pages.length,
+
           document: {
             ...capturedDocument,
             pages,
@@ -82,43 +139,81 @@ export default function M5_DocumentAnalysis() {
           },
         };
 
-        const result = await analyzeDocumentOCR(input, (update) => {
-          if (cancelled) return;
+        console.log(
+          "Starting document analysis for kiosk session:",
+          kioskSessionId
+        );
 
-          if (typeof update === "number") {
-            setProgress(getProgressValue(update));
-            return;
-          }
+        const result =
+          await analyzeDocumentOCR(
+            input,
+            (update) => {
+              if (cancelled) {
+                return;
+              }
 
-          if (update && typeof update === "object") {
-            if (update.progress !== undefined) {
-              setProgress(getProgressValue(update.progress));
-            }
+              if (typeof update === "number") {
+                setProgress(
+                  getProgressValue(update)
+                );
+                return;
+              }
 
-            if (update.label || update.stage || update.message) {
-              setStage(
-                update.label ||
+              if (
+                update &&
+                typeof update === "object"
+              ) {
+                if (
+                  update.progress !== undefined
+                ) {
+                  setProgress(
+                    getProgressValue(
+                      update.progress
+                    )
+                  );
+                }
+
+                if (
+                  update.label ||
                   update.stage ||
-                  update.message ||
-                  "Analyzing document..."
-              );
+                  update.message
+                ) {
+                  setStage(
+                    update.label ||
+                      update.stage ||
+                      update.message ||
+                      "Analyzing document..."
+                  );
+                }
+              }
             }
-          }
-        });
+          );
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         setProgress(100);
         setStage("Document analyzed");
 
-        if (typeof setExtractedData === "function") {
+        if (
+          typeof setExtractedData ===
+          "function"
+        ) {
           setExtractedData({
             ...result,
+
             documentType: activeType,
+
             pageCount: pages.length,
+
             sourceDocument: {
-              id: capturedDocument?.id || null,
+              id:
+                capturedDocument?.id ||
+                null,
+
               documentType: activeType,
+
               pageCount: pages.length,
             },
           });
@@ -130,11 +225,15 @@ export default function M5_DocumentAnalysis() {
           }
         }, 500);
       } catch (analysisError) {
-        console.error("Document analysis failed:", analysisError);
+        console.error(
+          "Document analysis failed:",
+          analysisError
+        );
 
         if (!cancelled) {
           setError(
-            "We could not analyze this document. You can go back and retake a clearer photo."
+            analysisError?.message ||
+              "We could not analyze this document. Please try again."
           );
         }
       }
@@ -148,6 +247,8 @@ export default function M5_DocumentAnalysis() {
   }, [
     activeType,
     capturedDocument,
+    kioskSessionId,
+    kioskSession,
     pages,
     setExtractedData,
     setScreen,
@@ -170,6 +271,7 @@ export default function M5_DocumentAnalysis() {
             <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
               Step 4 of 6
             </p>
+
             <h1 className="text-lg font-bold text-slate-900">
               Analyzing document
             </h1>
@@ -185,14 +287,20 @@ export default function M5_DocumentAnalysis() {
                 {progress >= 100 ? (
                   <CheckCircle2 size={42} />
                 ) : (
-                  <LoaderCircle size={42} className="animate-spin" />
+                  <LoaderCircle
+                    size={42}
+                    className="animate-spin"
+                  />
                 )}
               </div>
 
               <div className="mt-6 text-center">
                 <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
                   {pages.length}{" "}
-                  {pages.length === 1 ? "page" : "pages"} • {activeType}
+                  {pages.length === 1
+                    ? "page"
+                    : "pages"}{" "}
+                  • {activeType}
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
@@ -209,42 +317,63 @@ export default function M5_DocumentAnalysis() {
               <div className="mt-7">
                 <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
                   <span>Processing</span>
-                  <span>{progress}%</span>
+                  <span>
+                    {progress}%
+                  </span>
                 </div>
 
                 <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-teal-700 transition-all duration-300"
-                    style={{ width: `${progress}%` }}
+                    style={{
+                      width: `${progress}%`,
+                    }}
                   />
                 </div>
               </div>
 
               <div className="mt-7 space-y-3">
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                  <FileSearch size={19} className="text-teal-700" />
+                  <FileSearch
+                    size={19}
+                    className="text-teal-700"
+                  />
+
                   <span className="text-sm text-slate-700">
-                    Reading text and document structure
+                    Reading text and document
+                    structure
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                  <Sparkles size={19} className="text-teal-700" />
+                  <Sparkles
+                    size={19}
+                    className="text-teal-700"
+                  />
+
                   <span className="text-sm text-slate-700">
-                    Identifying medicines, dates and clinical information
+                    Identifying medicines,
+                    dates and clinical
+                    information
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                  <CheckCircle2 size={19} className="text-teal-700" />
+                  <CheckCircle2
+                    size={19}
+                    className="text-teal-700"
+                  />
+
                   <span className="text-sm text-slate-700">
-                    Preparing information for your review
+                    Preparing information
+                    for your review
                   </span>
                 </div>
               </div>
 
               <p className="mt-7 text-center text-xs leading-5 text-slate-500">
-                Please keep this screen open while the document is being
+                Please keep this screen open
+                while the document is being
                 processed.
               </p>
             </>
@@ -256,7 +385,8 @@ export default function M5_DocumentAnalysis() {
 
               <div className="mt-6 text-center">
                 <h2 className="text-2xl font-bold text-slate-900">
-                  Analysis could not be completed
+                  Analysis could not be
+                  completed
                 </h2>
 
                 <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -266,7 +396,9 @@ export default function M5_DocumentAnalysis() {
 
               <button
                 type="button"
-                onClick={() => setScreen("M4")}
+                onClick={() =>
+                  setScreen("M4")
+                }
                 className="mt-7 flex min-h-13 w-full items-center justify-center rounded-xl bg-teal-700 px-4 py-3 font-semibold text-white"
               >
                 Review document

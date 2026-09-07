@@ -1,229 +1,85 @@
-/**
- * Authentication Service
- *
- * Current version:
- * - Mock OTP authentication
- * - No real credentials are stored
- * - Designed to mirror the future backend API boundary
- *
- * Supported authentication methods:
- * - Mobile number
- * - ABHA ID
- * - Aadhaar
- *
- * Kiosk QR sessions intentionally do NOT use this service.
- * A QR-connected patient already has a short-lived kiosk session.
- */
 
-const MOCK_OTP = "123456";
+import { apiRequest, unwrapApiResponse } from "./apiClient";
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function normalizeIdentifier(identifier) {
-  return String(identifier || "").trim();
+function normalizeMobile(value) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  return raw.startsWith("+") ? raw : raw;
 }
 
-function normalizeAuthType(authType) {
-  const value = String(authType || "mobile").toLowerCase();
-
-  if (value === "abha" || value === "abha_id") {
-    return "abha";
-  }
-
-  if (value === "aadhaar" || value === "aadhar") {
-    return "aadhaar";
-  }
-
-  return "mobile";
+function maskMobile(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 4 ? `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}` : "****";
 }
 
-function createSessionId() {
-  return `mob_sess_${Date.now()}_${Math.floor(
-    100 + Math.random() * 900,
-  )}`;
-}
-
-/**
- * Request an OTP.
- *
- * Production API:
- * POST /api/v1/mobile/auth/request-otp
- *
- * Request:
- * {
- *   authType: "mobile" | "abha" | "aadhaar",
- *   identifier: "..."
- * }
- */
-export async function requestOtp({
-  authType = "mobile",
-  identifier = "",
-} = {}) {
-  await wait(400);
-
-  const normalizedIdentifier = normalizeIdentifier(identifier);
-  const normalizedAuthType = normalizeAuthType(authType);
-
-  if (!normalizedIdentifier) {
-    return {
-      success: false,
-      error: "Please enter your registered identifier.",
-    };
+export async function requestOtp({ authType = "MOBILE", identifier = "" } = {}) {
+  if (String(authType).toUpperCase() !== "MOBILE") {
+    return { success: false, error: "The current backend supports patient portal OTP through a mobile number." };
   }
+  const mobileNumber = normalizeMobile(identifier);
+  if (!/^\+91\d{10}$/.test(mobileNumber)) {
+    return { success: false, error: "Enter a valid 10-digit Indian mobile number." };
+  }
+
+  const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/send-otp", {
+    method: "POST",
+    body: JSON.stringify({ mobileNumber }),
+  }));
 
   return {
     success: true,
-    authType: normalizedAuthType,
-    maskedIdentifier: maskIdentifier(
-      normalizedIdentifier,
-      normalizedAuthType,
-    ),
+    authType: "MOBILE",
+    mobileNumber,
+    maskedIdentifier: maskMobile(mobileNumber),
     otpSent: true,
-
-    // Prototype-only information.
-    // A real backend must NEVER return the OTP to the client.
-    demoOtp: MOCK_OTP,
-
     expiresInSeconds: 300,
+    ...payload,
   };
 }
 
-/**
- * Verify OTP and create a mobile session.
- *
- * Production API:
- * POST /api/v1/mobile/auth/verify-otp
- */
-export async function verifyOtp({
-  authType = "mobile",
-  identifier = "",
-  otp = "",
-} = {}) {
-  await wait(500);
-
-  const normalizedIdentifier = normalizeIdentifier(identifier);
-  const normalizedAuthType = normalizeAuthType(authType);
-  const normalizedOtp = String(otp || "").trim();
-
-  if (!normalizedIdentifier) {
-    return {
-      success: false,
-      error: "Identifier is required.",
-    };
+export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = "" } = {}) {
+  if (String(authType).toUpperCase() !== "MOBILE") {
+    return { success: false, error: "The current backend supports mobile OTP authentication." };
   }
 
-  if (!/^\d{6}$/.test(normalizedOtp)) {
-    return {
-      success: false,
-      error: "Enter the 6-digit OTP.",
-    };
+  const mobileNumber = normalizeMobile(identifier);
+  if (!/^\d{6}$/.test(String(otp).trim())) {
+    return { success: false, error: "Enter the 6-digit OTP." };
   }
 
-  if (normalizedOtp !== MOCK_OTP) {
-    return {
-      success: false,
-      error: "Invalid OTP. Use 123456 in this prototype.",
-    };
+  const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/verify-otp", {
+    method: "POST",
+    body: JSON.stringify({ mobileNumber, otp: String(otp).trim() }),
+  }));
+
+  const accessToken = payload?.accessToken;
+  if (accessToken) {
+    try { localStorage.setItem("ayushcare_access_token", accessToken); } catch {}
   }
 
   return {
     success: true,
-
-    user: {
-      id: "pat_88129012",
-      patientId: "PATIENT-001",
-      authType: normalizedAuthType,
-      identifier: normalizedIdentifier,
-    },
-
+    ...payload,
+    user: payload?.patient ? {
+      id: payload.patient.id,
+      patientId: payload.patient.id,
+      name: payload.patient.full_name,
+      mobile: payload.patient.mobile_number,
+    } : payload?.user,
     session: {
-      sessionId: createSessionId(),
-      authenticatedAt: new Date().toISOString(),
-      expiresInSeconds: 3600,
+      sessionId: payload?.patient?.id || null,
+      expiresInSeconds: 86400,
     },
   };
 }
 
-/**
- * Convenience login function used by AuthScreen.
- *
- * Production implementation can collapse this into the backend
- * request/verify flow while keeping the UI contract unchanged.
- */
-export async function loginPatient({
-  authType = "mobile",
-  identifier = "",
-  otp = MOCK_OTP,
-} = {}) {
-  const otpRequest = await requestOtp({
-    authType,
-    identifier,
-  });
-
-  if (!otpRequest.success) {
-    return otpRequest;
-  }
-
-  return verifyOtp({
-    authType,
-    identifier,
-    otp,
-  });
+export async function loginPatient({ authType = "MOBILE", identifier = "", otp = "" } = {}) {
+  return verifyOtp({ authType, identifier, otp });
 }
 
-/**
- * End the authenticated mobile session.
- *
- * Production API:
- * POST /api/v1/mobile/auth/logout
- */
-export async function logoutPatient(sessionId) {
-  await wait(150);
-
-  return {
-    success: true,
-    sessionId: sessionId || null,
-    loggedOutAt: new Date().toISOString(),
-  };
+export async function logoutPatient() {
+  try { localStorage.removeItem("ayushcare_access_token"); } catch {}
+  return { success: true };
 }
-
-/**
- * Mask identifiers before displaying them in the UI.
- */
-function maskIdentifier(identifier, authType) {
-  if (authType === "mobile") {
-    const digits = identifier.replace(/\D/g, "");
-
-    if (digits.length >= 4) {
-      return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(
-        -4,
-      )}`;
-    }
-
-    return "****";
-  }
-
-  if (authType === "aadhaar") {
-    const digits = identifier.replace(/\D/g, "");
-
-    if (digits.length >= 4) {
-      return `XXXX XXXX ${digits.slice(-4)}`;
-    }
-
-    return "XXXX XXXX XXXX";
-  }
-
-  if (authType === "abha") {
-    const compact = identifier.replace(/\s/g, "");
-
-    if (compact.length >= 4) {
-      return `${compact.slice(0, 2)}-XXXX-XXXX-${compact.slice(-4)}`;
-    }
-
-    return "XX-XXXX-XXXX-XXXX";
-  }
-
-  return "********";
-}
-
-export { MOCK_OTP };

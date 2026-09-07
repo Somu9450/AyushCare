@@ -107,7 +107,7 @@ function BottomNavBar() {
   return (
     <nav
       aria-label="Primary navigation"
-      className="sticky bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur"
+      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200 bg-white/95 backdrop-blur-xl"
     >
       <div className="mx-auto grid max-w-5xl grid-cols-4 px-2 pb-[env(safe-area-inset-bottom)]">
         {NAV_ITEMS.map(
@@ -133,7 +133,7 @@ function BottomNavBar() {
                     ? "page"
                     : undefined
                 }
-                className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                className={`mobile-bottom-nav-item flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-teal-500 ${
                   active
                     ? "text-blue-600"
                     : "text-slate-500 hover:text-slate-700"

@@ -22,7 +22,6 @@ import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
 import OriginalDocModal from "../../components/mobile/OriginalDocModal";
 import EditItemModal from "../../components/mobile/EditItemModal";
-import { mockVisits } from "../../data/mockData";
 import useLanguage from "../../i18n/translations";
 
 const normalizeArray = (value) => {
@@ -159,8 +158,8 @@ export const DocumentDetailsScreen = () => {
     if (!record?.visitId) return null;
 
     return (
-      (Array.isArray(mockVisits)
-        ? mockVisits.find((visit) => visit.id === record.visitId)
+      (Array.isArray([])
+        ? [].find((visit) => visit.id === record.visitId)
         : null) || null
     );
   }, [record]);

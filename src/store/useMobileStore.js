@@ -1,17 +1,8 @@
 import { create } from "zustand";
 
-import {
-  mockSession,
-  mockExtractedData,
-  mockTimeline,
-  mockHealthSummary,
-  mockDefaultDocument,
-  mockMedicalRecords,
-  mockPrivacyData,
-} from "../data/mockData.js";
-
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
+import { syncKioskUpload } from "../services/kioskSessionService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -204,7 +195,7 @@ const EMPTY_DOCUMENT = {
 
 const createDefaultDocument = () => ({
   ...EMPTY_DOCUMENT,
-  ...clone(mockDefaultDocument),
+  id: createDocumentId("DRAFT"),
 });
 
 const normalizePage = (page, index = 0, documentType = "prescription") => {
@@ -501,7 +492,7 @@ export const useMobileStore = create((set, get) => ({
   /* ---------------------------------------------------------------------- */
 
   session: {
-    ...clone(mockSession),
+    sessionId: null,
     patient: null,
   },
 
@@ -557,7 +548,7 @@ export const useMobileStore = create((set, get) => ({
   /* MEDICAL RECORDS                                                        */
   /* ---------------------------------------------------------------------- */
 
-  medicalRecords: clone(mockMedicalRecords) || [],
+  medicalRecords: [],
 
   selectedMedicalRecord: null,
 
@@ -980,7 +971,7 @@ export const useMobileStore = create((set, get) => ({
       capturedDocument: null,
       documentSets: buildLegacyDocumentSet(newDraft),
       activeSetId: newDraft.id || null,
-      extractedData: clone(mockExtractedData),
+      extractedData: {},
       analysisStep: 0,
       isAnalyzing: false,
       retargetPageForRetake: null,
@@ -1064,7 +1055,7 @@ export const useMobileStore = create((set, get) => ({
 
       retargetPageForRetake: null,
 
-      extractedData: clone(mockExtractedData),
+      extractedData: {},
 
       analysisStep: 0,
 
@@ -1307,6 +1298,7 @@ export const useMobileStore = create((set, get) => ({
           "Medical Document",
 
         pages,
+        kioskSessionId: state.kioskSession?.id,
       };
 
       const result = await analyzeDocumentOCR(
@@ -1370,7 +1362,7 @@ export const useMobileStore = create((set, get) => ({
   /* EXTRACTED INFORMATION                                                  */
   /* ---------------------------------------------------------------------- */
 
-  extractedData: clone(mockExtractedData),
+  extractedData: {},
 
   setExtractedData: (data) => {
     if (!data) {
@@ -1766,9 +1758,9 @@ export const useMobileStore = create((set, get) => ({
   /* TIMELINE / HEALTH SUMMARY                                             */
   /* ---------------------------------------------------------------------- */
 
-  timeline: clone(mockTimeline) || [],
+  timeline: [],
 
-  healthSummary: clone(mockHealthSummary) || {},
+  healthSummary: {},
 
   setTimeline: (timeline) => {
     set({
@@ -1818,7 +1810,7 @@ export const useMobileStore = create((set, get) => ({
   /* PRIVACY                                                                */
   /* ---------------------------------------------------------------------- */
 
-  privacyData: clone(mockPrivacyData) || {
+  privacyData: {
     healthHistoryAccess: {
       locked: false,
     },
@@ -2127,33 +2119,21 @@ export const useMobileStore = create((set, get) => ({
   /* ---------------------------------------------------------------------- */
 
   kioskSession: {
-    id: "kiosk-session-001",
-
+    id: null,
     sessionToken: null,
-
-    kioskName: "Hospital OPD Kiosk",
-
-    terminalId: "KIOSK-DELHI-OPD-03",
-
-    hospitalName: "Civil Hospital OPD",
-
-    hindiHospitalName: "सिविल अस्पताल ओपीडी",
-
-    department: "General Medicine OPD",
-
-    location: "Central Delhi OPD Terminal",
-
+    pairingToken: null,
+    kioskName: null,
+    terminalId: null,
+    hospitalName: null,
+    department: null,
+    location: null,
+    consultationId: null,
     status: "DISCONNECTED",
-
     startedAt: null,
-
     connectedAt: null,
-
     endedAt: null,
-
     expiresAt: null,
-
-    expiresInSeconds: 300,
+    expiresInSeconds: 0,
   },
 
   connectKioskSession: (sessionData, patientData) => {
@@ -2474,7 +2454,12 @@ export const useMobileStore = create((set, get) => ({
         },
       };
 
-      const result = await sendSummaryToDoctor(sessionId, payload);
+      let result;
+      if (current.kioskSession?.id) {
+        result = await syncKioskUpload(current.kioskSession.id);
+      } else {
+        result = await sendSummaryToDoctor(sessionId, payload);
+      }
 
       set((latest) => ({
         isSendingToDoctor: false,
@@ -2730,7 +2715,7 @@ export const useMobileStore = create((set, get) => ({
 
       activeSetId: null,
 
-      extractedData: clone(mockExtractedData),
+      extractedData: {},
 
       analysisStep: 0,
 

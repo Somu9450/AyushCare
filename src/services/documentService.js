@@ -1,8 +1,5 @@
-import {
-  mockExtractionByType,
-  getMockExtractionForDocument,
-  mockMedicalRecords,
-} from "../data/mockData";
+
+import { apiRequest, unwrapApiResponse, API_BASE_URL } from "./apiClient";
 
 export const DOCUMENT_TYPES = {
   PRESCRIPTION: "prescription",
@@ -10,534 +7,139 @@ export const DOCUMENT_TYPES = {
   DISCHARGE_SUMMARY: "discharge_summary",
   OTHER: "other",
 };
-
-const DOCUMENT_TYPE_ALIASES = {
-  prescription: DOCUMENT_TYPES.PRESCRIPTION,
-  prescription_document: DOCUMENT_TYPES.PRESCRIPTION,
-
-  lab: DOCUMENT_TYPES.LAB_REPORT,
-  labs: DOCUMENT_TYPES.LAB_REPORT,
-  laboratory: DOCUMENT_TYPES.LAB_REPORT,
-  lab_report: DOCUMENT_TYPES.LAB_REPORT,
-  laboratory_report: DOCUMENT_TYPES.LAB_REPORT,
-
-  discharge: DOCUMENT_TYPES.DISCHARGE_SUMMARY,
-  discharge_summary: DOCUMENT_TYPES.DISCHARGE_SUMMARY,
-  discharge_document: DOCUMENT_TYPES.DISCHARGE_SUMMARY,
-
-  other: DOCUMENT_TYPES.OTHER,
-  other_document: DOCUMENT_TYPES.OTHER,
+const aliases = {
+  prescription: "prescription", lab: "lab_report", labs: "lab_report", laboratory: "lab_report",
+  lab_report: "lab_report", discharge: "discharge_summary", discharge_summary: "discharge_summary",
+  other: "other", other_document: "other",
 };
-
-const clone = (value) => {
-  if (value === undefined || value === null) {
-    return value;
-  }
-
-  try {
-    return structuredClone(value);
-  } catch {
-    return JSON.parse(JSON.stringify(value));
-  }
-};
-
 export function normalizeDocumentType(type) {
-  if (!type) {
-    return DOCUMENT_TYPES.OTHER;
-  }
-
-  const normalized = String(type)
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/-/g, "_");
-
-  return (
-    DOCUMENT_TYPE_ALIASES[normalized] ||
-    DOCUMENT_TYPES.OTHER
-  );
+  const key = String(type || "other").trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  return aliases[key] || "other";
 }
-
 export function getDocumentTypeLabel(type) {
-  switch (normalizeDocumentType(type)) {
-    case DOCUMENT_TYPES.PRESCRIPTION:
-      return "Prescription";
-
-    case DOCUMENT_TYPES.LAB_REPORT:
-      return "Lab report";
-
-    case DOCUMENT_TYPES.DISCHARGE_SUMMARY:
-      return "Discharge summary";
-
-    default:
-      return "Other document";
-  }
+  return ({ prescription: "Prescription", lab_report: "Lab report", discharge_summary: "Discharge summary", other: "Other document" })[normalizeDocumentType(type)];
 }
-
-export function createDocumentId(prefix = "doc") {
-  return `${prefix}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
-}
-
-export function createDocumentPage({
-  source,
-  documentType,
-  pageNumber = 1,
-  id,
-}) {
-  const normalizedType = normalizeDocumentType(documentType);
-
-  const pageId =
-    id ||
-    source?.id ||
-    createDocumentId("page");
-
+export function createDocumentId(prefix = "doc") { return `${prefix}-${Date.now()}`; }
+export function createDocumentPage({ source = {}, documentType, pageNumber = 1, id } = {}) {
+  const preview = source.previewUrl || source.imageUrl || source.dataUrl || source.image || source.preview || "";
   return {
-    id: pageId,
-    pageNumber,
-    documentType: normalizedType,
-
-    previewUrl:
-      source?.previewUrl ||
-      source?.preview ||
-      source?.imageUrl ||
-      source?.image ||
-      source?.url ||
-      source?.dataUrl ||
-      "",
-
-    imageUrl:
-      source?.imageUrl ||
-      source?.previewUrl ||
-      source?.preview ||
-      source?.image ||
-      source?.url ||
-      source?.dataUrl ||
-      "",
-
-    dataUrl:
-      source?.dataUrl ||
-      source?.previewUrl ||
-      source?.imageUrl ||
-      source?.image ||
-      source?.preview ||
-      "",
-
-    preview:
-      source?.preview ||
-      source?.previewUrl ||
-      source?.imageUrl ||
-      source?.image ||
-      source?.dataUrl ||
-      "",
-
-    image:
-      source?.image ||
-      source?.previewUrl ||
-      source?.imageUrl ||
-      source?.preview ||
-      source?.dataUrl ||
-      "",
-
-    fileName:
-      source?.fileName ||
-      source?.name ||
-      `document-page-${pageNumber}`,
-
-    mimeType:
-      source?.mimeType ||
-      source?.type ||
-      "image/jpeg",
-
-    width: source?.width || null,
-    height: source?.height || null,
-
-    capturedAt:
-      source?.capturedAt ||
-      new Date().toISOString(),
-
-    source: source?.source || "mobile-camera",
+    id: id || source.id || createDocumentId("page"), pageNumber,
+    documentType: normalizeDocumentType(documentType || source.documentType),
+    previewUrl: preview, imageUrl: preview, dataUrl: source.dataUrl || preview, preview, image: source.image || preview,
+    fileName: source.fileName || source.name || `document-page-${pageNumber}.jpg`,
+    mimeType: source.mimeType || source.type || "image/jpeg",
+    fileSize: source.fileSize || null, width: source.width || null, height: source.height || null,
+    capturedAt: source.capturedAt || new Date().toISOString(), source: source.source || "mobile-camera",
+    file: source.file instanceof Blob ? source.file : null,
   };
 }
-
-export function normalizeDocumentPages({
-  capturedDocuments,
-  capturedDocument,
-  documentType,
-}) {
-  let sourcePages = [];
-
-  if (
-    Array.isArray(capturedDocuments) &&
-    capturedDocuments.length > 0
-  ) {
-    sourcePages = capturedDocuments;
-  } else if (
-    capturedDocument?.pages &&
-    Array.isArray(capturedDocument.pages) &&
-    capturedDocument.pages.length > 0
-  ) {
-    sourcePages = capturedDocument.pages;
-  } else if (capturedDocument) {
-    sourcePages = [capturedDocument];
-  }
-
-  return sourcePages
-    .filter(Boolean)
-    .map((page, index) =>
-      createDocumentPage({
-        source: page,
-        documentType:
-          page?.documentType ||
-          documentType ||
-          capturedDocument?.documentType,
-        pageNumber: index + 1,
-        id: page?.id,
-      })
-    );
+export function normalizeDocumentPages({ capturedDocuments, capturedDocument, documentType } = {}) {
+  const pages = Array.isArray(capturedDocuments) && capturedDocuments.length
+    ? capturedDocuments : capturedDocument?.pages?.length ? capturedDocument.pages : capturedDocument ? [capturedDocument] : [];
+  return pages.filter(Boolean).map((p, i) => createDocumentPage({ source: p, documentType: p.documentType || documentType, pageNumber: i + 1, id: p.id }));
 }
-
-export function buildDocumentPayload({
-  capturedDocuments,
-  capturedDocument,
-  documentType,
-}) {
-  const pages = normalizeDocumentPages({
-    capturedDocuments,
-    capturedDocument,
-    documentType,
-  });
-
-  const normalizedType = normalizeDocumentType(
-    documentType ||
-      capturedDocument?.documentType ||
-      pages[0]?.documentType
-  );
-
-  return {
-    id:
-      capturedDocument?.documentId ||
-      capturedDocument?.id ||
-      createDocumentId("document"),
-
-    documentType: normalizedType,
-
-    documentTypeLabel: getDocumentTypeLabel(normalizedType),
-
-    pageCount: pages.length,
-
-    pages,
-
-    capturedAt:
-      capturedDocument?.capturedAt ||
-      pages[0]?.capturedAt ||
-      new Date().toISOString(),
-
-    source: "AyushCareMobile",
-  };
+export function buildDocumentPayload({ capturedDocuments, capturedDocument, documentType } = {}) {
+  const pages = normalizeDocumentPages({ capturedDocuments, capturedDocument, documentType });
+  const type = normalizeDocumentType(documentType || capturedDocument?.documentType || pages[0]?.documentType);
+  return { id: capturedDocument?.documentId || capturedDocument?.id || createDocumentId("document"), documentType: type, documentTypeLabel: getDocumentTypeLabel(type), pageCount: pages.length, pages, capturedAt: new Date().toISOString(), source: "AyushCareMobile" };
 }
-
 export function validateDocumentForAnalysis(payload) {
-  const document = payload || {};
-
-  const pages = normalizeDocumentPages({
-    capturedDocuments: document.pages,
-    capturedDocument: document.document,
-    documentType: document.documentType,
-  });
-
-  if (!pages.length) {
-    return {
-      valid: false,
-      reason: "No document pages were provided.",
-      pages: [],
-    };
-  }
-
-  const missingPreview = pages.filter(
-    (page) =>
-      !page.previewUrl &&
-      !page.imageUrl &&
-      !page.dataUrl
-  );
-
-  if (missingPreview.length === pages.length) {
-    return {
-      valid: false,
-      reason: "Document images are unavailable.",
-      pages,
-    };
-  }
-
-  return {
-    valid: true,
-    reason: "",
-    pages,
-  };
+  const pages = normalizeDocumentPages({ capturedDocuments: payload?.pages, capturedDocument: payload?.document, documentType: payload?.documentType });
+  return pages.length ? { valid: true, reason: "", pages } : { valid: false, reason: "No document pages were provided.", pages: [] };
 }
 
-const wait = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+async function uploadBlob(sessionId, page, documentType) {
+  const blob = page.file instanceof Blob
+    ? page.file
+    : await (async () => {
+        const url = page.dataUrl || page.previewUrl || page.imageUrl;
+        if (!url) throw new Error("Document image is unavailable.");
+        const response = await fetch(url);
+        return response.blob();
+      })();
 
-export async function analyzeDocumentOCR(
-  input,
-  onProgress
-) {
-  const payload = input || {};
+  if (!["image/jpeg", "image/png", "image/jpg"].includes(blob.type || page.mimeType)) {
+    throw new Error("The live kiosk upload flow currently accepts JPG/PNG images.");
+  }
 
-  const document = buildDocumentPayload({
-    capturedDocuments:
-      payload.pages ||
-      payload.images ||
-      payload.capturedDocuments,
+  const fileName = page.fileName || `document-${page.pageNumber}.jpg`;
+  const type = blob.type || page.mimeType || "image/jpeg";
 
-    capturedDocument:
-      payload.document ||
-      payload.capturedDocument,
+  const uploadInfo = unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/upload-url`, {
+    method: "POST",
+    body: JSON.stringify({ file_name: fileName, content_type: type }),
+  }));
 
-    documentType: payload.documentType,
+  const putResponse = await fetch(uploadInfo.upload_url, {
+    method: "PUT",
+    headers: { "Content-Type": type },
+    body: blob,
   });
+  if (!putResponse.ok) throw new Error(`Cloud upload failed (${putResponse.status}).`);
 
-  const validation = validateDocumentForAnalysis(document);
+  const registered = unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/register-document`, {
+    method: "POST",
+    body: JSON.stringify({ file_key: uploadInfo.file_key, document_type: documentType }),
+  }));
 
-  if (!validation.valid) {
-    throw new Error(validation.reason);
+  return { ...registered, fileName, documentType };
+}
+
+export async function uploadDocumentsToKiosk(sessionId, pages, documentType, onProgress) {
+  if (!sessionId) throw new Error("Kiosk session is required for document upload.");
+  const results = [];
+  for (let i = 0; i < pages.length; i += 1) {
+    if (onProgress) onProgress(Math.round((i / pages.length) * 50), `Uploading page ${i + 1} of ${pages.length}...`);
+    results.push(await uploadBlob(sessionId, pages[i], normalizeDocumentType(documentType)));
   }
+  return results;
+}
 
-  const totalSteps = 4;
+export async function getKioskDocuments(sessionId) {
+  return unwrapApiResponse(await apiRequest(`/mobile/kiosk-session/${encodeURIComponent(sessionId)}/documents`));
+}
 
-  const report = async (
-    step,
-    progress,
-    label
-  ) => {
-    if (typeof onProgress === "function") {
-      onProgress({
-        step,
-        totalSteps,
-        progress,
-        label,
-      });
-    }
-
-    await wait(120);
-  };
-
-  await report(
-    1,
-    15,
-    "Preparing document pages..."
-  );
-
-  await report(
-    2,
-    40,
-    "Reading document text..."
-  );
-
-  await report(
-    3,
-    70,
-    "Identifying medical information..."
-  );
-
-  const type = normalizeDocumentType(
-    document.documentType
-  );
-
-  const pageCount = document.pages.length;
-
-  const documentTitle =
-    payload.documentTitle ||
-    getDocumentTypeLabel(type);
-
-  let extraction;
-
-  if (
-    typeof getMockExtractionForDocument ===
-    "function"
-  ) {
-    extraction = getMockExtractionForDocument(
-      type,
-      documentTitle,
-      pageCount
-    );
-  } else {
-    extraction =
-      mockExtractionByType?.[type] ||
-      mockExtractionByType?.[DOCUMENT_TYPES.OTHER] ||
-      {};
+export async function waitForDocumentProcessing(sessionId, documentIds = [], onProgress, timeoutMs = 120000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const docs = await getKioskDocuments(sessionId);
+    const relevant = docs.filter((d) => !documentIds.length || documentIds.includes(d.id));
+    const done = relevant.length > 0 && relevant.every((d) => ["completed", "failed", "deleted"].includes(String(d.status).toLowerCase()));
+    const pct = relevant.length ? 50 + Math.round((relevant.filter((d) => d.status === "completed").length / relevant.length) * 50) : 50;
+    if (onProgress) onProgress(pct, done ? "Document processing complete." : "Waiting for OCR and medical extraction...");
+    if (done) return relevant;
+    await new Promise((r) => setTimeout(r, 2000));
   }
+  throw new Error("Document processing timed out. Please check the kiosk session and try again.");
+}
 
-  await report(
-    4,
-    92,
-    "Preparing extracted information..."
-  );
-
-  const result = {
-    extraction_status: "success",
-
-    extractionStatus: "success",
-
-    document_id: document.id,
-
-    documentId: document.id,
-
-    document_type: type,
-
-    documentType: type,
-
-    document_title: documentTitle,
-
-    documentTitle,
-
-    page_count: pageCount,
-
-    pageCount,
-
-    parsed_date:
-      extraction?.parsed_date ||
-      extraction?.parsedDate ||
-      extraction?.date ||
-      null,
-
-    parsedDate:
-      extraction?.parsedDate ||
-      extraction?.parsed_date ||
-      extraction?.date ||
-      null,
-
-    detected_entities:
-      clone(
-        extraction?.detected_entities ||
-          extraction?.detectedEntities ||
-          {}
-      ),
-
-    medicines: clone(
-      extraction?.medicines ||
-        extraction?.medications ||
-        []
-    ),
-
-    medications: clone(
-      extraction?.medications ||
-        extraction?.medicines ||
-        []
-    ),
-
-    diagnoses: clone(
-      extraction?.diagnoses ||
-        extraction?.conditions ||
-        []
-    ),
-
-    conditions: clone(
-      extraction?.conditions ||
-        extraction?.diagnoses ||
-        []
-    ),
-
-    investigations: clone(
-      extraction?.investigations ||
-        extraction?.tests ||
-        extraction?.labResults ||
-        []
-    ),
-
-    tests: clone(
-      extraction?.tests ||
-        extraction?.investigations ||
-        []
-    ),
-
-    symptoms: clone(
-      extraction?.symptoms ||
-        extraction?.complaints ||
-        []
-    ),
-
-    allergies: clone(
-      extraction?.allergies ||
-        []
-    ),
-
-    raw_text:
-      extraction?.raw_text ||
-      extraction?.rawText ||
-      "",
-
-    rawText:
-      extraction?.rawText ||
-      extraction?.raw_text ||
-      "",
-
-    sourceDocument: {
-      id: document.id,
-      documentType: type,
-      documentTypeLabel:
-        getDocumentTypeLabel(type),
-      pageCount,
-      pages: clone(document.pages),
-    },
-  };
-
-  await report(
-    4,
-    100,
-    "Analysis complete"
-  );
-
-  return result;
+export async function analyzeDocumentOCR(input, onProgress) {
+  const sessionId = input?.kioskSessionId;
+  const pages = normalizeDocumentPages({ capturedDocuments: input?.pages, capturedDocument: input?.document, documentType: input?.documentType });
+  if (!sessionId) throw new Error("Connect to a kiosk before analyzing a document.");
+  if (!pages.length) throw new Error("Please capture at least one document page.");
+  const registered = await uploadDocumentsToKiosk(sessionId, pages, input.documentType, onProgress);
+  const ids = registered.map((d) => d.id).filter(Boolean);
+  const docs = await waitForDocumentProcessing(sessionId, ids, onProgress);
+  const completed = docs.filter((d) => d.status === "completed");
+  const extracted = completed.reduce((acc, d) => {
+    const data = d.extracted_data || d.extractedData || {};
+    return {
+      ...acc,
+      ...data,
+      documents: [...(acc.documents || []), d],
+    };
+  }, {});
+  return { success: completed.length > 0, extractedData: extracted, documents: docs, registered };
 }
 
 export async function fetchMedicalRecords() {
-  await wait(100);
-
-  return clone(mockMedicalRecords || []);
+  return [];
 }
-
-export async function getDocumentDetails(documentId) {
-  await wait(100);
-
-  const records = await fetchMedicalRecords();
-
-  return (
-    records.find(
-      (record) =>
-        record.id === documentId ||
-        record.documentId === documentId
-    ) || null
-  );
-}
-
-export async function updateRecordExtraction(
-  documentId,
-  extraction
-) {
-  await wait(100);
-
-  return {
-    success: true,
-    documentId,
-    extraction: clone(extraction),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
+export async function getDocumentDetails() { return null; }
+export async function updateRecordExtraction(documentId, extraction) { return { success: true, documentId, extraction }; }
 export default {
-  DOCUMENT_TYPES,
-  normalizeDocumentType,
-  getDocumentTypeLabel,
-  createDocumentId,
-  createDocumentPage,
-  normalizeDocumentPages,
-  buildDocumentPayload,
-  validateDocumentForAnalysis,
-  analyzeDocumentOCR,
-  fetchMedicalRecords,
-  getDocumentDetails,
-  updateRecordExtraction,
+  DOCUMENT_TYPES, normalizeDocumentType, getDocumentTypeLabel, createDocumentId, createDocumentPage,
+  normalizeDocumentPages, buildDocumentPayload, validateDocumentForAnalysis, uploadDocumentsToKiosk,
+  getKioskDocuments, waitForDocumentProcessing, analyzeDocumentOCR, fetchMedicalRecords, getDocumentDetails, updateRecordExtraction,
 };

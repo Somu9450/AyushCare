@@ -14,7 +14,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useMobileStore } from "../../store/useMobileStore";
-import { mockHealthSummary } from "../../data/mockData";
 
 const safeArray = (value) => {
   if (Array.isArray(value)) return value;
@@ -199,7 +198,7 @@ export default function M8_HealthSummary() {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const summary = useMemo(
-    () => normalizeSummary(healthSummary || mockHealthSummary, extractedData),
+    () => normalizeSummary(healthSummary || {}, extractedData),
     [healthSummary, extractedData]
   );
 

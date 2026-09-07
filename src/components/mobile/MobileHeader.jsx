@@ -11,6 +11,7 @@ import {
 import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 function MobileHeader({
   title,
@@ -26,8 +27,6 @@ function MobileHeader({
   const {
     kioskSession,
     patient,
-    selectedLanguage,
-    setSelectedLanguage,
     prevScreen,
     setScreen,
   } = useMobileStore();
@@ -69,16 +68,6 @@ function MobileHeader({
     }
   };
 
-  const toggleLanguage = () => {
-    if (typeof setSelectedLanguage !== "function") {
-      return;
-    }
-
-    setSelectedLanguage(
-      selectedLanguage === "hi" ? "en" : "hi"
-    );
-  };
-
   const patientName =
     patient?.name ||
     patient?.fullName ||
@@ -99,6 +88,13 @@ function MobileHeader({
             </button>
           )}
 
+          <div className="mobile-header-brand">
+            <img
+              src="https://www.uxdt.nic.in/wp-content/uploads/2025/09/ayushman-bharat-digital-mission-feature--ayushman-bharat-digital-mission.jpg"
+              alt="Ayushman Bharat Digital Mission"
+            />
+          </div>
+
           <div className="min-w-0">
             {title && (
               <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
@@ -117,16 +113,7 @@ function MobileHeader({
         <div className="flex shrink-0 items-center gap-2">
           {rightContent}
 
-          <button
-            type="button"
-            onClick={toggleLanguage}
-            aria-label="Change language"
-            className="hidden rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:block"
-          >
-            {selectedLanguage === "hi"
-              ? "हिं"
-              : "EN"}
-          </button>
+          <LanguageSwitcher />
 
           <div
             title={

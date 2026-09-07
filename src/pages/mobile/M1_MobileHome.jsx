@@ -19,10 +19,6 @@ import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 
-import {
-  mockAppointments,
-  mockVisits,
-} from "../../data/mockData";
 
 import MobileHeader from "../../components/mobile/MobileHeader";
 import BottomNavBar from "../../components/mobile/BottomNavBar";
@@ -181,7 +177,7 @@ export const M1_MobileHome =
       getLatestItem(
         appointments
       ) ||
-      mockAppointments?.today ||
+      null ||
       null;
 
     const openAppointment =
@@ -209,7 +205,7 @@ export const M1_MobileHome =
         visits
       ) ||
       getLatestItem(
-        mockVisits
+        []
       );
 
     const openVisit =

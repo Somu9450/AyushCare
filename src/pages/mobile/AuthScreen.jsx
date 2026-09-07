@@ -2,36 +2,19 @@ import React, { useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import {
-  loginPatient,
-  MOCK_OTP,
+  requestOtp,
+  verifyOtp,
 } from "../../services/authService";
-import {
-  createMobileSession,
-  touchMobileSession,
-} from "../../services/mobileSessionService";
+import { createMobileSession } from "../../services/mobileSessionService";
 import { useLanguage } from "../../i18n/translations";
 
 const AUTH_METHODS = [
   {
-    id: "ABHA",
-    label: "ABHA ID",
-    hindi: "ABHA ID",
-    placeholder: "Enter your ABHA ID",
-    hindiPlaceholder: "अपना ABHA ID दर्ज करें",
-  },
-  {
-    id: "AADHAAR",
-    label: "Aadhaar",
-    hindi: "आधार",
-    placeholder: "Enter Aadhaar number",
-    hindiPlaceholder: "आधार नंबर दर्ज करें",
-  },
-  {
     id: "MOBILE",
     label: "Mobile Number",
     hindi: "मोबाइल नंबर",
-    placeholder: "Enter mobile number",
-    hindiPlaceholder: "मोबाइल नंबर दर्ज करें",
+    placeholder: "Enter your registered mobile number",
+    hindiPlaceholder: "अपना पंजीकृत मोबाइल नंबर दर्ज करें",
   },
 ];
 
@@ -60,9 +43,9 @@ function normalizePatient(authResult, method, identifier) {
   const session = authResult?.session || {};
 
   return {
-    id: user.id || user.patientId || "PATIENT-001",
-    patientId: user.patientId || "PATIENT-001",
-    name: user.name || "Rajesh Kumar Sharma",
+    id: user.id || user.patientId || null,
+    patientId: user.patientId || user.id || null,
+    name: user.name || authResult?.patient?.full_name || "Patient",
     authMethod: method,
     identifier,
     verifiedAt: new Date().toISOString(),
@@ -79,7 +62,7 @@ export default function AuthScreen() {
 
   const { isHindi } = useLanguage();
 
-  const [method, setMethod] = useState("ABHA");
+  const [method, setMethod] = useState("MOBILE");
   const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState("identifier");
@@ -119,10 +102,9 @@ export default function AuthScreen() {
     setError("");
 
     try {
-      const result = await loginPatient({
-        authType: method,
+      const result = await requestOtp({
+        authType: "MOBILE",
         identifier: cleanIdentifier,
-        otp: MOCK_OTP,
       });
 
       if (!result?.success) {
@@ -154,12 +136,8 @@ export default function AuthScreen() {
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.trim() !== MOCK_OTP) {
-      setError(
-        isHindi
-          ? `डेमो OTP ${MOCK_OTP} दर्ज करें।`
-          : `For this demo, enter OTP ${MOCK_OTP}.`
-      );
+    if (!/^\d{6}$/.test(otp.trim())) {
+      setError(isHindi ? "6 अंकों का OTP दर्ज करें।" : "Enter the 6-digit OTP.");
       return;
     }
 
@@ -167,8 +145,8 @@ export default function AuthScreen() {
     setError("");
 
     try {
-      const result = await loginPatient({
-        authType: method,
+      const result = await verifyOtp({
+        authType: "MOBILE",
         identifier: identifier.trim(),
         otp: otp.trim(),
       });
@@ -188,13 +166,10 @@ export default function AuthScreen() {
       setVerifiedPatient(patient, method);
 
       createMobileSession({
-        patientId: patient.patientId,
-        authType: method,
+        patient: result.patient || patient,
+        authType: "MOBILE",
         sessionId: patient.sessionId,
-        language: selectedLanguage || "en",
       });
-
-      touchMobileSession();
 
       setScreen(SCREENS.M1);
     } catch (verifyError) {
@@ -221,7 +196,18 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6">
+    <div className="mobile-auth-shell">
+      <div className="mobile-auth-brand">
+        <img
+          src="https://www.uxdt.nic.in/wp-content/uploads/2025/09/ayushman-bharat-digital-mission-feature--ayushman-bharat-digital-mission.jpg"
+          alt="Ayushman Bharat Digital Mission"
+        />
+        <div>
+          <strong><span>Ayush</span>Care</strong>
+          <small>Digital Patient Care</small>
+        </div>
+      </div>
+
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-md flex-col">
         <button
           type="button"
@@ -430,8 +416,8 @@ export default function AuthScreen() {
 
             <p className="text-xs leading-5 text-slate-600">
               {isHindi
-                ? "यह डेमो वातावरण है। वास्तविक OTP सेवा के स्थान पर परीक्षण OTP का उपयोग किया जाता है।"
-                : "This is a demo environment. A test OTP is used instead of a live OTP service."}
+                ? "OTP AyushCare backend से भेजा जाता है। स्थानीय विकास में mock SMS backend terminal में दिखाई देता है।"
+                : "OTP is sent by the AyushCare backend. In local development, mock SMS is printed in the backend terminal."}
             </p>
           </div>
         </div>
