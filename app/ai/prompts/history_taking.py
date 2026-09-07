@@ -120,6 +120,7 @@ def build_next_question_prompt(
     conversation_history: list[dict],
     language: str = "en",
     topics_covered: list[str] | None = None,
+    presenting_complaint: str | None = None,
     max_questions: int = 8,
 ) -> str:
     """Build the user prompt for generating the next question.
@@ -147,14 +148,16 @@ def build_next_question_prompt(
 Current section: {section_label}
 Patient language: {language}
 Maximum total questions: {max_questions}
+Presenting complaint / primary problem: {presenting_complaint or 'not yet established'}
 {topics_text}
 
 ## Conversation so far:
 {history_text if history_text else "(No conversation yet — ask the first question.)"}
 
 Generate the next clinically appropriate question for this section. Keep it directly \
-related to the presenting complaint and the answers already given. Do not ask about \
-income, marital status, education, address, housing, or unrelated social history. \
+related to the presenting complaint and the answers already given. Ask only the most useful \
+complaint-specific question; do not ask generic history questions that do not improve triage. \
+Do not ask about income, marital status, education, address, housing, or unrelated social history. \
 Never repeat a previous question. Use only choice or multi_select with useful options. \
 Do not return a text or number question. \
 If the complaint is sufficiently covered or the question limit has been reached, set \

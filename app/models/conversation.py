@@ -48,6 +48,7 @@ class AIQuestion(BaseModel):
     helper: Optional[str] = None
     question_type: QuestionType = QuestionType.TEXT
     options: Optional[list[Choice]] = None
+    selection_mode: Optional[str] = None
     is_follow_up: bool = False
     clinical_context: Optional[str] = Field(
         default=None,

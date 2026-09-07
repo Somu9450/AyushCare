@@ -149,6 +149,19 @@ class ConversationEngine:
             input_mode=input_mode,
         )
 
+        if state.current_question and state.current_question.question_id == question_id:
+            if state.current_question.question_type == QuestionType.MULTI_SELECT:
+                import json
+                try:
+                    parsed = json.loads(answer)
+                except (TypeError, json.JSONDecodeError):
+                    parsed = None
+                if not isinstance(parsed, list) or not parsed:
+                    raise ConversationError("A multi-select question requires at least one selected option.")
+                allowed = {option.value for option in (state.current_question.options or [])}
+                if allowed and any(str(value) not in allowed for value in parsed):
+                    raise ConversationError("One or more selected options are invalid for this question.")
+
         # Record the answer
         answered_entry = {
             "question_id": question_id,
@@ -177,6 +190,26 @@ class ConversationEngine:
                 )
                 new_flags.append(flag)
                 state.red_flags.append(flag)
+
+        # Emergency screening is a hard safety boundary. Record and evaluate the
+        # answer first, then stop routine questioning on a positive response.
+        if state.phase == ConversationPhase.EMERGENCY_SCREEN:
+            normalized = answer.strip().lower()
+            safe_negative = normalized in {
+                "none", "none of these", "no", "no emergency symptoms",
+                "nothing", "not experiencing any", "i have none"
+            }
+            if not safe_negative:
+                state.phase = ConversationPhase.COMPLETED
+                state.is_complete = True
+                return ConversationTurnResponse(
+                    answer_confirmed=answer,
+                    next_question=None,
+                    red_flags=new_flags,
+                    phase=ConversationPhase.COMPLETED,
+                    progress_percent=100.0,
+                    is_complete=True,
+                )
 
         if len(state.answered_questions) >= self.MAX_QUESTIONS:
             state.phase = ConversationPhase.COMPLETED
@@ -218,6 +251,7 @@ class ConversationEngine:
             conversation_history=state.answered_questions,
             language=language,
             topics_covered=topics_covered,
+            presenting_complaint=self._get_presenting_complaint(state.answered_questions),
             max_questions=self.MAX_QUESTIONS,
         )
 
@@ -254,6 +288,7 @@ class ConversationEngine:
             ):
                 next_question = self._fallback_choice_question(
                     state.phase,
+                    self._get_presenting_complaint(state.answered_questions),
                 )
 
             # Check if LLM indicates section is complete
@@ -289,7 +324,7 @@ class ConversationEngine:
 
         except Exception as e:
             logger.error("next_question_generation_failed", error=str(e))
-            next_question = self._fallback_choice_question(state.phase)
+            next_question = self._fallback_choice_question(state.phase, self._get_presenting_complaint(state.answered_questions))
 
         state.current_question = next_question
 
@@ -309,6 +344,8 @@ class ConversationEngine:
         self,
         audio_bytes: bytes,
         language: str = "en",
+        *,
+        filename: str = "audio.wav",
     ) -> dict:
         """Transcribe speech input and return text + confidence.
 
@@ -323,7 +360,7 @@ class ConversationEngine:
                 "quality": quality,
             }
 
-        result = await self._asr.transcribe(audio_bytes, language)
+        result = await self._asr.transcribe(audio_bytes, language, filename=filename)
         return {
             "text": result["text"],
             "confidence": result["confidence"],
@@ -369,6 +406,9 @@ class ConversationEngine:
             phase = ConversationPhase.CHIEF_COMPLAINT
 
         question_type_value = response.get("question_type", "text")
+        selection_mode = str(response.get("selection_mode", "")).lower()
+        if selection_mode in {"multiple", "multi", "multi_select"} or response.get("multiple") is True:
+            question_type_value = "multi_select"
         try:
             question_type = QuestionType(question_type_value)
         except ValueError:
@@ -390,6 +430,9 @@ class ConversationEngine:
             helper=response.get("helper"),
             question_type=question_type,
             options=options,
+            selection_mode=response.get("selection_mode") or (
+                "multiple" if question_type == QuestionType.MULTI_SELECT else "single"
+            ),
             is_follow_up=response.get("is_follow_up", False),
             clinical_context=response.get("clinical_context"),
         )
@@ -420,8 +463,75 @@ class ConversationEngine:
         )
         return any(topic in text for topic in blocked_topics)
 
-    def _fallback_choice_question(self, phase: ConversationPhase) -> AIQuestion:
+    def _fallback_choice_question(self, phase: ConversationPhase, complaint: str = "") -> AIQuestion:
         """Return a relevant option question when the provider response is invalid."""
+        complaint_key = complaint.lower()
+        complaint_questions = {
+            "fever_cough": (
+                "How long have you had the fever, cough, or breathing problem?",
+                [
+                    Choice(value="less_1_day", label="Less than 1 day"),
+                    Choice(value="1_3_days", label="1–3 days"),
+                    Choice(value="4_7_days", label="4–7 days"),
+                    Choice(value="more_1_week", label="More than 1 week"),
+                ],
+            ),
+            "abdominal_pain": (
+                "Where is the stomach pain mainly located?",
+                [
+                    Choice(value="upper", label="Upper abdomen"),
+                    Choice(value="lower", label="Lower abdomen"),
+                    Choice(value="right", label="Right side"),
+                    Choice(value="left", label="Left side"),
+                    Choice(value="all_over", label="All over"),
+                ],
+            ),
+            "headache": (
+                "How is the headache affecting you?",
+                [
+                    Choice(value="mild", label="Mild"),
+                    Choice(value="moderate", label="Moderate"),
+                    Choice(value="severe", label="Severe"),
+                    Choice(value="with_dizziness", label="With dizziness"),
+                ],
+            ),
+            "joint_pain": (
+                "Which best describes the joint or muscle problem?",
+                [
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="swelling", label="Swelling"),
+                    Choice(value="stiffness", label="Stiffness"),
+                    Choice(value="reduced_movement", label="Reduced movement"),
+                ],
+            ),
+            "skin_issue": (
+                "What is the main skin problem?",
+                [
+                    Choice(value="rash", label="Rash"),
+                    Choice(value="itching", label="Itching"),
+                    Choice(value="wound", label="Wound"),
+                    Choice(value="swelling", label="Swelling"),
+                ],
+            ),
+            "urinary": (
+                "Which urinary symptom is most noticeable?",
+                [
+                    Choice(value="burning", label="Burning while urinating"),
+                    Choice(value="frequency", label="Passing urine often"),
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="blood", label="Blood in urine"),
+                ],
+            ),
+            "eye_ear": (
+                "Which problem is most noticeable?",
+                [
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="discharge", label="Discharge"),
+                    Choice(value="hearing", label="Hearing difficulty"),
+                    Choice(value="vision", label="Vision difficulty"),
+                ],
+            ),
+        }
         fallback_questions = {
             ConversationPhase.EMERGENCY_SCREEN: (
                 "Are you experiencing any emergency symptoms right now?",
@@ -481,7 +591,10 @@ class ConversationEngine:
                 ],
             ),
         }
-        prompt, options = fallback_questions.get(
+        if phase == ConversationPhase.HPI and complaint_key in complaint_questions:
+            prompt, options = complaint_questions[complaint_key]
+        else:
+            prompt, options = fallback_questions.get(
             phase,
             (
                 "Which option best describes your current health concern?",
@@ -599,6 +712,22 @@ class ConversationEngine:
                 return section_to_phase.get(next_section, ConversationPhase.COMPLETED)
 
         return ConversationPhase.COMPLETED
+
+    def _get_presenting_complaint(self, answered: list[dict]) -> str:
+        """Return the earliest explicit primary complaint answer."""
+        for entry in answered:
+            question = str(entry.get("question", "")).lower()
+            answer = str(entry.get("answer", "")).strip()
+            if not answer:
+                continue
+            if (
+                entry.get("question_id") == "chief_complaint"
+                or "chief complaint" in question
+                or "main problem" in question
+                or "problem is bothering you most" in question
+            ):
+                return answer
+        return ""
 
     def _extract_topics(
         self, answered: list[dict], phase: ConversationPhase

@@ -47,6 +47,7 @@ class ASRService:
         *,
         sample_rate_hertz: int = 16000,
         encoding: str = "LINEAR16",
+        filename: str = "audio.wav",
     ) -> dict:
         """Transcribe audio to text.
 
@@ -62,19 +63,22 @@ class ASRService:
         if not self._groq_client:
             raise ASRError("Groq API key not configured. Set GROQ_API_KEY in .env for speech recognition.")
 
-        return await self._transcribe_groq(audio_bytes, language)
+        return await self._transcribe_groq(audio_bytes, language, filename=filename)
 
     async def _transcribe_groq(
         self,
         audio_bytes: bytes,
         language: str = "en",
+        *,
+        filename: str = "audio.wav",
     ) -> dict:
         """Transcribe audio using Groq Whisper."""
         lang_code = get_bhashini_code(language) or language
         supported_langs = ("en", "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa")
         selected_lang = lang_code if lang_code in supported_langs else "en"
 
-        file_tuple = ("audio.wav", audio_bytes)
+        safe_name = filename if "." in filename else "audio.wav"
+        file_tuple = (safe_name, audio_bytes)
 
         response = await self._groq_client.audio.transcriptions.create(
             file=file_tuple,
@@ -110,7 +114,10 @@ class ASRService:
             issues.append("Audio too short (< 1 second).")
 
         rms = 0.0
-        if len(audio_bytes) > 44:
+        # RMS sampling is meaningful for PCM/WAV, but not for compressed
+        # browser recordings such as WebM/Opus. Never reject those recordings
+        # based on a WAV-specific byte offset.
+        if audio_bytes[:4] == b"RIFF" and len(audio_bytes) > 44:
             import struct
             samples = []
             data = audio_bytes[44:]

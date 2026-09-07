@@ -35,21 +35,25 @@ async def upload_document(
         raise HTTPException(status_code=404, detail="Session not found.")
 
     consent_receipt = data.get("consent_receipt")
-    if consent_receipt:
-        doc_scope = next(
-            (s for s in consent_receipt.get("scopes", [])
-             if s.get("id") == ConsentScopeId.DOCUMENT_PROCESSING.value),
-            None,
+    doc_scope = next(
+        (s for s in (consent_receipt or {}).get("scopes", [])
+         if s.get("id") == ConsentScopeId.DOCUMENT_PROCESSING.value),
+        None,
+    )
+    if not doc_scope or doc_scope.get("status") != "granted":
+        raise HTTPException(
+            status_code=403,
+            detail="Document processing consent not granted.",
         )
-        if not doc_scope or doc_scope.get("status") != "granted":
-            raise HTTPException(
-                status_code=403,
-                detail="Document processing consent not granted.",
-            )
 
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided.")
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    from pathlib import Path
+    extension = Path(file.filename).suffix.lower()
+    if extension not in allowed_extensions:
+        raise HTTPException(status_code=415, detail="Only JPG, PNG, and WebP images are supported.")
 
     content = await file.read()
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
