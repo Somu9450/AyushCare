@@ -190,7 +190,6 @@ export default function M8_HealthSummary() {
     medicalRecords,
     visits,
     patient,
-    kioskSession,
     session,
     setScreen,
   } = useMobileStore();
@@ -217,12 +216,6 @@ export default function M8_HealthSummary() {
     patient?.fullName ||
     session?.patientName ||
     "Patient";
-
-  const facilityName =
-    kioskSession?.facilityName ||
-    kioskSession?.facility ||
-    session?.facilityName ||
-    "Civil Hospital OPD";
 
   const summaryText = [
     summary.plainLanguage,

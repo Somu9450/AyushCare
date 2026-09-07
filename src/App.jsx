@@ -3,6 +3,7 @@ import React, { lazy, Suspense, useEffect } from "react";
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 
 import LanguageSwitcher from "./components/mobile/LanguageSwitcher";
+import { exchangePatientQrToken } from "./services/authService";
 
 const AuthScreen = lazy(() => import("./pages/mobile/AuthScreen"));
 const M1MobileHome = lazy(() => import("./pages/mobile/M1_MobileHome"));
@@ -22,8 +23,6 @@ const DocumentDetailsScreen = lazy(() => import("./pages/mobile/DocumentDetailsS
 const MoreScreen = lazy(() => import("./pages/mobile/MoreScreen"));
 const PrivacyScreen = lazy(() => import("./pages/mobile/PrivacyScreen"));
 const ConsentDetailsScreen = lazy(() => import("./pages/mobile/ConsentDetailsScreen"));
-const KioskConnectScreen = lazy(() => import("./pages/mobile/KioskConnectScreen"));
-const KioskSessionDetailsScreen = lazy(() => import("./pages/mobile/KioskSessionDetailsScreen"));
 const ProfileScreen = lazy(() => import("./pages/mobile/ProfileScreen"));
 const SettingsScreen = lazy(() => import("./pages/mobile/SettingsScreen"));
 const AboutScreen = lazy(() => import("./pages/mobile/AboutScreen"));
@@ -48,10 +47,8 @@ function App() {
     currentScreen,
     isAuthenticated,
     accessibilitySettings,
-    kioskSession,
-    isSessionExpired,
-    timerSecondsRemaining,
     setScreen,
+    setDocumentUploadContext,
   } = useMobileStore();
 
   /* ---------------------------------------------------------------------- */
@@ -99,159 +96,43 @@ function App() {
   }, [currentScreen]);
 
   /* ---------------------------------------------------------------------- */
-  /* QR KIOSK ENTRY                                                         */
-  /* ---------------------------------------------------------------------- */
-
-  const urlHasPairingToken =
-    typeof window !== "undefined" &&
-    new URLSearchParams(
-      window.location.search
-    ).has("pairing_token");
-
-  /*
-   * Keep QR mode alive while the kiosk session is active.
-   *
-   * This is intentionally independent of patient authentication.
-   */
-  const activeKioskSession =
-    kioskSession?.status === "CONNECTED" &&
-    !isSessionExpired &&
-    Number(timerSecondsRemaining) > 0;
-
-  const kioskScreens = [
-    SCREENS.KIOSK_CONNECT,
-    SCREENS.KIOSK_SESSION,
-    SCREENS.M2,
-    SCREENS.M3,
-    SCREENS.M4,
-    SCREENS.M5,
-    SCREENS.M6,
-    SCREENS.M7,
-    SCREENS.M8,
-    SCREENS.M9,
-  ];
-
-  const isKioskDocumentFlow =
-    kioskScreens.includes(currentScreen);
-
-  /*
-   * A QR-originated session is allowed through the application
-   * without Mobile Portal authentication.
-   *
-   * Normal Mobile screens still require authentication.
-   */
-  const allowWithoutPatientLogin =
-    urlHasPairingToken ||
-    activeKioskSession ||
-    isKioskDocumentFlow;
-
-  /* ---------------------------------------------------------------------- */
-  /* QR URL → CONNECT SCREEN                                                */
+  /* PATIENT QR ENTRY                                                       */
   /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
+    const token = new URLSearchParams(window.location.search).get("qr_token");
+    if (!token) return;
 
-    const params = new URLSearchParams(
-      window.location.search
-    );
-
-    const token =
-      params.get("pairing_token");
-
-    if (!token) {
-      return;
-    }
-
-    /*
-     * Always enter the kiosk connection screen when a QR
-     * pairing token is present.
-     */
-    if (
-      currentScreen !== SCREENS.KIOSK_CONNECT &&
-      !activeKioskSession
-    ) {
-      setScreen(SCREENS.KIOSK_CONNECT);
-    }
-  }, [
-    currentScreen,
-    activeKioskSession,
-    setScreen,
-  ]);
-
-  /* ---------------------------------------------------------------------- */
-  /* KIOSK SESSION EXPIRY                                                   */
-  /* ---------------------------------------------------------------------- */
-
-  useEffect(() => {
-    if (
-      !kioskSession ||
-      kioskSession.status !== "CONNECTED"
-    ) {
-      return;
-    }
-
-    if (
-      isSessionExpired ||
-      Number(timerSecondsRemaining) <= 0
-    ) {
-      return;
-    }
-
-    const expiresAt =
-      kioskSession.expiresAt;
-
-    if (!expiresAt) {
-      return;
-    }
-
-    const expiryTime =
-      new Date(expiresAt).getTime();
-
-    if (Number.isNaN(expiryTime)) {
-      return;
-    }
-
-    const remaining =
-      expiryTime - Date.now();
-
-    if (remaining <= 0) {
-      return;
-    }
-
-    const timeout =
-      window.setTimeout(() => {
-        const state =
-          useMobileStore.getState();
-
-        if (
-          state.kioskSession?.status ===
-          "CONNECTED"
-        ) {
-          state.decrementTimer();
-        }
-      }, remaining + 50);
-
-    return () =>
-      window.clearTimeout(timeout);
-  }, [
-    kioskSession,
-    isSessionExpired,
-    timerSecondsRemaining,
-  ]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await exchangePatientQrToken(token);
+        if (cancelled) return;
+        const patient = result.patient || result.user || null;
+        useMobileStore.getState().setVerifiedPatient(patient, "QR");
+        setDocumentUploadContext({
+          consultationId: result.consultation_id || null,
+          source: "patient_qr",
+        });
+        useMobileStore.setState({ documentProcessingConsent: Boolean(result.document_processing_consent) });
+        await useMobileStore.getState().loadPortalData?.();
+        useMobileStore.getState().setScreen(SCREENS.M2);
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch (error) {
+        console.error("Patient QR login failed:", error);
+        useMobileStore.getState().setScreen(SCREENS.AUTH);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [setDocumentUploadContext]);
 
   /* ---------------------------------------------------------------------- */
   /* SCREEN ROUTER                                                          */
   /* ---------------------------------------------------------------------- */
 
   const renderScreen = () => {
-    if (
-      !isAuthenticated &&
-      currentScreen !== SCREENS.AUTH &&
-      !allowWithoutPatientLogin
-    ) {
+    if (!isAuthenticated && currentScreen !== SCREENS.AUTH) {
       return <AuthScreen />;
     }
 
@@ -292,10 +173,6 @@ function App() {
         return <PrivacyScreen />;
       case SCREENS.CONSENT_DETAILS:
         return <ConsentDetailsScreen />;
-      case SCREENS.KIOSK_CONNECT:
-        return <KioskConnectScreen />;
-      case SCREENS.KIOSK_SESSION:
-        return <KioskSessionDetailsScreen />;
       case SCREENS.PROFILE:
         return <ProfileScreen />;
       case SCREENS.SETTINGS:

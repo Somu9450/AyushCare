@@ -1,11 +1,8 @@
 import React from "react";
 import {
   ArrowLeft,
-  CheckCircle2,
   CircleUserRound,
   Menu,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 
 import useMobileStore, {
@@ -25,15 +22,10 @@ function MobileHeader({
   rightContent,
 }) {
   const {
-    kioskSession,
     patient,
     prevScreen,
     setScreen,
   } = useMobileStore();
-
-  const isConnected =
-    kioskSession?.status === "CONNECTED" &&
-    !kioskSession?.isSessionExpired;
 
   const handleBack = () => {
     if (onBack) {
@@ -115,30 +107,11 @@ function MobileHeader({
 
           <LanguageSwitcher />
 
-          <div
-            title={
-              isConnected
-                ? "Kiosk connected"
-                : "Kiosk not connected"
-            }
-            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold ${
-              isConnected
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-slate-100 text-slate-500"
-            }`}
-          >
-            {isConnected ? (
-              <CheckCircle2 size={14} />
-            ) : (
-              <WifiOff size={14} />
-            )}
-
-            <span className="hidden sm:inline">
-              {isConnected
-                ? "Connected"
-                : "Not connected"}
+          {patient?.patient_code ? (
+            <span className="hidden rounded-full bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 sm:inline">
+              ID {patient.patient_code}
             </span>
-          </div>
+          ) : null}
 
           {showProfile && (
             <button

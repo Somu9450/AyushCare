@@ -83,3 +83,26 @@ export async function logoutPatient() {
   try { localStorage.removeItem("ayushcare_access_token"); } catch {}
   return { success: true };
 }
+
+
+export async function exchangePatientQrToken(token) {
+  const value = String(token || '').trim();
+  if (!value) throw new Error('Invalid patient QR token.');
+  const payload = unwrapApiResponse(await apiRequest('/mobile/portal/qr/exchange', {
+    method: 'POST',
+    body: JSON.stringify({ token: value }),
+  }));
+  if (payload?.accessToken) {
+    try { localStorage.setItem('ayushcare_access_token', payload.accessToken); } catch {}
+  }
+  return {
+    success: true,
+    ...payload,
+    user: payload?.patient ? {
+      id: payload.patient.id,
+      patientId: payload.patient.patient_code || payload.patient.id,
+      name: payload.patient.full_name,
+      mobile: payload.patient.mobile_number,
+    } : undefined,
+  };
+}
