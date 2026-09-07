@@ -5,7 +5,6 @@ import {
   requestOtp,
   verifyOtp,
 } from "../../services/authService";
-import { createMobileSession } from "../../services/mobileSessionService";
 import { useLanguage } from "../../i18n/translations";
 
 const AUTH_METHODS = [
@@ -175,12 +174,6 @@ export default function AuthScreen() {
 
       setVerifiedPatient(patient, method);
       await loadPortalData?.();
-
-      createMobileSession({
-        patient: result.patient || patient,
-        authType: "MOBILE",
-        sessionId: patient.sessionId,
-      });
 
       setScreen(SCREENS.M1);
     } catch (verifyError) {

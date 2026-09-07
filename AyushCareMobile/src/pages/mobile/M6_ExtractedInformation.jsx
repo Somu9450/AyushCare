@@ -214,6 +214,16 @@ export default function M6_ExtractedInformation() {
     extractedData?.documentType ||
     "other";
 
+  const abnormalValues = Array.isArray(extractedData?.abnormal_values)
+    ? extractedData.abnormal_values
+    : Array.isArray(extractedData?.abnormalValues) ? extractedData.abnormalValues : [];
+
+  const insightText = abnormalValues.length
+    ? `${abnormalValues.length} value${abnormalValues.length === 1 ? "" : "s"} may need attention.`
+    : normalized.medicines.length || normalized.diagnoses.length || normalized.investigations.length
+      ? "The document was read and useful medical information was found."
+      : "No clear structured insight was detected.";
+
   const openEditor = (section) => {
     const values = normalized[section] || [];
 
@@ -327,6 +337,12 @@ export default function M6_ExtractedInformation() {
               </p>
             </div>
           </div>
+        </section>
+
+        <section className={`rounded-2xl border p-4 shadow-sm ${abnormalValues.length ? "border-amber-200 bg-amber-50" : "border-teal-100 bg-teal-50"}`}>
+          <p className={`text-xs font-black uppercase tracking-wide ${abnormalValues.length ? "text-amber-800" : "text-teal-800"}`}>Key insight</p>
+          <p className={`mt-1 text-sm font-semibold ${abnormalValues.length ? "text-amber-950" : "text-teal-950"}`}>{insightText}</p>
+          {abnormalValues.length > 0 && <div className="mt-3 space-y-2">{abnormalValues.slice(0, 4).map((item, index) => <div key={item?.id || index} className="rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-950"><strong>{item?.label || "Result"}</strong>{item?.value ? `: ${item.value}` : ""}{item?.unit ? ` ${item.unit}` : ""}{item?.reference_range ? ` • Ref ${item.reference_range}` : ""}</div>)}</div>}
         </section>
 
         {normalized.parsedDate && (

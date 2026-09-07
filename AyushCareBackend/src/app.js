@@ -11,8 +11,12 @@ import languageRouter from './routes/language.routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
 const app = express();
-const allowedOrigins = String(process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(v=>v.trim()).filter(Boolean);
-app.use(cors({ origin: (origin, cb) => { if (!origin || allowedOrigins.includes(origin)) return cb(null, true); return cb(new Error('CORS origin not allowed')); }, credentials: true }));
+const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*';
+
+app.use(cors({ 
+    origin: allowedOrigins, 
+    credentials: true 
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());

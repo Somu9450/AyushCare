@@ -2,7 +2,19 @@ import { ApiError } from '../utilities/ApiError.js';
 
 const normalizeAiPathway = (value) => String(value || 'general').toLowerCase() === 'ayurveda' ? 'ayush' : String(value || 'general').toLowerCase();
 
-const baseUrl = () => (process.env.MEDIKIOSK_AI_BASE_URL || '').replace(/\/$/, '');
+const baseUrl = () => {
+    const configured = String(process.env.MEDIKIOSK_AI_BASE_URL || '').replace(/\/$/, '');
+    if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+    try {
+        const parsed = new URL(configured);
+        const backendPort = String(process.env.PORT || '8000');
+        const sameBackend = ['localhost', '127.0.0.1'].includes(parsed.hostname) && (parsed.port || '80') === backendPort;
+        if (sameBackend) {
+            return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+        }
+    } catch {}
+    return configured;
+};
 
 const request = async (path, options = {}) => {
     const base = baseUrl();
@@ -56,12 +68,14 @@ const AiServiceGateway = {
     submitConversationAnswer: (sessionId, questionId, answer, inputMode = 'text', confidence = 1) =>
         json(`/api/v1/sessions/${sessionId}/conversation/answer`, { question_id: questionId, answer, input_mode: inputMode, confidence }),
     submitSpeech: async (sessionId, questionId, language, buffer, mimeType = 'audio/wav') => {
-        const extension = String(mimeType).toLowerCase().includes('webm') ? 'webm'
-            : String(mimeType).toLowerCase().includes('ogg') ? 'ogg'
-            : String(mimeType).toLowerCase().includes('mp4') ? 'm4a'
-            : 'wav';
+        const cleanMime = String(mimeType || 'audio/wav').split(';')[0].trim().toLowerCase();
+        const extension = cleanMime.includes('webm') ? 'webm'
+            : cleanMime.includes('ogg') ? 'ogg'
+            : cleanMime.includes('mp4') ? 'm4a'
+            : cleanMime.includes('wav') ? 'wav'
+            : 'webm';
         const form = new FormData();
-        form.append('audio', new Blob([buffer], { type: mimeType }), `speech.${extension}`);
+        form.append('audio', new Blob([buffer], { type: cleanMime }), `speech.${extension}`);
         return request(`/api/v1/sessions/${sessionId}/conversation/speech?question_id=${encodeURIComponent(questionId)}&language=${encodeURIComponent(language)}`, { method: 'POST', body: form });
     },
     tts: (sessionId, text, language = 'en') => request(`/api/v1/sessions/${sessionId}/conversation/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`),

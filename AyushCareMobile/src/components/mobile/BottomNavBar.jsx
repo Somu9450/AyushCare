@@ -52,7 +52,6 @@ const NAV_ITEMS = [
       SCREENS.PROFILE,
       SCREENS.SETTINGS,
       SCREENS.ABOUT,
-      SCREENS.KIOSK_SESSION,
     ],
   },
 ];

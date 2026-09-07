@@ -3,6 +3,7 @@ import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -11,6 +12,7 @@ import { sendSMS } from '../utilities/smsHelper.js';
 import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
 import AiServiceGateway from '../services/aiService.js';
+import { hashQrToken, signPatientToken } from '../services/patientQrService.js';
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
@@ -83,11 +85,16 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
             }
         }
         if (!extractedData) throw lastError || new Error('AI document upload returned no result');
+        const aiStatus = String(extractedData?.processing_status || extractedData?.status || '').toLowerCase();
+        const aiFailed = ['failed', 'ocr_failed', 'no_text_detected', 'error'].includes(aiStatus) || Boolean(extractedData?.error);
+        const finalStatus = aiFailed ? 'failed' : 'completed';
+        const processingError = aiFailed ? (extractedData?.error || `AI document processing returned status: ${aiStatus}`) : null;
 
         await pool.query(
-            "UPDATE uploaded_documents SET extracted_data = $1, status = 'completed', processing_error=NULL, source_mime_type=$3, updated_at=NOW() WHERE id = $2",
-            [JSON.stringify(extractedData), documentId, mimeType]
+            "UPDATE uploaded_documents SET extracted_data = $1, status = $2, processing_error=$3, source_mime_type=$5, updated_at=NOW() WHERE id = $4",
+            [JSON.stringify(extractedData), finalStatus, processingError, documentId, mimeType]
         );
+        if (aiFailed) throw new Error(processingError);
 
         console.log(`[OCR Integration] Successfully processed document ID: ${documentId}`);
     } catch (error) {
@@ -101,6 +108,56 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
             console.error(`[OCR Integration Error] Could not persist failure for ${documentId}:`, dbError);
         }
     }
+};
+
+
+const normalizeMobileForLookup = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    return '';
+};
+
+const resolvePatientConsultation = async (patientId, requestedConsultationId = null) => {
+    if (requestedConsultationId) {
+        const result = await pool.query(
+            `SELECT c.*, p.patient_code, p.full_name
+             FROM consultations c JOIN patients p ON p.id=c.patient_id
+             WHERE c.id=$1 AND c.patient_id=$2 LIMIT 1`,
+            [requestedConsultationId, patientId]
+        );
+        if (!result.rowCount) throw new ApiError(403, 'The selected visit does not belong to this patient');
+        return result.rows[0];
+    }
+
+    const result = await pool.query(
+        `SELECT c.*, p.patient_code, p.full_name
+         FROM consultations c JOIN patients p ON p.id=c.patient_id
+         WHERE c.patient_id=$1 AND c.ai_session_id IS NOT NULL
+         ORDER BY c.created_at DESC LIMIT 1`,
+        [patientId]
+    );
+    if (result.rowCount) return result.rows[0];
+
+    const hospitalId = process.env.DEFAULT_HOSPITAL_ID;
+    if (!hospitalId) throw new ApiError(503, 'No hospital is configured for document uploads');
+    const inserted = await pool.query(
+        `INSERT INTO consultations (hospital_id,patient_id,status,intake_pathway,language)
+         VALUES ($1,$2,'waiting_triage','general','en') RETURNING *`,
+        [hospitalId, patientId]
+    );
+    const consultation = inserted.rows[0];
+    try {
+        const ai = await AiServiceGateway.createSession(patientId, hospitalId, 'en', 'general');
+        const aiSessionId = ai?.id || ai?.session_id || null;
+        if (aiSessionId) {
+            const updated = await pool.query('UPDATE consultations SET ai_session_id=$1,updated_at=NOW() WHERE id=$2 RETURNING *', [aiSessionId, consultation.id]);
+            return updated.rows[0];
+        }
+    } catch (error) {
+        console.warn('[Portal Upload] Could not initialize AI session for new document visit:', error?.message || error);
+    }
+    return consultation;
 };
 
 // ==========================================
@@ -127,54 +184,55 @@ export const pairKioskSession = asyncHandler(async (req, res) => {
 
 
 export const getUploadUrl = asyncHandler(async (req, res) => {
-    const { file_name, content_type } = req.body;
-
-    if (!file_name || !content_type) {
-        throw new ApiError(400, "file_name and content_type are required fields");
-    }
+    const { file_name, content_type, consultation_id, document_processing_consent } = req.body || {};
+    if (!file_name || !content_type) throw new ApiError(400, 'file_name and content_type are required fields');
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (!allowedTypes.includes(content_type)) {
-        throw new ApiError(415, "Unsupported image type. Only JPEG, JPG, PNG, and WebP are allowed.");
+    if (!allowedTypes.includes(String(content_type).toLowerCase())) {
+        throw new ApiError(415, 'Unsupported image type. Only JPEG, JPG, PNG, and WebP are allowed.');
     }
 
-    const folder = req.user ? `vault/${req.user.id}` : `kiosk/${req.params.session_id || 'uploads'}`;
-    if (!req.user) {
+    let folder;
+    if (req.user) {
+        const consultation = await resolvePatientConsultation(req.user.id, consultation_id || null);
+        let consent = await pool.query(
+            `SELECT 1 FROM consent_records
+             WHERE consultation_id=$1 AND scope_id='document_processing'
+               AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
+            [consultation.id]
+        );
+        if (!consent.rowCount && document_processing_consent === true) {
+            await pool.query(
+                `INSERT INTO consent_records(consultation_id,scope_id,title,purpose,required,status)
+                 VALUES($1,'document_processing','Document Processing','Patient-authorized medical document analysis',FALSE,'granted')`,
+                [consultation.id]
+            );
+            consent = { rowCount: 1 };
+        }
+        if (!consent.rowCount) throw new ApiError(403, 'Document processing consent is required before upload');
+        folder = `vault/${req.user.id}`;
+    } else {
         const kiosk = await pool.query(
             `SELECT id,consultation_id FROM kiosk_sessions
              WHERE id=$1 AND is_active=TRUE AND expires_at>NOW()`,
             [req.params.session_id]
         );
         if (!kiosk.rowCount) throw new ApiError(410, 'Kiosk pairing session expired or invalid');
-        const consent = await pool.query(
-            `SELECT 1 FROM consent_records
-             WHERE consultation_id=$1 AND scope_id='document_processing'
-               AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
-            [kiosk.rows[0].consultation_id]
-        );
-        if (!consent.rowCount) throw new ApiError(403, 'Document processing consent is not granted for this kiosk session');
+        folder = `kiosk/${req.params.session_id}`;
     }
-    const safeName = String(file_name).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileKey = `${folder}/${Date.now()}-${safeName}`;
 
+    const safeName = String(file_name).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileKey = `${folder}/${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`;
     try {
         const command = new PutObjectCommand({
             Bucket: process.env.AWS_BUCKET_NAME,
             Key: fileKey,
-            ContentType: content_type
+            ContentType: content_type,
         });
-
         const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
-
-        return res.status(200).json(
-            new ApiResponse(
-                200,
-                { upload_url: presignedUrl, file_key: fileKey },
-                "Presigned upload URL generated successfully"
-            )
-        );
+        return res.status(200).json(new ApiResponse(200, { upload_url: presignedUrl, file_key: fileKey }, 'Presigned upload URL generated successfully'));
     } catch (error) {
-        throw new ApiError(500, "Failed to generate upload URL", [error.message]);
+        throw new ApiError(500, 'Failed to generate upload URL', [error.message]);
     }
 });
 
@@ -308,6 +366,72 @@ export const syncKioskUpload = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, {}, "Mobile sync completed. Connection purged."));
 });
 
+
+export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
+    const rawToken = String(req.body?.token || '').trim();
+    if (!rawToken) throw new ApiError(400, 'QR token is required');
+    const result = await pool.query(
+        `SELECT q.id, q.patient_id, q.consultation_id, q.expires_at,
+                p.id AS pid, p.patient_code, p.full_name, p.gender, p.date_of_birth, p.mobile_number, p.address,
+                EXISTS(SELECT 1 FROM consent_records cr WHERE cr.consultation_id=q.consultation_id AND cr.scope_id='document_processing' AND cr.status='granted' AND cr.withdrawn_at IS NULL) AS document_processing_consent
+         FROM patient_qr_tokens q JOIN patients p ON p.id=q.patient_id
+         WHERE q.token_hash=$1 AND q.used_at IS NULL AND q.expires_at>NOW()
+         LIMIT 1`,
+        [hashQrToken(rawToken)]
+    );
+    if (!result.rowCount) throw new ApiError(410, 'This patient QR has expired or has already been used');
+    const row = result.rows[0];
+    await pool.query('UPDATE patient_qr_tokens SET used_at=NOW() WHERE id=$1 AND used_at IS NULL', [row.id]);
+    const patient = {
+        id: row.pid, patient_code: row.patient_code, full_name: row.full_name,
+        gender: row.gender, date_of_birth: row.date_of_birth, mobile_number: row.mobile_number, address: row.address,
+    };
+    const accessToken = signPatientToken(patient);
+    return res.json(new ApiResponse(200, {
+        accessToken,
+        patient,
+        consultation_id: row.consultation_id,
+        auth_mode: 'qr_patient_portal',
+        document_processing_consent: Boolean(row.document_processing_consent),
+    }, 'Patient QR login successful'));
+});
+
+export const registerPortalDocument = asyncHandler(async (req, res) => {
+    const { file_key, document_type, consultation_id } = req.body || {};
+    if (!file_key || !document_type) throw new ApiError(400, 'file_key and document_type are required');
+    if (!/\.(jpe?g|png|webp)$/i.test(String(file_key))) throw new ApiError(415, 'Only JPEG, PNG and WebP images can be analyzed');
+    if (!String(file_key).startsWith(`vault/${req.user.id}/`)) throw new ApiError(403, 'Document storage key does not belong to this patient');
+
+    const consultation = await resolvePatientConsultation(req.user.id, consultation_id || null);
+    const consent = await pool.query(
+        `SELECT 1 FROM consent_records WHERE consultation_id=$1 AND scope_id='document_processing' AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
+        [consultation.id]
+    );
+    if (!consent.rowCount) throw new ApiError(403, 'Document processing consent is not granted for this visit');
+    if (!consultation.ai_session_id) throw new ApiError(409, 'AI session is not available for this visit yet');
+
+    const sourceMimeType = /\.webp$/i.test(file_key) ? 'image/webp' : /\.png$/i.test(file_key) ? 'image/png' : 'image/jpeg';
+    const document = await pool.query(
+        `INSERT INTO uploaded_documents (consultation_id,file_path_hash,document_type,source_mime_type,status)
+         VALUES($1,$2,$3,$4,'pending') RETURNING *`,
+        [consultation.id, file_key, document_type, sourceMimeType]
+    );
+    const row = document.rows[0];
+    executeOcrStreamingPipeline(consultation.id, row.id, file_key, document_type).catch((error) => console.error('[Portal OCR] background failure', error));
+    return res.status(202).json(new ApiResponse(202, row, 'Document registered for OCR and medical extraction'));
+});
+
+export const getPortalDocument = asyncHandler(async (req, res) => {
+    const result = await pool.query(
+        `SELECT d.* FROM uploaded_documents d
+         JOIN consultations c ON c.id=d.consultation_id
+         WHERE d.id=$1 AND c.patient_id=$2 LIMIT 1`,
+        [req.params.document_id, req.user.id]
+    );
+    if (!result.rowCount) throw new ApiError(404, 'Document not found');
+    return res.json(new ApiResponse(200, await signedDocument(result.rows[0]), 'Document loaded'));
+});
+
 // ==========================================
 // --- FLOW B: SMS Portal & Authentication ---
 // ==========================================
@@ -360,15 +484,14 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
     // Patient records created by the Kiosk may contain the local
     // 10-digit number, while portal login may provide +91XXXXXXXXXX.
     // Try both formats.
-    const localNumber = formattedNumber.startsWith('+91')
-        ? formattedNumber.substring(3)
-        : rawNumber.replace(/^\+/, '');
+    const localNumber = normalizeMobileForLookup(rawNumber || formattedNumber);
 
     const patientQuery = await pool.query(
         `SELECT *
          FROM patients
          WHERE mobile_number = $1
             OR mobile_number = $2
+         ORDER BY created_at DESC
          LIMIT 1`,
         [localNumber, formattedNumber]
     );
@@ -434,6 +557,8 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
         [patientId]
     );
     const patient = patientResult.rows[0] || null;
+    const privacyQuery = await pool.query('SELECT * FROM privacy_settings WHERE patient_id=$1', [patientId]);
+    const privacy = privacyQuery.rows[0] || { share_previous_departments: true, share_previous_appointments: true, share_previous_reports: true };
     const departmentQuery = await pool.query(
         `SELECT d.name FROM consultations c
          LEFT JOIN departments d ON d.id=c.department_id
@@ -448,7 +573,7 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
             token: appointment.token_number,
             status: appointment.status,
             hospital: appointment.hospital_name,
-            department: departmentQuery.rows[0]?.name || "AyushCare OPD"
+            department: privacy.share_previous_departments === false ? null : (departmentQuery.rows[0]?.name || "AyushCare OPD")
         },
         ai_summary: summaryQuery.rows[0] || null
     };
@@ -457,18 +582,20 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
 });
 
 export const getPortalVisits = asyncHandler(async (req, res) => {
+    const privacyQuery = await pool.query('SELECT share_previous_departments, share_previous_appointments FROM privacy_settings WHERE patient_id=$1', [req.user.id]);
+    const privacy = privacyQuery.rows[0] || { share_previous_departments: true, share_previous_appointments: true };
+    const appointmentFilter = privacy.share_previous_appointments === false ? "AND c.status NOT IN ('complete','cancelled')" : '';
     const result = await pool.query(
         `SELECT c.id, c.token_number, c.status, c.risk_level, c.intake_pathway,
-                c.language, c.created_at, c.updated_at,
-                h.name AS hospital_name, d.name AS department_name,
+                c.language, c.created_at, c.updated_at, h.name AS hospital_name,
+                ${privacy.share_previous_departments === false ? 'NULL' : 'd.name'} AS department_name,
                 u.name AS doctor_name
          FROM consultations c
          LEFT JOIN hospitals h ON h.id=c.hospital_id
          LEFT JOIN departments d ON d.id=c.department_id
          LEFT JOIN users u ON u.id=c.assigned_doctor_id
-         WHERE c.patient_id=$1
-         ORDER BY c.created_at DESC
-         LIMIT 50`,
+         WHERE c.patient_id=$1 ${appointmentFilter}
+         ORDER BY c.created_at DESC LIMIT 50`,
         [req.user.id]
     );
     return res.json(new ApiResponse(200, result.rows, 'Patient visits loaded'));
@@ -484,15 +611,17 @@ export const getAudioSummary = asyncHandler(async (req, res) => {
 });
 
 export const getPortalDocuments = asyncHandler(async (req, res) => {
+    const privacyQuery = await pool.query('SELECT share_previous_reports FROM privacy_settings WHERE patient_id=$1', [req.user.id]);
+    if (privacyQuery.rows[0]?.share_previous_reports === false) {
+        return res.status(200).json(new ApiResponse(200, [], 'Previous reports are hidden by your privacy setting'));
+    }
     const documents = await pool.query(
-        `SELECT d.* FROM uploaded_documents d
-         JOIN consultations c ON d.consultation_id = c.id
-         WHERE c.patient_id = $1
-         ORDER BY d.created_at DESC`,
+        `SELECT d.* FROM uploaded_documents d JOIN consultations c ON d.consultation_id=c.id
+         WHERE c.patient_id=$1 ORDER BY d.created_at DESC`,
         [req.user.id]
     );
     const hydrated = await Promise.all(documents.rows.map(signedDocument));
-    return res.status(200).json(new ApiResponse(200, hydrated, "Patient Document Vault loaded"));
+    return res.status(200).json(new ApiResponse(200, hydrated, 'Patient Document Vault loaded'));
 });
 
 export const getPortalPrivacy = asyncHandler(async (req, res) => {
@@ -500,7 +629,10 @@ export const getPortalPrivacy = asyncHandler(async (req, res) => {
 
     if (privacyQuery.rowCount === 0) {
         const seedQuery = await pool.query(
-            'INSERT INTO privacy_settings (patient_id, isolate_past_history, consent_voice_processing) VALUES ($1, FALSE, TRUE) RETURNING *',
+            `INSERT INTO privacy_settings
+             (patient_id, isolate_past_history, consent_voice_processing,
+              share_previous_departments, share_previous_reports, share_previous_appointments)
+             VALUES ($1, FALSE, TRUE, TRUE, TRUE, TRUE) RETURNING *`,
             [req.user.id]
         );
         privacyQuery = seedQuery;
@@ -514,26 +646,34 @@ export const updatePortalPrivacy = asyncHandler(async (req, res) => {
     const base = current.rows[0] || {
         isolate_past_history: false,
         consent_voice_processing: true,
-        lock_diagnosis: false,
-        lock_visits: false,
-        lock_reports: false
+        share_previous_departments: true,
+        share_previous_reports: true,
+        share_previous_appointments: true,
     };
     const body = req.body || {};
     const isolate = body.isolate_past_history ?? base.isolate_past_history;
     const voice = body.consent_voice_processing ?? base.consent_voice_processing;
-    const diagnosis = body.lock_diagnosis ?? base.lock_diagnosis;
-    const visits = body.lock_visits ?? base.lock_visits;
-    const reports = body.lock_reports ?? base.lock_reports;
-
+    const departments = body.share_previous_departments ?? base.share_previous_departments ?? true;
+    const reports = body.share_previous_reports ?? base.share_previous_reports ?? true;
+    const appointments = body.share_previous_appointments ?? base.share_previous_appointments ?? true;
     const privacyQuery = await pool.query(
         `INSERT INTO privacy_settings
-            (patient_id, isolate_past_history, consent_voice_processing, lock_diagnosis, lock_visits, lock_reports)
-         VALUES ($1, $2, $3, $4, $5, $6)
+            (patient_id, isolate_past_history, consent_voice_processing,
+             share_previous_departments, share_previous_reports, share_previous_appointments,
+             lock_diagnosis, lock_visits, lock_reports)
+         VALUES ($1,$2,$3,$4,$5,$6,NOT $4,NOT $6,NOT $5)
          ON CONFLICT (patient_id)
-         DO UPDATE SET isolate_past_history=$2, consent_voice_processing=$3,
-                       lock_diagnosis=$4, lock_visits=$5, lock_reports=$6, updated_at=NOW()
+         DO UPDATE SET isolate_past_history=$2,
+                       consent_voice_processing=$3,
+                       share_previous_departments=$4,
+                       share_previous_reports=$5,
+                       share_previous_appointments=$6,
+                       lock_diagnosis=NOT $4,
+                       lock_visits=NOT $6,
+                       lock_reports=NOT $5,
+                       updated_at=NOW()
          RETURNING *`,
-        [req.user.id, isolate, voice, diagnosis, visits, reports]
+        [req.user.id, Boolean(isolate), Boolean(voice), Boolean(departments), Boolean(reports), Boolean(appointments)]
     );
-    return res.status(200).json(new ApiResponse(200, privacyQuery.rows[0], "Preferences saved successfully"));
+    return res.status(200).json(new ApiResponse(200, privacyQuery.rows[0], 'Preferences saved successfully'));
 });

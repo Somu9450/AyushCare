@@ -74,7 +74,6 @@ export const MoreScreen = () => {
   const {
     patient,
     session,
-    kioskSession,
     logoutPatient,
     setScreen,
     prevScreen,
@@ -90,15 +89,6 @@ export const MoreScreen = () => {
     patient?.maskedMobile ||
     patient?.mobile ||
     (isHindi ? "उपलब्ध नहीं" : "Not provided");
-
-  const isKioskConnected =
-    kioskSession?.status === "CONNECTED";
-
-  const sessionName =
-    kioskSession?.kioskName ||
-    kioskSession?.name ||
-    session?.hospital ||
-    "Hospital Kiosk";
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50 text-slate-900 select-none">
@@ -130,13 +120,6 @@ export const MoreScreen = () => {
                   <Smartphone className="w-3 h-3" />
                   {isHindi ? "मोबाइल ऐप" : "Mobile App"}
                 </span>
-
-                {isKioskConnected && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-400/15 border border-emerald-300/20 text-[9px] font-bold text-emerald-100">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
-                    {sessionName}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -294,14 +277,6 @@ export const MoreScreen = () => {
                       ? "डेमो सत्र"
                       : "Demo session")}
                 </p>
-
-                {isKioskConnected && (
-                  <p className="text-[10px] text-teal-800 font-semibold mt-1">
-                    {isHindi
-                      ? "कियोस्क से कनेक्टेड"
-                      : "Connected to hospital kiosk"}
-                  </p>
-                )}
               </div>
             </div>
           </section>

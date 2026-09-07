@@ -12,7 +12,6 @@ import { useMobileStore } from "../../store/useMobileStore";
 
 export default function M9_InformationSent() {
   const {
-    kioskSession,
     session,
     patient,
     extractedData,
@@ -29,12 +28,6 @@ export default function M9_InformationSent() {
   const [error, setError] = useState("");
 
   const sending = Boolean(isSendingToDoctor || localSending);
-
-  const facilityName =
-    kioskSession?.facilityName ||
-    kioskSession?.facility ||
-    session?.facilityName ||
-    "Civil Hospital OPD";
 
   const patientName =
     patient?.name ||
@@ -121,8 +114,7 @@ export default function M9_InformationSent() {
               </h2>
 
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-600">
-                Your uploaded document information will be attached to the
-                current visit at {facilityName}.
+                Your uploaded document information is now saved to your AyushCare account. You can review it and control what is shared with your healthcare team.
               </p>
             </div>
 
@@ -146,11 +138,7 @@ export default function M9_InformationSent() {
                     Visit connection
                   </span>
                 </div>
-                <p className="mt-2 font-bold text-slate-900">
-                  {kioskSession?.status === "CONNECTED"
-                    ? "Connected"
-                    : "Current visit"}
-                </p>
+                <p className="mt-2 font-bold text-slate-900">Saved to your account</p>
               </div>
             </div>
 

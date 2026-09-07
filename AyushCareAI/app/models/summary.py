@@ -43,6 +43,11 @@ class GenerateSummaryRequest(BaseModel):
         default=False,
         description="Auto-detected from intake pathway if not set",
     )
+    conversation_history: Optional[list[dict]] = Field(
+        default=None,
+        description="Optional conversation history forwarded from the frontend. "
+                    "Used as fallback if the backend session has no history.",
+    )
 
 
 class SummaryEditRequest(BaseModel):

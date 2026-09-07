@@ -8,6 +8,7 @@ const Screen1_Welcome = lazy(() => import('./pages/Screen1_Welcome'));
 const Screen2_PatientType = lazy(() => import('./pages/Screen2_PatientType'));
 const Screen2_Auth = lazy(() => import('./pages/Screen2_Auth'));
 const Screen3_DepartmentSelector = lazy(() => import('./pages/Screen3_DepartmentSelector'));
+const Screen3b_LanguageSelect = lazy(() => import('./pages/Screen3b_LanguageSelect'));
 const Screen4_Consent = lazy(() => import('./pages/Screen4_Consent'));
 const Screen4_SymptomIntake = lazy(() => import('./pages/Screen4_SymptomIntake'));
 const Screen6_HealthHistory = lazy(() => import('./pages/Screen6_HealthHistory'));
@@ -26,7 +27,7 @@ export default function App() {
     2: <Screen2_PatientType />,
     3: <Screen2_Auth />,
     4: <Screen3_DepartmentSelector />,
-    5: <Screen4_Consent />,
+    5: <Screen3b_LanguageSelect />,
     6: <Screen4_SymptomIntake />,
     7: <Screen6_HealthHistory />,
     8: <Screen8_QRUpload />,
