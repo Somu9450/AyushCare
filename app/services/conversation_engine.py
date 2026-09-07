@@ -194,12 +194,10 @@ class ConversationEngine:
         # Emergency screening is a hard safety boundary. Record and evaluate the
         # answer first, then stop routine questioning on a positive response.
         if state.phase == ConversationPhase.EMERGENCY_SCREEN:
-            normalized = answer.strip().lower()
-            safe_negative = normalized in {
-                "none", "none of these", "no", "no emergency symptoms",
-                "nothing", "not experiencing any", "i have none"
-            }
-            if not safe_negative:
+            # Speech recognition rarely returns the exact option label. Treat
+            # common English/Hindi negative answers as a safe response and
+            # only terminate when an actual emergency signal is present.
+            if self._is_emergency_positive(answer):
                 state.phase = ConversationPhase.COMPLETED
                 state.is_complete = True
                 return ConversationTurnResponse(
@@ -261,6 +259,20 @@ class ConversationEngine:
                 user_prompt=user_prompt,
                 temperature=0.3,
             )
+            # The model may explicitly say that the current clinical section is
+            # sufficiently covered. Respect that signal instead of returning an
+            # empty/irrelevant question to the kiosk.
+            if response.get("section_complete") is True and len(state.answered_questions) >= 2:
+                state.phase = ConversationPhase.COMPLETED
+                state.is_complete = True
+                return ConversationTurnResponse(
+                    answer_confirmed=answer,
+                    next_question=None,
+                    red_flags=new_flags,
+                    phase=ConversationPhase.COMPLETED,
+                    progress_percent=100.0,
+                    is_complete=True,
+                )
             next_question = self._parse_question_response(response)
 
             needs_correction = (
@@ -660,6 +672,47 @@ class ConversationEngine:
 
         return result
 
+    @staticmethod
+    def _is_emergency_positive(answer: str) -> bool:
+        """Detect explicit emergency symptoms without false-ending normal speech."""
+        import json
+        raw = str(answer or "").strip()
+        values = [raw]
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    values.extend(str(v) for v in parsed)
+            except Exception:
+                pass
+        text = " ".join(values).lower()
+        text = " ".join(text.split())
+        if not text:
+            return False
+        if text in {"yes", "yes.", "yeah", "haan", "ha", "हाँ", "जी हाँ", "हां"}:
+            return True
+        emergency_values = {"chest_pain", "breathing", "bleeding", "weakness", "seizure", "unconscious", "stroke", "vomiting_blood", "black_stool"}
+        if any(v in emergency_values for v in values[1:]):
+            return True
+        negative_patterns = (
+            "no ", "no,", "none", "nothing", "not ", "i don't", "i do not",
+            "i have no", "i am not", "don't have", "do not have", "no emergency",
+            "नहीं", "कोई नहीं", "नहीं है", "मुझे नहीं", "ऐसा कुछ नहीं",
+        )
+        if any(text.startswith(prefix) or f" {prefix.strip()}" in text for prefix in negative_patterns):
+            positive_construction = ("i have " in text or "i am having " in text or "having " in text or ("मुझे " in text and "नहीं" not in text))
+            if not positive_construction:
+                return False
+        emergency_terms = (
+            "severe chest pain", "chest pain", "difficulty breathing", "breathing difficulty",
+            "can't breathe", "cannot breathe", "heavy bleeding", "severe bleeding",
+            "unconscious", "fainted", "seizure", "convulsion", "sudden weakness",
+            "sudden paralysis", "stroke", "blue lips", "vomiting blood", "blood in vomit",
+            "black stool", "very severe pain", "बेहोश", "दौरा", "सांस लेने में दिक्कत",
+            "सांस नहीं", "सीने में तेज दर्द", "बहुत ज्यादा खून", "अचानक कमजोरी",
+        )
+        return any(term in text for term in emergency_terms)
+
     def _determine_next_phase(
         self, state: ConversationState, intake_pathway: str
     ) -> ConversationPhase:
@@ -670,11 +723,8 @@ class ConversationEngine:
 
         # If emergency was confirmed, stop the interview
         if current == ConversationPhase.EMERGENCY_SCREEN:
-            last_answer = state.answered_questions[-1].get("answer", "").lower() if state.answered_questions else ""
-            if any(kw in last_answer for kw in ["none", "no", "nothing"]):
-                return ConversationPhase.CHIEF_COMPLAINT
-            # If they selected an emergency symptom, the red-flag system handles it
-            # but we still advance to chief complaint for triage info
+            # A non-emergency answer moves to the chief-complaint question.
+            # Explicit emergency answers are already completed above.
             return ConversationPhase.CHIEF_COMPLAINT
 
         return current

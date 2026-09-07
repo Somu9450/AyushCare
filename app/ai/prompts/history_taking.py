@@ -158,8 +158,7 @@ Generate the next clinically appropriate question for this section. Keep it dire
 related to the presenting complaint and the answers already given. Ask only the most useful \
 complaint-specific question; do not ask generic history questions that do not improve triage. \
 Do not ask about income, marital status, education, address, housing, or unrelated social history. \
-Never repeat a previous question. Use only choice or multi_select with useful options. \
-Do not return a text or number question. \
+Never repeat a previous question. Use choice/multi_select when useful, or a short text/number question when clinically necessary. If the patient language is not English, always populate prompt_local and label_local in that language. \
 If the complaint is sufficiently covered or the question limit has been reached, set \
 "section_complete": true and do not invent another question.
 """
