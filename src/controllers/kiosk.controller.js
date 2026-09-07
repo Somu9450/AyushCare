@@ -224,11 +224,34 @@ export const lookupPatients = asyncHandler(async (req, res) => {
     const patientId = String(req.query.patient_id || '').trim().toUpperCase();
     const mobile = normalizeMobile(req.query.mobile_number || req.query.mobileNumber);
     if (!patientId && !mobile) throw new ApiError(400, 'patient_id or mobile_number is required');
-    const conditions = [];
+
     const params = [];
-    if (patientId) { params.push(patientId); conditions.push(`patient_code=$${params.length}`); }
-    if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
-    const result = await pool.query(`SELECT id,patient_code,full_name,gender,date_of_birth,EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age,mobile_number,address,aadhaar_number,abha_number,abha_address,created_at FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`, params);
+    const conditions = [];
+    if (patientId) { params.push(patientId); conditions.push(`p.patient_code=$${params.length}`); }
+    if (mobile) { params.push(mobile); conditions.push(`p.mobile_number=$${params.length}`); }
+    const joiner = patientId && mobile ? ' AND ' : ' OR ';
+
+    const result = await pool.query(
+        `SELECT p.id,p.patient_code,p.full_name,p.gender,p.date_of_birth,
+                EXTRACT(YEAR FROM AGE(p.date_of_birth))::int AS age,
+                p.mobile_number,p.address,p.aadhaar_number,p.abha_number,p.abha_address,p.created_at,
+                COALESCE(
+                  jsonb_agg(DISTINCT jsonb_build_object(
+                    'department_id', d.id,
+                    'department_name', d.name,
+                    'pathway', c.intake_pathway,
+                    'visited_at', c.created_at
+                  ) ORDER BY c.created_at DESC) FILTER (WHERE c.id IS NOT NULL),
+                  '[]'::jsonb
+                ) AS recent_visits
+         FROM patients p
+         LEFT JOIN consultations c ON c.patient_id=p.id
+         LEFT JOIN departments d ON d.id=c.department_id
+         WHERE ${conditions.join(joiner)}
+         GROUP BY p.id
+         ORDER BY MAX(c.created_at) DESC NULLS LAST, p.created_at DESC`,
+        params
+    );
     return res.json(new ApiResponse(200, { multiple: result.rowCount > 1, patients: result.rows }, 'Patient lookup completed'));
 });
 

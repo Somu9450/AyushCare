@@ -57,6 +57,17 @@ export const initializeSchema = async () => {
             consultation_id UUID REFERENCES consultations(id) ON DELETE CASCADE, is_active BOOLEAN DEFAULT TRUE,
             expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
+        await client.query(`CREATE TABLE IF NOT EXISTS patient_qr_tokens (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            token_hash VARCHAR(64) UNIQUE NOT NULL,
+            patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+            consultation_id UUID REFERENCES consultations(id) ON DELETE CASCADE,
+            expires_at TIMESTAMPTZ NOT NULL,
+            used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patient_qr_token_active ON patient_qr_tokens(token_hash, expires_at) WHERE used_at IS NULL;`);
+
         await client.query(`CREATE TABLE IF NOT EXISTS vitals (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), consultation_id UUID UNIQUE REFERENCES consultations(id) ON DELETE CASCADE,
             systolic INT, diastolic INT, pulse NUMERIC(6,2), temperature NUMERIC(5,2), spo2 NUMERIC(5,2), source VARCHAR(50) DEFAULT 'manual', recorded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -78,6 +89,16 @@ export const initializeSchema = async () => {
         await addColumn(client, 'privacy_settings', 'lock_diagnosis', 'BOOLEAN DEFAULT FALSE');
         await addColumn(client, 'privacy_settings', 'lock_visits', 'BOOLEAN DEFAULT FALSE');
         await addColumn(client, 'privacy_settings', 'lock_reports', 'BOOLEAN DEFAULT FALSE');
+        await addColumn(client, 'privacy_settings', 'share_previous_departments', 'BOOLEAN DEFAULT TRUE');
+        await addColumn(client, 'privacy_settings', 'share_previous_reports', 'BOOLEAN DEFAULT TRUE');
+        await addColumn(client, 'privacy_settings', 'share_previous_appointments', 'BOOLEAN DEFAULT TRUE');
+        await client.query(`DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='consent_records' AND column_name='granted') THEN
+                ALTER TABLE consent_records ALTER COLUMN granted SET DEFAULT TRUE;
+            END IF;
+        END $$;`);
+
+
 
         // Safe upgrades for databases created by the previous backend version.
         await addColumn(client, 'patients', 'patient_code', 'VARCHAR(6) UNIQUE');
