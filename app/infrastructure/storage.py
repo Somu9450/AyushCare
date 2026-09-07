@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from pathlib import PurePath
 from typing import Optional
 
 import structlog
@@ -42,7 +43,8 @@ async def save_file(session_id: str, filename: str, content: bytes) -> Path:
     session_dir = get_upload_dir() / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    filepath = session_dir / filename
+    safe_filename = PurePath(str(filename)).name or 'document'
+    filepath = session_dir / safe_filename
     filepath.write_bytes(content)
 
     logger.info(
