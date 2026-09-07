@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { Languages, ChevronDown, Check } from 'lucide-react';
 import { useKioskStore } from '../../store/useKioskStore';
 import { OFFICIAL_INDIAN_LANGUAGES } from '../../constants/indianLanguages';
+import { kioskApi } from '../../services/api';
 
 export default function LanguageToggle() {
-  const { language, setLanguage } = useKioskStore();
+  const { language, setLanguage, sessionData } = useKioskStore();
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
   const selectorRef = useRef(null);
@@ -85,9 +86,16 @@ export default function LanguageToggle() {
     };
   }, [open]);
 
-  const handleLanguageChange = (code) => {
+  const handleLanguageChange = async (code) => {
     setLanguage(code);
     setOpen(false);
+    if (sessionData?.consultationId) {
+      try {
+        await kioskApi.updateLanguage(sessionData.consultationId, code);
+      } catch (error) {
+        console.warn('Kiosk language sync failed:', error?.message || error);
+      }
+    }
   };
 
   const languageMenu =

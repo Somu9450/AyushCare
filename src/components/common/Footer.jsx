@@ -6,7 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 export default function Footer({ showContinue = false }) {
   const { currentScreen, prevScreen } = useKioskStore();
   const { t } = useTranslation();
-  const progress = Math.max(0, Math.min(100, (currentScreen / 9) * 100));
+  const progress = Math.max(0, Math.min(100, (currentScreen / 10) * 100));
 
   return (
     <footer className="kiosk-footer">
@@ -21,13 +21,13 @@ export default function Footer({ showContinue = false }) {
           <span>{t('back')}</span>
         </button>
 
-        <div className="footer-progress" aria-label={`Step ${currentScreen} of 9`}>
+        <div className="footer-progress" aria-label={`Step ${currentScreen} of 10`}>
           <div className="footer-progress-dots" aria-hidden="true">
-            {Array.from({ length: 9 }, (_, index) => (
+            {Array.from({ length: 10 }, (_, index) => (
               <span key={index} className={index + 1 <= currentScreen ? 'active' : ''} />
             ))}
           </div>
-          <span>Step {currentScreen} of 9</span>
+          <span>Step {currentScreen} of 10</span>
           <div className="footer-progress-line" aria-hidden="true">
             <div style={{ width: `${progress}%` }} />
           </div>

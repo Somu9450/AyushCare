@@ -12,6 +12,8 @@ export const KioskInput = ({
   className = '',
   inputClassName = '',
   maxLength,
+  allowDecimal = false,
+  multiline = false,
   disabled = false,
   onEnter,
   prefixIcon: PrefixIcon = null,
@@ -29,6 +31,8 @@ export const KioskInput = ({
       placeholder,
       label,
       onEnter,
+      maxLength,
+      allowDecimal,
     });
   };
 
@@ -42,22 +46,34 @@ export const KioskInput = ({
         </div>
       )}
 
-      <input
-        id={id}
-        type={type === 'number' || type === 'tel' ? 'text' : type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onClick={handleOpenKeyboard}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        disabled={disabled}
-        className={`w-full ${PrefixIcon ? 'pl-11' : 'pl-4'} pr-12 py-3 bg-white border-2 rounded-2xl text-slate-900 font-semibold text-base transition-all focus:outline-none ${
-          isCurrentActive
-            ? 'border-teal-700 ring-2 ring-teal-700/20 bg-teal-50/20'
-            : 'border-slate-200 hover:border-teal-400'
-        } ${inputClassName}`}
-        {...rest}
-      />
+      {multiline ? (
+        <textarea
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          disabled={disabled}
+          className={`w-full min-h-24 resize-none ${PrefixIcon ? 'pl-11' : 'pl-4'} pr-12 py-3 bg-white border-2 rounded-2xl text-slate-900 font-semibold text-base transition-all focus:outline-none ${
+            isCurrentActive ? 'border-teal-700 ring-2 ring-teal-700/20 bg-teal-50/20' : 'border-slate-200 hover:border-teal-400'
+          } ${inputClassName}`}
+          {...rest}
+        />
+      ) : (
+        <input
+          id={id}
+          type={type === 'number' || type === 'tel' ? 'text' : type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          disabled={disabled}
+          className={`w-full ${PrefixIcon ? 'pl-11' : 'pl-4'} pr-12 py-3 bg-white border-2 rounded-2xl text-slate-900 font-semibold text-base transition-all focus:outline-none ${
+            isCurrentActive ? 'border-teal-700 ring-2 ring-teal-700/20 bg-teal-50/20' : 'border-slate-200 hover:border-teal-400'
+          } ${inputClassName}`}
+          {...rest}
+        />
+      )}
 
       {/* Interactive Keyboard Icon Button */}
       <button

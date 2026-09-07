@@ -286,7 +286,6 @@ const VitalInput = ({
           inputMode="decimal"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onClick={handleOpen}
           placeholder={placeholder}
           className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2.5 pr-16 text-xs font-bold text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-teal-500 cursor-pointer"
         />
@@ -295,8 +294,7 @@ const VitalInput = ({
           <span className="text-[10px] font-bold text-slate-400">{suffix}</span>
           <button
             type="button"
-            onClick={handleOpen}
-            title="Open Touch Numpad"
+              title="Open Touch Numpad"
             aria-label="Open Touch Numpad"
             className="w-5 h-5 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 flex items-center justify-center cursor-pointer active:scale-95 shadow-2xs"
           >

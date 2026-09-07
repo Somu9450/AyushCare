@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 
 const freshSession = () => ({
+  registrationType: null,
   authType: 'Mobile',
   identifier: '',
   isVerified: false,
   patientProfile: null,
+  patientId: null,
   consultationId: null,
   aiSessionId: null,
   pairingSession: null,
@@ -13,6 +15,7 @@ const freshSession = () => ({
   requestedDoctor: null,
   consent: {},
   consentScopes: null,
+  consentReceipt: null,
   currentQuestion: null,
   questionHistory: [],
   progress: 0,
@@ -32,40 +35,15 @@ export const useKioskStore = create((set) => ({
   emergencyModalOpen: false,
   sessionData: freshSession(),
 
-  setScreen: (screen) => set({
-    currentScreen: Math.max(1, Math.min(9, screen)),
-  }),
-
-  nextScreen: () => set((s) => ({
-    currentScreen: Math.min(9, s.currentScreen + 1),
-  })),
-
-  prevScreen: () => set((s) => ({
-    currentScreen: Math.max(1, s.currentScreen - 1),
-  })),
-
+  setScreen: (screen) => set({ currentScreen: Math.max(1, Math.min(10, screen)) }),
+  nextScreen: () => set((s) => ({ currentScreen: Math.min(10, s.currentScreen + 1) })),
+  prevScreen: () => set((s) => ({ currentScreen: s.currentScreen === 6 ? 4 : Math.max(1, s.currentScreen - 1) })),
   setLanguage: (language) => set({ language }),
-
-  toggleAudio: () => set((s) => ({
-    audioEnabled: !s.audioEnabled,
-  })),
-
-  toggleHighContrast: () => set((s) => ({
-    highContrast: !s.highContrast,
-  })),
-
-  updateSession: (payload) => set((s) => ({
-    sessionData: {
-      ...s.sessionData,
-      ...payload,
-    },
-  })),
-
-  resetSession: () => set({
-    currentScreen: 1,
-    emergencyModalOpen: false,
-    sessionData: freshSession(),
-  }),
+  toggleAudio: () => set((s) => ({ audioEnabled: !s.audioEnabled })),
+  toggleHighContrast: () => set((s) => ({ highContrast: !s.highContrast })),
+  updateSession: (payload) => set((s) => ({ sessionData: { ...s.sessionData, ...payload } })),
+  updateSessionData: (payload) => set((s) => ({ sessionData: { ...s.sessionData, ...payload } })),
+  resetSession: () => set({ currentScreen: 1, emergencyModalOpen: false, sessionData: freshSession() }),
 }));
 
 export default useKioskStore;

@@ -4,12 +4,14 @@ import { kioskApi,getErrorMessage } from '../services/api';
 import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
 import AudioButton from '../components/common/AudioButton';
+import KioskInput from '../components/common/KioskInput';
 
 export default function Screen4_SymptomIntake(){
  const {sessionData,language,updateSession,nextScreen}=useKioskStore();
  const {t}=useTranslation();
  const [question,setQuestion]=useState(sessionData.currentQuestion);
  const [answer,setAnswer]=useState('');
+ const [multiAnswer,setMultiAnswer]=useState([]);
  const [history,setHistory]=useState(sessionData.questionHistory||[]);
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState('');
@@ -48,11 +50,13 @@ export default function Screen4_SymptomIntake(){
      .finally(()=>setLoading(false));
  },[sessionData.consultationId,sessionData.consent?.clinical_intake,updateSession]);
 
+ const isMultiSelect=Boolean(question?.multiple || question?.multi_select || question?.multiSelect || question?.selection_mode==='multiple' || question?.answer_type==='multi_select' || question?.input_mode==='multi_select');
  const applyResult=(r,answerText,inputMode)=>{
    const item={question,answer:answerText,input_mode:inputMode};
    const h=[...history,item];
    setHistory(h);
    setAnswer('');
+   setMultiAnswer([]);
    setQuestion(r?.next_question||null);
    updateSession({
      currentQuestion:r?.next_question||null,
@@ -65,17 +69,19 @@ export default function Screen4_SymptomIntake(){
  };
 
  const submit=async()=>{
-   if(!question||!answer.trim())return;
+   if(!question)return;
+   const answerText=isMultiSelect ? JSON.stringify(multiAnswer) : answer.trim();
+   if(!answerText || (isMultiSelect && !multiAnswer.length))return;
    setLoading(true);
    setError('');
    try{
      const r=await kioskApi.answer(sessionData.consultationId,{
        question_id:question.question_id,
-       answer:answer.trim(),
-       input_mode:'text',
+       answer:answerText,
+       input_mode:isMultiSelect ? 'multi_select' : 'text',
        confidence:1
      });
-     applyResult(r,answer.trim(),'text');
+     applyResult(r,answerText,'text');
    }catch(e){
      setError(getErrorMessage(e));
    }finally{
@@ -149,22 +155,35 @@ export default function Screen4_SymptomIntake(){
        </div>
        {question.helper&&<p className="helper">{question.helper}</p>}
        {question.options?.length>0&&
-         <div className="option-grid">
-           {question.options.map(o=>
-             <button key={o.value} className={answer===o.value?'selected':''} onClick={()=>setAnswer(o.value)}>
-               {o.label_local||o.label}
-             </button>
-           )}
-         </div>
+         <>
+           {isMultiSelect&&<p className="multi-select-hint">Select all options that apply.</p>}
+           <div className="option-grid">
+             {question.options.map(o=>{
+               const value=String(o.value);
+               const selectedOption=isMultiSelect ? multiAnswer.includes(value) : answer===value;
+               return (
+                 <button key={value} className={selectedOption?'selected':''} onClick={()=>{
+                   if(isMultiSelect){
+                     setMultiAnswer(prev=>prev.includes(value)?prev.filter(x=>x!==value):[...prev,value]);
+                   }else{
+                     setAnswer(value);
+                   }
+                 }}>
+                   {o.label_local||o.label}
+                 </button>
+               );
+             })}
+           </div>
+         </>
        }
        {(!question.options||question.options.length===0)&&
-         <textarea value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={t('typeAnswer')}/>
+         <KioskInput id={`ai-answer-${question.question_id}`} value={answer} onChange={setAnswer} multiline label="Your answer" placeholder={t('typeAnswer')} />
        }
        <div className="answer-actions">
          <button className={`secondary-btn ${recording?'recording':''}`} onClick={toggleRecording} disabled={loading}>
            {recording?<><Square size={17}/>{t('listening')}</>:<><Mic size={17}/>{t('listen')}</>}
          </button>
-         <button className="primary-btn" disabled={loading||!answer.trim()} onClick={submit}>
+         <button className="primary-btn" disabled={loading||(isMultiSelect ? !multiAnswer.length : !answer.trim())} onClick={submit}>
            {loading?<Loader2 className="spin"/>:<Send size={18}/>} {t('submit')}
          </button>
        </div>
