@@ -1,4 +1,4 @@
-"""OCR service — Gemini Vision (primary, free) + Tesseract (local fallback).
+"""OCR service — Groq Vision (primary) + Tesseract (local fallback).
 
 Handles medical document image processing with quality assessment,
 multi-language text extraction, and structured output.
@@ -6,8 +6,9 @@ multi-language text extraction, and structured output.
 
 from __future__ import annotations
 
+import base64
 from io import BytesIO
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
 from PIL import Image
@@ -43,7 +44,7 @@ class ImageQuality:
 
 
 class OCRService:
-    """Unified OCR interface using Gemini Vision and Tesseract."""
+    """Unified OCR interface using Groq Vision and Tesseract."""
 
     MIN_WIDTH = 640
     MIN_HEIGHT = 480
@@ -52,10 +53,22 @@ class OCRService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._provider = settings.ocr_provider
+        self._groq_client: Any = None
+        if settings.groq_api_key:
+            try:
+                from groq import AsyncGroq
+                self._groq_client = AsyncGroq(api_key=settings.groq_api_key)
+                logger.info("ocr_provider_initialized", provider="groq_vision")
+            except Exception as e:
+                logger.warning("ocr_groq_init_failed", error=str(e))
 
     @property
     def is_available(self) -> bool:
-        return bool(self._settings.gemini_api_key) or self._provider == "tesseract"
+        if self._provider == "groq_vision":
+            return self._groq_client is not None
+        if self._provider == "gemini_vision":
+            return bool(self._settings.gemini_api_key)
+        return self._provider == "tesseract"
 
     def assess_image_quality(self, image_bytes: bytes) -> ImageQuality:
         """Check image dimensions, size, and readability."""
@@ -102,19 +115,93 @@ class OCRService:
         """Extract text from a medical document image.
 
         Priority order:
-        1. Gemini Vision (Free with GEMINI_API_KEY - no GCP service account required)
+        1. Groq Vision
         2. Tesseract OCR (local fallback)
 
         Returns:
             dict with keys: 'text', 'confidence', 'language', 'pages'
         """
-        if self._settings.gemini_api_key:
+        if self._provider == "groq_vision" and self._groq_client:
+            try:
+                return await self._extract_groq_vision(image_bytes, language_hints)
+            except Exception as e:
+                logger.warning("groq_vision_ocr_failed", error=str(e))
+
+        if self._provider == "gemini_vision" and self._settings.gemini_api_key:
             try:
                 return await self._extract_gemini(image_bytes, language_hints)
             except Exception as e:
                 logger.warning("gemini_vision_ocr_failed", error=str(e))
 
         return await self._extract_tesseract(image_bytes, language_hints)
+
+    async def _extract_groq_vision(
+        self,
+        image_bytes: bytes,
+        language_hints: Optional[list[str]] = None,
+    ) -> dict:
+        """Extract text using Groq's multimodal chat completions API."""
+        if not self._groq_client:
+            raise OCRError("Groq API key not configured.")
+
+        image = Image.open(BytesIO(image_bytes))
+        image_format = (image.format or "JPEG").lower()
+        if image_format == "jpg":
+            image_format = "jpeg"
+        encoded_image = base64.b64encode(image_bytes).decode("ascii")
+
+        response = await self._groq_client.chat.completions.create(
+            model=self._settings.groq_vision_model,
+            temperature=0,
+            max_tokens=self._settings.groq_max_tokens,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a medical document transcription assistant. "
+                        "Transcribe all visible text accurately and verbatim. "
+                        "Return only the transcription without commentary."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Transcribe prescriptions, medicines, dosages, "
+                                "lab tests, values, reference ranges, dates, "
+                                "and doctor notes. Preserve the original layout "
+                                "as much as possible."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    f"data:image/{image_format};base64,{encoded_image}"
+                                ),
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+        text = response.choices[0].message.content or ""
+
+        logger.info(
+            "ocr_extraction_complete",
+            provider="groq_vision",
+            model=self._settings.groq_vision_model,
+            text_length=len(text),
+        )
+
+        return {
+            "text": text.strip(),
+            "confidence": 0.9,
+            "language": language_hints[0] if language_hints else "en",
+            "pages": 1,
+        }
 
     async def _extract_gemini(
         self,
