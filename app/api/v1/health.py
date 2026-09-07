@@ -28,7 +28,17 @@ async def health_check() -> HealthResponse:
         pass
 
     llm_ok = settings.primary_llm_available or settings.fallback_llm_available
-    ocr_ok = bool(settings.gemini_api_key) or settings.ocr_provider == "tesseract"
+    ocr_ok = (
+        settings.ocr_provider == "tesseract"
+        or (
+            settings.ocr_provider == "groq_vision"
+            and bool(settings.groq_api_key)
+        )
+        or (
+            settings.ocr_provider == "gemini_vision"
+            and bool(settings.gemini_api_key)
+        )
+    )
     asr_ok = bool(settings.groq_api_key)
     tts_ok = True  # Edge-TTS is free and built-in
 
