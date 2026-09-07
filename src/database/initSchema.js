@@ -26,7 +26,7 @@ export const initializeSchema = async () => {
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS patients (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), abha_number VARCHAR(17) UNIQUE, abha_address VARCHAR(100) UNIQUE,
-            full_name VARCHAR(255) NOT NULL, gender VARCHAR(20) NOT NULL, date_of_birth DATE NOT NULL, mobile_number VARCHAR(15),
+            patient_code VARCHAR(6) UNIQUE, full_name VARCHAR(255) NOT NULL, gender VARCHAR(20) NOT NULL, date_of_birth DATE NOT NULL, mobile_number VARCHAR(15), address TEXT, aadhaar_number VARCHAR(12), registration_type VARCHAR(20) DEFAULT 'new',
             consent_granted BOOLEAN DEFAULT FALSE, consent_timestamp TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS departments (
@@ -72,10 +72,22 @@ export const initializeSchema = async () => {
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS privacy_settings (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID UNIQUE REFERENCES patients(id) ON DELETE CASCADE,
-            isolate_past_history BOOLEAN DEFAULT FALSE, consent_voice_processing BOOLEAN DEFAULT TRUE, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            isolate_past_history BOOLEAN DEFAULT FALSE, consent_voice_processing BOOLEAN DEFAULT TRUE, lock_diagnosis BOOLEAN DEFAULT FALSE, lock_visits BOOLEAN DEFAULT FALSE, lock_reports BOOLEAN DEFAULT FALSE, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
 
+        await addColumn(client, 'privacy_settings', 'lock_diagnosis', 'BOOLEAN DEFAULT FALSE');
+        await addColumn(client, 'privacy_settings', 'lock_visits', 'BOOLEAN DEFAULT FALSE');
+        await addColumn(client, 'privacy_settings', 'lock_reports', 'BOOLEAN DEFAULT FALSE');
+
         // Safe upgrades for databases created by the previous backend version.
+        await addColumn(client, 'patients', 'patient_code', 'VARCHAR(6) UNIQUE');
+        await addColumn(client, 'patients', 'address', 'TEXT');
+        await addColumn(client, 'patients', 'aadhaar_number', 'VARCHAR(12)');
+        await addColumn(client, 'patients', 'registration_type', "VARCHAR(20) DEFAULT 'new'");
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_patient_code ON patients(patient_code) WHERE patient_code IS NOT NULL;`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_mobile ON patients(mobile_number);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_aadhaar ON patients(aadhaar_number);`);
+
         await addColumn(client, 'consultations', 'department_id', 'UUID REFERENCES departments(id) ON DELETE SET NULL');
         await addColumn(client, 'consultations', 'intake_pathway', "VARCHAR(30) NOT NULL DEFAULT 'general'");
         await addColumn(client, 'consultations', 'language', "VARCHAR(20) DEFAULT 'en'");
@@ -85,6 +97,8 @@ export const initializeSchema = async () => {
         await client.query(`ALTER TABLE consultations ALTER COLUMN token_number DROP NOT NULL`);
         await client.query(`ALTER TABLE clinical_summaries ALTER COLUMN chief_complaint DROP NOT NULL`);
         await addColumn(client, 'uploaded_documents', 'page_number', 'INT');
+        await addColumn(client, 'uploaded_documents', 'processing_error', 'TEXT');
+        await addColumn(client, 'uploaded_documents', 'source_mime_type', 'VARCHAR(100)');
         await addColumn(client, 'uploaded_documents', 'total_pages', 'INT');
         await addColumn(client, 'uploaded_documents', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
         await addColumn(client, 'clinical_summaries', 'medications', "JSONB DEFAULT '[]'");

@@ -6,6 +6,40 @@ import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
 
 const DEFAULT_HOSPITAL = () => process.env.DEFAULT_HOSPITAL_ID || null;
+
+const normalizeMobile = (value) => {
+    const raw = String(value || '').replace(/\D/g, '');
+    if (raw.length === 10) return raw;
+    if (raw.length === 12 && raw.startsWith('91')) return raw.slice(2);
+    return '';
+};
+
+const normalizeDigits = (value, length, label) => {
+    if (value === undefined || value === null || value === '') return null;
+    const digits = String(value).replace(/\D/g, '');
+    if (digits.length !== length) throw new ApiError(400, `${label} must contain exactly ${length} digits`);
+    return digits;
+};
+
+const generatePatientCode = async (client) => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let attempt = 0; attempt < 20; attempt++) {
+        let code = '';
+        for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+        const found = await client.query('SELECT 1 FROM patients WHERE patient_code=$1', [code]);
+        if (!found.rowCount) return code;
+    }
+    throw new ApiError(500, 'Unable to generate a unique patient ID');
+};
+
+const dateOfBirthFromAge = (age) => {
+    if (age === undefined || age === null || age === '') return null;
+    const n = Number(age);
+    if (!Number.isInteger(n) || n < 0 || n > 120) throw new ApiError(400, 'age must be an integer between 0 and 120');
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - n);
+    return d.toISOString().slice(0, 10);
+};
 const pathway = (value) => {
     const p = String(value || 'general').toLowerCase();
     if (!['general', 'allopathy', 'ayurveda'].includes(p)) throw new ApiError(400, 'intake_pathway must be general, allopathy, or ayurveda');
@@ -24,12 +58,29 @@ const getConsultation = async (consultationId) => {
 };
 
 export const performAbhaRegister = asyncHandler(async (req, res) => {
-    const { abhaNumber, abhaAddress, fullName, gender, dob, mobileNumber, consent = false, hospitalId, language = 'en', intakePathway = 'general', kioskId = 'KIOSK-MAIN-01' } = req.body;
-    if (!fullName || !gender || !dob || (!abhaNumber && !mobileNumber)) throw new ApiError(400, 'fullName, gender, dob and either abhaNumber or mobileNumber are required');
-    if (!consent) throw new ApiError(403, 'Explicit clinical intake consent is required');
+    const {
+        abhaNumber, abhaAddress, fullName, gender, dob, age, mobileNumber, address,
+        aadhaarNumber, patientId, registrationType = 'new', consent = false,
+        hospitalId, language = 'en', intakePathway = 'general', kioskId = 'KIOSK-MAIN-01', departmentId, doctorId
+    } = req.body;
+
     const selectedPathway = pathway(intakePathway);
+    const type = String(registrationType).toLowerCase() === 'old' ? 'old' : 'new';
+    const mobile = normalizeMobile(mobileNumber);
+    const aadhaar = normalizeDigits(aadhaarNumber, 12, 'Aadhaar number');
+    const abha = normalizeDigits(abhaNumber, 14, 'ABHA number');
+    const resolvedDob = dob || dateOfBirthFromAge(age);
+
+    if (!consent) throw new ApiError(403, 'Explicit clinical intake consent is required');
+    if (type === 'new' && (!fullName || !gender || !resolvedDob || !mobile)) {
+        throw new ApiError(400, 'New registration requires fullName, gender, age/dob and a 10-digit mobile number');
+    }
+    if (type === 'old' && !patientId && !mobile) {
+        throw new ApiError(400, 'Existing patient lookup requires patientId or mobileNumber');
+    }
 
     const client = await pool.connect();
+    let createdAiSessionId = null;
     try {
         await client.query('BEGIN');
         let resolvedHospitalId = hospitalId || DEFAULT_HOSPITAL();
@@ -40,36 +91,101 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
         }
 
         let patient;
-        if (abhaNumber) {
-            const existing = await client.query('SELECT * FROM patients WHERE abha_number = $1', [abhaNumber]);
-            if (existing.rowCount) {
+        if (type === 'old') {
+            const conditions = [];
+            const params = [];
+            if (patientId) { params.push(String(patientId).trim().toUpperCase()); conditions.push(`patient_code=$${params.length}`); }
+            if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
+            let existing;
+            if (patientId && mobile) {
+                existing = await client.query(
+                    `SELECT * FROM patients
+                     WHERE patient_code=$1 AND mobile_number=$2
+                     ORDER BY created_at DESC`,
+                    [String(patientId).trim().toUpperCase(), mobile]
+                );
+            } else {
+                existing = await client.query(
+                    `SELECT * FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`,
+                    params
+                );
+            }
+            if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied Patient ID or mobile number');
+            if (existing.rowCount > 1 && !patientId) {
+                await client.query('ROLLBACK');
+                return res.status(200).json(new ApiResponse(200, {
+                    multiple: true,
+                    patients: existing.rows
+                }, 'Multiple patients found for this mobile number'));
+            }
+            patient = existing.rows[0];
+            await client.query('UPDATE patients SET consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$1', [patient.id]);
+        } else {
+            if (abha) {
+                const existing = await client.query('SELECT * FROM patients WHERE abha_number = $1', [abha]);
+                if (existing.rowCount) patient = existing.rows[0];
+            }
+            if (!patient && aadhaar) {
+                const existing = await client.query('SELECT * FROM patients WHERE aadhaar_number = $1', [aadhaar]);
+                if (existing.rowCount) patient = existing.rows[0];
+            }
+            const patientCode = patient?.patient_code || await generatePatientCode(client);
+            if (patient) {
                 const updated = await client.query(
-                    `UPDATE patients SET full_name=$1, gender=$2, date_of_birth=$3, mobile_number=COALESCE($4,mobile_number), abha_address=COALESCE($5,abha_address), consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$6 RETURNING id,abha_number,abha_address,full_name,gender,date_of_birth,mobile_number`,
-                    [fullName, gender, dob, mobileNumber || null, abhaAddress || null, existing.rows[0].id]
+                    `UPDATE patients SET patient_code=$1, full_name=$2, gender=$3, date_of_birth=$4, mobile_number=COALESCE($5,mobile_number), abha_number=COALESCE($6,abha_number), abha_address=COALESCE($7,abha_address), address=COALESCE($8,address), aadhaar_number=COALESCE($9,aadhaar_number), registration_type='new', consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$10 RETURNING *`,
+                    [patientCode, fullName, gender, resolvedDob, mobile || null, abha, abhaAddress || null, address || null, aadhaar, patient.id]
                 );
                 patient = updated.rows[0];
+            } else {
+                const inserted = await client.query(
+                    `INSERT INTO patients (patient_code,abha_number,abha_address,full_name,gender,date_of_birth,mobile_number,address,aadhaar_number,registration_type,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',TRUE,NOW()) RETURNING *`,
+                    [patientCode, abha, abhaAddress || null, fullName, gender, resolvedDob, mobile, address || null, aadhaar]
+                );
+                patient = inserted.rows[0];
             }
         }
-        if (!patient) {
-            const inserted = await client.query(
-                `INSERT INTO patients (abha_number,abha_address,full_name,gender,date_of_birth,mobile_number,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,TRUE,NOW()) RETURNING id,abha_number,abha_address,full_name,gender,date_of_birth,mobile_number`,
-                [abhaNumber || null, abhaAddress || null, fullName, gender, dob, mobileNumber || null]
+
+        let validatedDepartmentId = departmentId || null;
+        let validatedDoctorId = doctorId || null;
+
+        if (validatedDepartmentId) {
+            const department = await client.query(
+                `SELECT id,hospital_id,pathway FROM departments
+                 WHERE id=$1 AND is_active=TRUE LIMIT 1`,
+                [validatedDepartmentId]
             );
-            patient = inserted.rows[0];
+            if (!department.rowCount || String(department.rows[0].hospital_id) !== String(resolvedHospitalId)) {
+                throw new ApiError(400, 'Selected department is invalid for this hospital');
+            }
+            if (department.rows[0].pathway !== selectedPathway && !(selectedPathway === 'general' && department.rows[0].pathway === 'allopathy')) {
+                throw new ApiError(400, 'Selected department does not match the intake pathway');
+            }
+        }
+
+        if (validatedDoctorId) {
+            const doctor = await client.query(
+                `SELECT id,hospital_id FROM users
+                 WHERE id=$1 AND role='doctor' AND is_active=TRUE LIMIT 1`,
+                [validatedDoctorId]
+            );
+            if (!doctor.rowCount || String(doctor.rows[0].hospital_id) !== String(resolvedHospitalId)) {
+                throw new ApiError(400, 'Selected doctor is invalid for this hospital');
+            }
         }
 
         const consultation = (await client.query(
-            `INSERT INTO consultations (hospital_id,patient_id,status,intake_pathway,language) VALUES ($1,$2,'waiting_triage',$3,$4) RETURNING *`,
-            [resolvedHospitalId, patient.id, selectedPathway, language]
+            `INSERT INTO consultations (hospital_id,patient_id,status,intake_pathway,language,department_id,assigned_doctor_id) VALUES ($1,$2,'waiting_triage',$3,$4,$5,$6) RETURNING *`,
+            [resolvedHospitalId, patient.id, selectedPathway, language, validatedDepartmentId, validatedDoctorId]
         )).rows[0];
 
-        let aiSession = null;
+        let aiSession;
         try {
             aiSession = await AiServiceGateway.createSession(patient.id, resolvedHospitalId, language, selectedPathway);
         } catch (error) {
             throw new ApiError(502, 'Patient registered, but MediKiosk AI session could not be initialized', [error.message]);
         }
         const aiSessionId = aiSession?.id || aiSession?.session_id;
+        createdAiSessionId = aiSessionId || null;
         await client.query('UPDATE consultations SET ai_session_id=$1, updated_at=NOW() WHERE id=$2', [aiSessionId || null, consultation.id]);
 
         const pairingToken = randomBytes(12).toString('hex').toUpperCase();
@@ -78,7 +194,7 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             `INSERT INTO kiosk_sessions (pairing_token,kiosk_id,consultation_id,expires_at) VALUES ($1,$2,$3,$4) RETURNING id,pairing_token,kiosk_id,consultation_id,is_active,expires_at`,
             [pairingToken, kioskId, consultation.id, expiresAt]
         )).rows[0];
-        await audit(client, consultation.id, 'patient_verified', { pathway: selectedPathway, language });
+        await audit(client, consultation.id, 'patient_verified', { pathway: selectedPathway, language, registration_type: type, patient_code: patient.patient_code });
         await client.query('COMMIT');
 
         return res.status(201).json(new ApiResponse(201, {
@@ -88,9 +204,58 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             ai_session_id: aiSessionId,
             language,
             intake_pathway: selectedPathway,
+            registration_type: type,
             pairing_session: kioskSession
         }, 'Patient verified and kiosk consultation initialized'));
-    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    } catch (error) {
+        await client.query('ROLLBACK');
+        try {
+            if (typeof createdAiSessionId !== 'undefined' && createdAiSessionId) {
+                await AiServiceGateway.deleteSession(createdAiSessionId);
+            }
+        } catch (cleanupError) {
+            console.error('[Kiosk] AI session cleanup failed after transaction rollback:', cleanupError?.message || cleanupError);
+        }
+        throw error;
+    } finally { client.release(); }
+});
+
+export const lookupPatients = asyncHandler(async (req, res) => {
+    const patientId = String(req.query.patient_id || '').trim().toUpperCase();
+    const mobile = normalizeMobile(req.query.mobile_number || req.query.mobileNumber);
+    if (!patientId && !mobile) throw new ApiError(400, 'patient_id or mobile_number is required');
+    const conditions = [];
+    const params = [];
+    if (patientId) { params.push(patientId); conditions.push(`patient_code=$${params.length}`); }
+    if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
+    const result = await pool.query(`SELECT id,patient_code,full_name,gender,date_of_birth,EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age,mobile_number,address,aadhaar_number,abha_number,abha_address,created_at FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`, params);
+    return res.json(new ApiResponse(200, { multiple: result.rowCount > 1, patients: result.rows }, 'Patient lookup completed'));
+});
+
+export const integrationHealth = asyncHandler(async (req, res) => {
+    const checks = { database: false, ai: false, s3_configured: false };
+    try {
+        await pool.query('SELECT 1');
+        checks.database = true;
+    } catch (error) {
+        checks.database_error = error?.message || 'database unavailable';
+    }
+    try {
+        const ai = await AiServiceGateway.health();
+        checks.ai = Boolean(ai);
+    } catch (error) {
+        checks.ai_error = error?.message || 'AI unavailable';
+    }
+    checks.s3_configured = Boolean(
+        process.env.AWS_BUCKET_NAME &&
+        process.env.AWS_REGION &&
+        process.env.AWS_ACCESS_KEY_ID &&
+        process.env.AWS_SECRET_ACCESS_KEY
+    );
+    const healthy = checks.database && checks.ai && checks.s3_configured;
+    return res.status(healthy ? 200 : 503).json(
+        new ApiResponse(healthy ? 200 : 503, checks, healthy ? 'All integrations healthy' : 'One or more integrations unavailable')
+    );
 });
 
 export const createKioskSession = asyncHandler(async (req, res) => {
@@ -120,6 +285,62 @@ export const updateSessionLanguage = asyncHandler(async(req,res)=>{
     const ai=await AiServiceGateway.updateLanguage(consultation.ai_session_id,language);
     const result=await pool.query('UPDATE consultations SET language=$1,updated_at=NOW() WHERE id=$2 RETURNING *',[language,consultation.id]);
     return res.json(new ApiResponse(200,{consultation:result.rows[0],ai},'Language updated'));
+});
+
+export const updateConsultationRouting = asyncHandler(async (req, res) => {
+    const c = await getConsultation(req.params.session_id);
+    const { departmentId, doctorId } = req.body || {};
+    if (!departmentId) throw new ApiError(400, 'departmentId is required');
+
+    const department = await pool.query(
+        `SELECT id, name, pathway, hospital_id FROM departments
+         WHERE id=$1 AND is_active=TRUE LIMIT 1`,
+        [departmentId]
+    );
+    if (!department.rowCount) throw new ApiError(404, 'Department not found or inactive');
+    if (String(department.rows[0].hospital_id) !== String(c.hospital_id)) {
+        throw new ApiError(400, 'Department does not belong to the consultation hospital');
+    }
+
+    let doctor = null;
+    if (doctorId) {
+        const doctorResult = await pool.query(
+            `SELECT u.id,u.name,u.specialization,u.hospital_id
+             FROM users u
+             WHERE u.id=$1 AND u.role='doctor' AND u.is_active=TRUE
+             LIMIT 1`,
+            [doctorId]
+        );
+        if (!doctorResult.rowCount) throw new ApiError(404, 'Doctor not found or inactive');
+        if (String(doctorResult.rows[0].hospital_id) !== String(c.hospital_id)) {
+            throw new ApiError(400, 'Doctor does not belong to the consultation hospital');
+        }
+        doctor = doctorResult.rows[0];
+    }
+
+    const updated = await pool.query(
+        `UPDATE consultations
+         SET department_id=$1, assigned_doctor_id=$2, updated_at=NOW()
+         WHERE id=$3 RETURNING *`,
+        [departmentId, doctorId || null, c.id]
+    );
+
+    await pool.query(
+        `INSERT INTO audit_events (consultation_id, actor_type, event_type, metadata)
+         VALUES ($1,'patient','routing_selected',$2)`,
+        [c.id, JSON.stringify({
+            department_id: departmentId,
+            department_name: department.rows[0].name,
+            doctor_id: doctor?.id || null,
+            doctor_name: doctor?.name || null
+        })]
+    );
+
+    return res.json(new ApiResponse(200, {
+        consultation: updated.rows[0],
+        department: department.rows[0],
+        doctor
+    }, 'Department and doctor routing saved'));
 });
 
 export const startDialogue = asyncHandler(async(req,res)=>{
@@ -197,8 +418,12 @@ export const grantConsent = asyncHandler(async(req,res)=>{const c=await getConsu
 
 export const getConsent = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); const scopes=await pool.query('SELECT * FROM consent_records WHERE consultation_id=$1 ORDER BY granted_at',[c.id]); return res.json(new ApiResponse(200,scopes.rows,'Consent loaded'));});
 
-export const generateToken = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); if(c.token_number) return res.json(new ApiResponse(200,{token_number:c.token_number,status:c.status},'Token already assigned'));
-    const client=await pool.connect(); try{await client.query('BEGIN'); const lock=await client.query('SELECT * FROM consultations WHERE id=$1 FOR UPDATE',[c.id]); const current=lock.rows[0]; if(current.token_number){await client.query('COMMIT');return res.json(new ApiResponse(200,{token_number:current.token_number,status:current.status},'Token already assigned'));} const prefix=c.intake_pathway==='ayurveda'?'AY':'AL'; const count=await client.query(`SELECT COUNT(*)::int AS n FROM consultations WHERE hospital_id=$1 AND intake_pathway=$2 AND DATE(created_at)=CURRENT_DATE`,[c.hospital_id,c.intake_pathway]); const token=`${prefix}-${String(count.rows[0].n+1).padStart(3,'0')}`; const updated=await client.query(`UPDATE consultations SET token_number=$1,status='in_queue',updated_at=NOW() WHERE id=$2 RETURNING *`,[token,c.id]); await audit(client,c.id,'token_generated',{token_number:token}); await client.query('COMMIT'); return res.status(201).json(new ApiResponse(201,{token_number:token,status:updated.rows[0].status,consultation_id:c.id,intake_pathway:c.intake_pathway},'Queue token generated'));}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
+export const generateToken = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); const patientResult=await pool.query('SELECT id,patient_code,full_name,gender,date_of_birth,mobile_number,address FROM patients WHERE id=$1',[c.patient_id]); const patient=patientResult.rows[0]||null; if(c.token_number) return res.json(new ApiResponse(200,{token_number:c.token_number,status:c.status,consultation_id:c.id,patient},'Token already assigned'));
+    const client=await pool.connect(); try{
+        await client.query('BEGIN');
+        const lock=await client.query('SELECT * FROM consultations WHERE id=$1 FOR UPDATE',[c.id]); const current=lock.rows[0]; if(current.token_number){await client.query('COMMIT');return res.json(new ApiResponse(200,{token_number:current.token_number,status:current.status},'Token already assigned'));} const prefix=c.intake_pathway==='ayurveda'?'AY':'AL';
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`token:${c.hospital_id}:${c.intake_pathway}:${new Date().toISOString().slice(0,10)}`]);
+    const count=await client.query(`SELECT COUNT(*)::int AS n FROM consultations WHERE hospital_id=$1 AND intake_pathway=$2 AND DATE(created_at)=CURRENT_DATE`,[c.hospital_id,c.intake_pathway]); const token=`${prefix}-${String(count.rows[0].n+1).padStart(3,'0')}`; const updated=await client.query(`UPDATE consultations SET token_number=$1,status='in_queue',updated_at=NOW() WHERE id=$2 RETURNING *`,[token,c.id]); await audit(client,c.id,'token_generated',{token_number:token}); await client.query('COMMIT'); return res.status(201).json(new ApiResponse(201,{token_number:token,status:updated.rows[0].status,consultation_id:c.id,intake_pathway:c.intake_pathway,patient},'Queue token generated'));}catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}});
 
 export const completeSession = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); await pool.query(`UPDATE consultations SET status='in_queue',updated_at=NOW() WHERE id=$1`,[c.id]); await pool.query('UPDATE kiosk_sessions SET is_active=FALSE WHERE consultation_id=$1',[c.id]); return res.json(new ApiResponse(200,{consultation_id:c.id,status:'in_queue',token_number:c.token_number},'Kiosk intake completed'))});
 

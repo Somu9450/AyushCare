@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { performAbhaRegister, createKioskSession, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview } from '../controllers/kiosk.controller.js';
+import { performAbhaRegister, lookupPatients, createKioskSession, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth } from '../controllers/kiosk.controller.js';
 import { rawAudio } from '../middleware/rawAudio.middleware.js';
 
 const router = Router();
 router.post('/auth/abha', performAbhaRegister);
+router.get('/patients/lookup', lookupPatients);
+router.get('/system/health', integrationHealth);
 router.post('/session', createKioskSession);
 router.get('/session/:session_id', getSession);
 router.put('/session/:session_id/language', updateSessionLanguage);
+router.put('/session/:session_id/routing', updateConsultationRouting);
 router.post('/session/:session_id/dialogue/start', startDialogue);
 router.get('/session/:session_id/dialogue/state', getDialogueState);
 router.delete('/session/:session_id', deleteAiSession);
