@@ -19,7 +19,6 @@ import useMobileStore, {
 
 
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import AppointmentDetailsModal from "../../components/mobile/AppointmentDetailsModal";
 
 import { useLanguage } from "../../i18n/translations";
@@ -969,11 +968,7 @@ export const M1_MobileHome =
           </div>
         </main>
 
-        {/* ================================================================== */
-        /* BOTTOM NAVIGATION                                                    */
-        /* ================================================================== */}
 
-        <BottomNavBar />
 
         {/* ================================================================== */
         /* APPOINTMENT MODAL                                                    */

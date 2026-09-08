@@ -14,7 +14,6 @@ import useMobileStore, {
 } from "../../store/useMobileStore";
 import { fetchTodayAppointment, fetchUpcomingAppointments, fetchPastAppointments } from "../../services/appointmentService";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 function normalizeAppointmentList(value) {
@@ -100,6 +99,7 @@ export default function AppointmentsScreen() {
     setScreen,
     setSelectedAppointment,
     setActiveNavTab,
+    loadPortalData,
   } = useMobileStore();
 
   const { isHindi } = useLanguage();
@@ -116,6 +116,7 @@ export default function AppointmentsScreen() {
     setError("");
 
     try {
+      await loadPortalData?.();
       const [todayResult, upcomingResult, pastResult] =
         await Promise.all([
           fetchTodayAppointment(),
@@ -251,8 +252,6 @@ export default function AppointmentsScreen() {
           </div>
         )}
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }

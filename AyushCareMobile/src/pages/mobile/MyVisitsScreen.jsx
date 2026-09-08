@@ -13,7 +13,6 @@ import useMobileStore, {
 } from "../../store/useMobileStore";
 import { fetchVisits } from "../../services/visitService";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 function normalizeVisits(result) {
@@ -89,6 +88,7 @@ export default function MyVisitsScreen() {
     setSelectedVisit,
     setScreen,
     setActiveNavTab,
+    loadPortalData,
   } = useMobileStore();
 
   const { isHindi } = useLanguage();
@@ -110,6 +110,7 @@ export default function MyVisitsScreen() {
     setError("");
 
     try {
+      await loadPortalData?.();
       const result = await fetchVisits({
         patientId,
       });
@@ -224,8 +225,6 @@ export default function MyVisitsScreen() {
           </div>
         )}
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }

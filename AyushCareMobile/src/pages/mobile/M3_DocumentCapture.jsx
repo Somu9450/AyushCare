@@ -33,14 +33,14 @@ export default function M3_DocumentCapture() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50 pb-28 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
           <button type="button" onClick={() => setScreen("M2")} className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100" aria-label="Back"><ArrowLeft size={20}/></button>
           <div><p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Document upload</p><h1 className="text-lg font-bold">Add a photo or image</h1></div>
         </div>
       </header>
-      <main className="mx-auto max-w-2xl px-4 py-7">
+      <main className="mx-auto max-w-2xl px-4 py-7 pb-28">
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-teal-50 text-teal-700"><Camera size={34}/></div>
           <h2 className="mt-5 text-center text-xl font-bold">Capture your medical document</h2>

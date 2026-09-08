@@ -15,6 +15,7 @@ router.get('/session/:session_id/dialogue/state', getDialogueState);
 router.delete('/session/:session_id', deleteAiSession);
 router.post('/session/:session_id/dialogue/answer', answerDialogue);
 router.post('/session/:session_id/dialogue/speech', rawAudio, speechDialogue);
+router.post('/session/:session_id/dialogue/tts', ttsDialogue);
 router.get('/session/:session_id/dialogue/tts', ttsDialogue);
 router.post('/session/:session_id/vitals', saveVitals);
 router.get('/session/:session_id/documents', listAiDocuments);

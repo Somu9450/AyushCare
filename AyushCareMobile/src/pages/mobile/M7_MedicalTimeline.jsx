@@ -3,6 +3,7 @@ import React, {
 } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
   ChevronRight,
   FileText,
@@ -11,7 +12,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 
-import useMobileStore from "../../store/useMobileStore";
+import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 
 export default function M7_MedicalTimeline() {
   const {
@@ -189,6 +190,25 @@ export default function M7_MedicalTimeline() {
           ) : (
             <EmptyTimeline />
           )}
+
+          <div className="mt-8 space-y-3 pb-28">
+            <button
+              type="button"
+              onClick={() => setScreen(SCREENS.M8)}
+              className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.99]"
+            >
+              View AI Health Summary
+              <ArrowRight size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setScreen(SCREENS.RECORDS)}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99]"
+            >
+              Finish & View Medical Records
+            </button>
+          </div>
         </main>
       </div>
     </div>

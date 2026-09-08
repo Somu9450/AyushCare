@@ -7,6 +7,7 @@ multi-language text extraction, and structured output.
 from __future__ import annotations
 
 import base64
+import re
 from io import BytesIO
 from typing import Any, Optional
 
@@ -115,25 +116,40 @@ class OCRService:
         """Extract text from a medical document image.
 
         Priority order:
-        1. Groq Vision
-        2. Tesseract OCR (local fallback)
-
-        Returns:
-            dict with keys: 'text', 'confidence', 'language', 'pages'
+        1. Configured cloud vision provider (Gemini Vision or Groq Vision)
+        2. Automatic fallback cloud vision provider
+        3. Tesseract OCR (local fallback)
         """
-        if self._provider == "groq_vision" and self._groq_client:
-            try:
-                return await self._extract_groq_vision(image_bytes, language_hints)
-            except Exception as e:
-                logger.warning("groq_vision_ocr_failed", error=str(e))
+        # Build ordered list of cloud vision providers to attempt
+        if self._provider == "groq_vision":
+            candidates = ["groq_vision", "gemini_vision"]
+        else:
+            candidates = ["gemini_vision", "groq_vision"]
 
-        if self._provider == "gemini_vision" and self._settings.gemini_api_key:
-            try:
-                return await self._extract_gemini(image_bytes, language_hints)
-            except Exception as e:
-                logger.warning("gemini_vision_ocr_failed", error=str(e))
+        errors = []
+        for provider in candidates:
+            if provider == "gemini_vision" and self._settings.gemini_api_key:
+                try:
+                    return await self._extract_gemini(image_bytes, language_hints)
+                except Exception as e:
+                    logger.warning("gemini_vision_ocr_failed", error=str(e))
+                    errors.append(f"Gemini: {e}")
 
-        return await self._extract_tesseract(image_bytes, language_hints)
+            if provider == "groq_vision" and self._groq_client:
+                try:
+                    return await self._extract_groq_vision(image_bytes, language_hints)
+                except Exception as e:
+                    logger.warning("groq_vision_ocr_failed", error=str(e))
+                    errors.append(f"Groq: {e}")
+
+        # Local tesseract fallback if installed
+        try:
+            return await self._extract_tesseract(image_bytes, language_hints)
+        except Exception as e:
+            logger.warning("tesseract_ocr_failed", error=str(e))
+            errors.append(f"Tesseract: {e}")
+
+        raise OCRError(f"All OCR providers failed: {'; '.join(errors)}")
 
     async def _extract_groq_vision(
         self,
@@ -150,10 +166,13 @@ class OCRService:
             image_format = "jpeg"
         encoded_image = base64.b64encode(image_bytes).decode("ascii")
 
+        # Clamp max_tokens to 800 to avoid Groq on-demand tier OTPM (Output Tokens Per Minute) 1000 limit
+        safe_max_tokens = min(int(self._settings.groq_max_tokens or 800), 800)
+
         response = await self._groq_client.chat.completions.create(
             model=self._settings.groq_vision_model,
             temperature=0,
-            max_tokens=self._settings.groq_max_tokens,
+            max_tokens=safe_max_tokens,
             messages=[
                 {
                     "role": "system",
@@ -188,6 +207,7 @@ class OCRService:
             ],
         )
         text = response.choices[0].message.content or ""
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
         logger.info(
             "ocr_extraction_complete",
@@ -208,11 +228,10 @@ class OCRService:
         image_bytes: bytes,
         language_hints: Optional[list[str]] = None,
     ) -> dict:
-        """Extract text using Gemini Vision."""
+        """Extract text using Gemini Vision with model fallbacks."""
         import google.generativeai as genai
 
         genai.configure(api_key=self._settings.gemini_api_key)
-        model = genai.GenerativeModel(model_name=self._settings.gemini_model)
 
         img = Image.open(BytesIO(image_bytes))
         prompt = (
@@ -222,21 +241,43 @@ class OCRService:
             "Maintain original formatting and return only the transcription without commentary."
         )
 
-        response = await model.generate_content_async([prompt, img])
-        text = response.text or ""
+        candidate_models = [
+            self._settings.gemini_model,
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+        ]
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
 
-        logger.info(
-            "ocr_extraction_complete",
-            provider="gemini_vision",
-            text_length=len(text),
-        )
+        last_err = None
+        for model_name in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name=model_name)
+                response = await model.generate_content_async([prompt, img])
+                text = response.text or ""
+                text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+                if text:
+                    logger.info(
+                        "ocr_extraction_complete",
+                        provider="gemini_vision",
+                        model=model_name,
+                        text_length=len(text),
+                    )
+                    return {
+                        "text": text.strip(),
+                        "confidence": 0.95,
+                        "language": language_hints[0] if language_hints else "en",
+                        "pages": 1,
+                    }
+            except Exception as ex:
+                last_err = ex
+                logger.warning("gemini_vision_model_failed", model=model_name, error=str(ex))
+                continue
 
-        return {
-            "text": text.strip(),
-            "confidence": 0.95,
-            "language": language_hints[0] if language_hints else "en",
-            "pages": 1,
-        }
+        raise last_err or OCRError("Gemini Vision failed to extract text")
 
     async def _extract_tesseract(
         self,

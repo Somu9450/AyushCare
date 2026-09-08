@@ -27,7 +27,7 @@ export const kioskApi = {
       data: blob,
       headers: { 'Content-Type': blob?.type || 'audio/webm' },
     }),
-  tts: (sessionId, text, language) => request({ method: 'GET', url: `/intake/session/${sessionId}/dialogue/tts`, params: { text, language } }),
+  tts: (sessionId, text, language) => request({ method: 'POST', url: `/intake/session/${sessionId}/dialogue/tts`, data: { text, language } }),
   departments: (pathway, hospitalId) => request({ method: 'GET', url: '/intake/departments', params: { pathway, ...(hospitalId ? { hospital_id: hospitalId } : {}) } }),
   doctors: (departmentId) => request({ method: 'GET', url: `/intake/departments/${departmentId}/doctors` }),
   vitals: (sessionId, payload) => request({ method: 'POST', url: `/intake/session/${sessionId}/vitals`, data: payload }),

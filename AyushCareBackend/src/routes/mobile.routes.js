@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, getPortalDashboard, getPortalVisits, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy } from '../controllers/mobile.controller.js';
+import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, selectPortalPatient, getPortalDashboard, getPortalVisits, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy } from '../controllers/mobile.controller.js';
 import { verifyPatientJWT } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -19,6 +19,7 @@ router.post('/portal/qr/exchange', exchangePatientUploadQr);
 // Flow B: patient portal.
 router.post('/portal/auth/send-otp', sendPortalOtp);
 router.post('/portal/auth/verify-otp', verifyPortalOtp);
+router.post('/portal/select-patient', selectPortalPatient);
 router.get('/portal/dashboard', verifyPatientJWT, getPortalDashboard);
 router.get('/portal/visits', verifyPatientJWT, getPortalVisits);
 router.get('/portal/audio-summary', verifyPatientJWT, getAudioSummary);

@@ -12,8 +12,14 @@ import {
   FlaskConical,
   Activity,
   ShieldCheck,
+  Heart,
+  Thermometer,
+  Stethoscope,
+  Building2,
+  Ticket,
 } from "lucide-react";
-import { useMobileStore } from "../../store/useMobileStore";
+import useMobileStore, { SCREENS } from "../../store/useMobileStore";
+import { useLanguage } from "../../i18n/translations";
 
 const safeArray = (value) => {
   if (Array.isArray(value)) return value;
@@ -95,14 +101,14 @@ const normalizeSummary = (summary, extractedData) => {
     title: firstNonEmpty(source.title, "Your health information"),
     plainLanguage:
       plainLanguage ||
-      "Your uploaded information has been organized for you and can be reviewed by your healthcare team.",
+      "Your health information has been organized and synthesized by AyushCare AI.",
     date,
     medicines,
     diagnoses,
     investigations,
     symptoms,
     warning: firstNonEmpty(source.warning, source.alert),
-    source: source.source || "Uploaded document",
+    source: source.source || "Clinical Consultation & Records",
   };
 };
 
@@ -152,12 +158,12 @@ const speakText = (text) => {
 };
 
 function InfoSection({ icon, title, items, emptyText }) {
-  if (!items.length) return null;
+  if (!items || !items.length) return null;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
-        <div className="rounded-xl bg-slate-100 p-2">{icon}</div>
+        <div className="rounded-xl bg-slate-100 p-2 text-teal-700">{icon}</div>
         <h3 className="font-semibold text-slate-900">{title}</h3>
       </div>
 
@@ -185,15 +191,17 @@ export default function M8_HealthSummary() {
   const {
     extractedData,
     healthSummary,
+    vitals,
+    latestVisit,
     timeline,
     medicalTimeline,
-    medicalRecords,
-    visits,
     patient,
     session,
     setScreen,
+    prevScreen,
   } = useMobileStore();
 
+  const { isHindi } = useLanguage();
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const summary = useMemo(
@@ -201,46 +209,73 @@ export default function M8_HealthSummary() {
     [healthSummary, extractedData]
   );
 
-  const latestTimelineItem = useMemo(() => {
-    const source = Array.isArray(medicalTimeline)
-      ? medicalTimeline
-      : Array.isArray(timeline)
-        ? timeline
-        : [];
+  const facilityName =
+    latestVisit?.hospital_name ||
+    session?.facilityName ||
+    "AyushCare Center";
 
-    return source.length ? source[source.length - 1] : null;
-  }, [medicalTimeline, timeline]);
+  // Parse AI clinical summary payload from kiosk/db
+  const parsedAiPayload = useMemo(() => {
+    if (!healthSummary) return null;
+    let payload = healthSummary.ai_payload;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+    return payload || (healthSummary.sections ? healthSummary : null);
+  }, [healthSummary]);
+
+  const chiefComplaint =
+    healthSummary?.chief_complaint ||
+    parsedAiPayload?.chief_complaint ||
+    parsedAiPayload?.sections?.find((s) => /complaint/i.test(s.heading_en || s.heading || ""))?.body ||
+    null;
+
+  const historyOfIllness =
+    healthSummary?.history_of_present_illness ||
+    parsedAiPayload?.history_of_present_illness ||
+    parsedAiPayload?.sections?.find((s) => /history|illness/i.test(s.heading_en || s.heading || ""))?.body ||
+    null;
+
+  const aiSections = useMemo(() => {
+    if (!parsedAiPayload?.sections || !Array.isArray(parsedAiPayload.sections)) return [];
+    return parsedAiPayload.sections.filter(
+      (s) => !/complaint/i.test(s.heading_en || s.heading || "")
+    );
+  }, [parsedAiPayload]);
+
+  const activeVitals = vitals || null;
+  const activeVisit = latestVisit || null;
 
   const patientName =
     patient?.name ||
+    patient?.full_name ||
     patient?.fullName ||
-    session?.patientName ||
+    session?.patient?.name ||
     "Patient";
 
   const summaryText = [
+    chiefComplaint ? `Chief complaint: ${chiefComplaint}.` : "",
+    historyOfIllness ? `Clinical history: ${historyOfIllness}.` : "",
     summary.plainLanguage,
     summary.symptoms.length
       ? `Reported symptoms: ${summary.symptoms.map(getItemLabel).join(", ")}.`
       : "",
     summary.diagnoses.length
-      ? `Reported diagnoses or conditions: ${summary.diagnoses
-          .map(getItemLabel)
-          .join(", ")}.`
+      ? `Reported diagnoses: ${summary.diagnoses.map(getItemLabel).join(", ")}.`
       : "",
     summary.medicines.length
-      ? `Medicines mentioned: ${summary.medicines
-          .map(getItemLabel)
-          .join(", ")}.`
+      ? `Medicines: ${summary.medicines.map(getItemLabel).join(", ")}.`
       : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   const handleAudio = () => {
-    if (
-      typeof window === "undefined" ||
-      !("speechSynthesis" in window)
-    ) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       return;
     }
 
@@ -250,32 +285,23 @@ export default function M8_HealthSummary() {
       return;
     }
 
-    const started = speakText(summaryText);
+    const started = speakText(summaryText || "Health summary is ready.");
 
     if (started) {
       setIsSpeaking(true);
-
-      window.speechSynthesis.addEventListener(
-        "voiceschanged",
-        () => {},
-        { once: true }
-      );
-
       const checkSpeaking = () => {
         if (!window.speechSynthesis.speaking) {
           setIsSpeaking(false);
           return;
         }
-
         window.setTimeout(checkSpeaking, 250);
       };
-
       window.setTimeout(checkSpeaking, 250);
     }
   };
 
-  const handleContinue = () => {
-    setScreen("M9");
+  const handleBack = () => {
+    setScreen(SCREENS.M1);
   };
 
   return (
@@ -284,8 +310,8 @@ export default function M8_HealthSummary() {
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
           <button
             type="button"
-            onClick={() => setScreen("M7")}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
+            onClick={handleBack}
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 active:scale-95"
             aria-label="Go back"
           >
             <ArrowLeft size={20} />
@@ -293,10 +319,10 @@ export default function M8_HealthSummary() {
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
-              Health summary
+              {isHindi ? "एआई स्वास्थ्य सारांश" : "AI Health Summary"}
             </p>
             <h1 className="truncate text-lg font-bold text-slate-900">
-              Your information
+              {isHindi ? "स्वास्थ्य सारांश एवं विज़िट" : "Health Summary & Vitals"}
             </h1>
           </div>
 
@@ -307,16 +333,20 @@ export default function M8_HealthSummary() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 px-4 py-5">
+        {/* Banner */}
         <section className="rounded-3xl bg-teal-700 p-5 text-white shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm text-teal-100">Hello, {patientName}</p>
+              <p className="text-sm text-teal-100">
+                {isHindi ? `नमस्ते, ${patientName}` : `Hello, ${patientName}`}
+              </p>
               <h2 className="mt-1 text-2xl font-bold">
-                Your health information is ready
+                {isHindi ? "आपका स्वास्थ्य सारांश तैयार है" : "Your Health Summary"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-teal-50">
-                We organized the information from your uploaded document so it
-                is easier to understand and review.
+                {isHindi
+                  ? "कियोस्क और रिकॉर्ड से प्राप्त आपका क्लिनिकल सारांश और वाइटल्स यहाँ संकलित हैं।"
+                  : "Clinical insights, recorded vitals, and consultation details synthesized by AyushCare AI."}
               </p>
             </div>
 
@@ -328,156 +358,226 @@ export default function M8_HealthSummary() {
           <button
             type="button"
             onClick={handleAudio}
-            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 font-semibold text-teal-800"
+            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 font-semibold text-teal-800 transition hover:bg-teal-50"
           >
             {isSpeaking ? <VolumeX size={19} /> : <Volume2 size={19} />}
-            {isSpeaking ? "Stop listening" : "Listen to summary"}
+            {isSpeaking ? (isHindi ? "सुनना बंद करें" : "Stop listening") : (isHindi ? "सारांश सुनें" : "Listen to summary")}
           </button>
         </section>
 
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle
-              size={20}
-              className="mt-0.5 shrink-0 text-amber-700"
-            />
-
-            <div>
-              <p className="font-semibold text-amber-900">
-                This is not a diagnosis
-              </p>
-              <p className="mt-1 text-sm leading-5 text-amber-800">
-                This summary is based on information provided or extracted
-                from your records. Your doctor or healthcare professional makes
-                the clinical decisions.
-              </p>
+        {/* Visit Details Card */}
+        {activeVisit && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-teal-800 mb-3">
+              <Ticket size={20} />
+              <h2 className="font-bold text-slate-900">
+                {isHindi ? "विज़िट एवं टोकन विवरण" : "Visit & Queue Details"}
+              </h2>
             </div>
-          </div>
-        </section>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl bg-teal-50/60 p-3 border border-teal-100">
+                <p className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">
+                  {isHindi ? "टोकन नंबर" : "Token No"}
+                </p>
+                <p className="mt-1 text-lg font-black text-teal-900">
+                  {activeVisit.token_number || "Active"}
+                </p>
+              </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-slate-100 p-2 text-slate-700">
-              <FileText size={19} />
-            </div>
+              <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {isHindi ? "विभाग" : "Department"}
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800 truncate">
+                  {activeVisit.department_name || "General OPD"}
+                </p>
+              </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Source
-              </p>
-              <p className="mt-1 font-semibold text-slate-900">
-                {summary.title}
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {summary.source}
-              </p>
+              <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {isHindi ? "चिकित्सक" : "Doctor"}
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800 truncate">
+                  {activeVisit.doctor_name || "Assigned Doctor"}
+                </p>
+              </div>
 
-              {(summary.date || latestTimelineItem?.date) && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                  <CalendarDays size={16} />
-                  <span>{summary.date || latestTimelineItem?.date}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">
-            In simple words
-          </h2>
-
-          <p className="mt-3 text-[15px] leading-7 text-slate-700">
-            {summary.plainLanguage}
-          </p>
-        </section>
-
-        <InfoSection
-          icon={<Activity size={18} />}
-          title="Symptoms or complaints"
-          items={summary.symptoms}
-          emptyText="No symptoms were extracted."
-        />
-
-        <InfoSection
-          icon={<Pill size={18} />}
-          title="Medicines mentioned"
-          items={summary.medicines}
-          emptyText="No medicines were extracted."
-        />
-
-        <InfoSection
-          icon={<FlaskConical size={18} />}
-          title="Tests or investigations"
-          items={summary.investigations}
-          emptyText="No investigations were extracted."
-        />
-
-        <InfoSection
-          icon={<ShieldCheck size={18} />}
-          title="Diagnoses or conditions mentioned"
-          items={summary.diagnoses}
-          emptyText="No diagnoses were extracted."
-        />
-
-        {summary.warning && (
-          <section className="rounded-2xl border border-red-200 bg-red-50 p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle
-                size={19}
-                className="mt-0.5 shrink-0 text-red-600"
-              />
-              <div>
-                <p className="font-semibold text-red-900">Please note</p>
-                <p className="mt-1 text-sm leading-6 text-red-800">
-                  {summary.warning}
+              <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                  {isHindi ? "अस्पताल" : "Hospital"}
+                </p>
+                <p className="mt-1 text-sm font-bold text-slate-800 truncate">
+                  {activeVisit.hospital_name || facilityName}
                 </p>
               </div>
             </div>
           </section>
         )}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <CheckCircle2
-              size={20}
-              className="mt-0.5 shrink-0 text-emerald-600"
-            />
+        {/* Recorded Vitals */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-rose-600 mb-3">
+            <Heart size={20} />
+            <h2 className="font-bold text-slate-900">
+              {isHindi ? "दर्ज वाइटल्स (शारीरिक माप)" : "Recorded Vitals"}
+            </h2>
+          </div>
 
-            <div>
-              <p className="font-semibold text-slate-900">
-                Ready for your healthcare team
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl bg-rose-50/50 p-3 border border-rose-100">
+              <div className="flex items-center gap-1.5 text-rose-700 text-xs font-semibold">
+                <Activity size={14} />
+                <span>BP (रक्तचाप)</span>
+              </div>
+              <p className="mt-1 text-lg font-black text-slate-900">
+                {activeVitals?.systolic && activeVitals?.diastolic
+                  ? `${activeVitals.systolic}/${activeVitals.diastolic}`
+                  : "-- / --"}{" "}
+                <span className="text-xs font-normal text-slate-500">mmHg</span>
               </p>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                Your uploaded information can now be included with the visit
-                information shared with {facilityName}.
+            </div>
+
+            <div className="rounded-2xl bg-blue-50/50 p-3 border border-blue-100">
+              <div className="flex items-center gap-1.5 text-blue-700 text-xs font-semibold">
+                <Heart size={14} />
+                <span>{isHindi ? "पल्स (नाड़ी)" : "Pulse"}</span>
+              </div>
+              <p className="mt-1 text-lg font-black text-slate-900">
+                {activeVitals?.pulse || "--"}{" "}
+                <span className="text-xs font-normal text-slate-500">bpm</span>
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-amber-50/50 p-3 border border-amber-100">
+              <div className="flex items-center gap-1.5 text-amber-700 text-xs font-semibold">
+                <Thermometer size={14} />
+                <span>{isHindi ? "तापमान" : "Temperature"}</span>
+              </div>
+              <p className="mt-1 text-lg font-black text-slate-900">
+                {activeVitals?.temperature || "--"}{" "}
+                <span className="text-xs font-normal text-slate-500">°F</span>
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-teal-50/50 p-3 border border-teal-100">
+              <div className="flex items-center gap-1.5 text-teal-700 text-xs font-semibold">
+                <Activity size={14} />
+                <span>{isHindi ? "ऑक्सीजन" : "SpO₂"}</span>
+              </div>
+              <p className="mt-1 text-lg font-black text-slate-900">
+                {activeVitals?.spo2 || "--"}{" "}
+                <span className="text-xs font-normal text-slate-500">%</span>
               </p>
             </div>
           </div>
         </section>
-      </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl gap-3">
+        {/* AI Health Summary (Chief Complaint & Clinical Illness) */}
+        {(chiefComplaint || historyOfIllness) && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 text-teal-800">
+              <Stethoscope size={20} />
+              <h2 className="font-bold text-slate-900">
+                {isHindi ? "क्लिनिकल इंटेक एवं लक्षण" : "Clinical Intake & Symptoms"}
+              </h2>
+            </div>
+
+            {chiefComplaint && (
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  {isHindi ? "मुख्य शिकायत (Chief Complaint)" : "Chief Complaint"}
+                </p>
+                <p className="mt-1.5 text-base font-semibold text-slate-900 leading-relaxed">
+                  {chiefComplaint}
+                </p>
+              </div>
+            )}
+
+            {historyOfIllness && (
+              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  {isHindi ? "इतिहास एवं आयुष विश्लेषण" : "History & Ayush Assessment"}
+                </p>
+                <p className="mt-1.5 text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                  {historyOfIllness}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* AI Additional Sections (from summary generator) */}
+        {aiSections.map((sec, idx) => (
+          <section key={idx} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-bold text-slate-900">
+              {sec.heading_local || sec.heading_en || sec.heading || "Assessment"}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700 whitespace-pre-line">
+              {sec.body_local || sec.body}
+            </p>
+          </section>
+        ))}
+
+        {/* Extracted Document Entities */}
+        <InfoSection
+          icon={<Activity size={18} />}
+          title={isHindi ? "लक्षण या समस्याएं" : "Symptoms or complaints"}
+          items={summary.symptoms}
+          emptyText="No symptoms reported."
+        />
+
+        <InfoSection
+          icon={<Pill size={18} />}
+          title={isHindi ? "दवाइयाँ" : "Medicines mentioned"}
+          items={summary.medicines}
+          emptyText="No medicines mentioned."
+        />
+
+        <InfoSection
+          icon={<FlaskConical size={18} />}
+          title={isHindi ? "जाँच व परीक्षण" : "Tests or investigations"}
+          items={summary.investigations}
+          emptyText="No investigations mentioned."
+        />
+
+        <InfoSection
+          icon={<ShieldCheck size={18} />}
+          title={isHindi ? "निदान / स्थितियां" : "Diagnoses or conditions"}
+          items={summary.diagnoses}
+          emptyText="No diagnoses mentioned."
+        />
+
+        {/* Medical disclaimer */}
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle
+              size={20}
+              className="mt-0.5 shrink-0 text-amber-700"
+            />
+            <div>
+              <p className="font-semibold text-amber-900">
+                {isHindi ? "यह चिकित्सीय परामर्श का विकल्प नहीं है" : "Clinical Disclaimer"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-amber-800">
+                {isHindi
+                  ? "यह सारांश आपके द्वारा दी गई जानकारी और कियोस्क साक्षात्कार पर आधारित है। अंतिम निदान चिकित्सक द्वारा किया जाएगा।"
+                  : "This summary is based on the information provided during the AI interview and your uploaded records. Final diagnosis and care will be provided by your doctor."}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="pt-3 pb-8">
           <button
             type="button"
-            onClick={() => setScreen("M7")}
-            className="flex min-h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700"
-            aria-label="Back"
+            onClick={handleBack}
+            className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.99]"
           >
-            <ArrowLeft size={19} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 font-semibold text-white"
-          >
-            Continue
-            <ArrowRight size={18} />
+            <ArrowLeft size={18} />
+            {isHindi ? "मुख्य पृष्ठ पर वापस जाएं" : "Back to Home"}
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

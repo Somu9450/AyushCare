@@ -4,7 +4,7 @@ import { kioskApi, getErrorMessage } from '../services/api';
 import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
 
-const QR_SECONDS = 45;
+const QR_SECONDS = 80;
 
 export default function Screen8_QRUpload() {
   const { sessionData, updateSession, nextScreen } = useKioskStore();
@@ -100,7 +100,7 @@ export default function Screen8_QRUpload() {
         <div className="qr-placeholder">
           {qrImage ? <img className="qr-image" src={qrImage} alt="Patient document upload QR code" /> : <Loader2 className="spin" size={32} />}
           <strong>{qr?.patient_code || 'Generating…'}</strong>
-          <small>QR access expires automatically after 45 seconds.</small>
+          <small>QR access expires automatically after 80 seconds.</small>
           <div className="qr-secure-note"><ShieldCheck size={16}/> Secure patient-account access</div>
         </div>
 

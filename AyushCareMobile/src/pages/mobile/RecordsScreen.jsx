@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Building2,
@@ -21,7 +21,6 @@ import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 const CATEGORY_META = {
@@ -203,6 +202,7 @@ function getEntityCount(record) {
 export default function RecordsScreen() {
   const {
     medicalRecords,
+    loadPortalData,
     setSelectedMedicalRecord,
     selectedRecordCategory,
     setSelectedRecordCategory,
@@ -212,8 +212,21 @@ export default function RecordsScreen() {
 
   const { isHindi } = useLanguage();
 
-  const [searchQuery, setSearchQuery] =
-    useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        await loadPortalData?.();
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadPortalData]);
 
   const records = Array.isArray(medicalRecords)
     ? medicalRecords
@@ -630,8 +643,6 @@ export default function RecordsScreen() {
           )}
         </section>
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }

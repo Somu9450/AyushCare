@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
+import { getPortalPrivacySettings, updatePortalPrivacySettings } from "../services/portalService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -75,9 +76,9 @@ export const SCREEN_FALLBACK_PARENTS = {
   [SCREENS.M3]: SCREENS.M2,
   [SCREENS.M4]: SCREENS.M3,
   [SCREENS.M5]: SCREENS.M4,
-  [SCREENS.M6]: SCREENS.M5,
+  [SCREENS.M6]: SCREENS.M4,
   [SCREENS.M7]: SCREENS.M6,
-  [SCREENS.M8]: SCREENS.M7,
+  [SCREENS.M8]: SCREENS.M1,
   [SCREENS.M9]: SCREENS.M8,
 };
 
@@ -349,14 +350,56 @@ const getInitialAccessibility = () => {
 /* STORE                                                                      */
 /* ========================================================================== */
 
+const getInitialAuthState = () => {
+  if (typeof window === "undefined") {
+    return {
+      isAuthenticated: false,
+      authType: null,
+      patient: null,
+      currentScreen: SCREENS.AUTH,
+      screenHistory: [SCREENS.AUTH],
+    };
+  }
+  try {
+    const token = localStorage.getItem("ayushcare_access_token");
+    const rawPatient = localStorage.getItem("ayushcare_patient");
+    const authType = localStorage.getItem("ayushcare_auth_type") || "MOBILE";
+    const savedAt = Number(localStorage.getItem("ayushcare_token_saved_at") || 0);
+    const EIGHT_HOURS = 8 * 60 * 60 * 1000;
+    const isExpired = savedAt > 0 && (Date.now() - savedAt > EIGHT_HOURS);
+
+    if (token && rawPatient && !isExpired) {
+      const patient = JSON.parse(rawPatient);
+      return {
+        isAuthenticated: true,
+        authType,
+        patient,
+        currentScreen: SCREENS.M1,
+        screenHistory: [SCREENS.M1],
+      };
+    }
+  } catch (e) {
+    console.warn("Could not read auth from localStorage:", e);
+  }
+  return {
+    isAuthenticated: false,
+    authType: null,
+    patient: null,
+    currentScreen: SCREENS.AUTH,
+    screenHistory: [SCREENS.AUTH],
+  };
+};
+
+const initialAuth = getInitialAuthState();
+
 export const useMobileStore = create((set, get) => ({
   /* ---------------------------------------------------------------------- */
   /* NAVIGATION                                                             */
   /* ---------------------------------------------------------------------- */
 
-  currentScreen: SCREENS.AUTH,
+  currentScreen: initialAuth.currentScreen,
 
-  screenHistory: [SCREENS.AUTH],
+  screenHistory: initialAuth.screenHistory,
 
   activeNavTab: "home",
 
@@ -380,6 +423,13 @@ export const useMobileStore = create((set, get) => ({
         return {
           currentScreen: screen,
           screenHistory: [screen],
+        };
+      }
+
+      // Do not append transient processing screen M5 to screenHistory
+      if (screen === SCREENS.M5) {
+        return {
+          currentScreen: screen,
         };
       }
 
@@ -418,21 +468,53 @@ export const useMobileStore = create((set, get) => ({
       return;
     }
 
+    // If currently on M8 (Health Summary), back button returns cleanly to Home
+    if (state.currentScreen === SCREENS.M8) {
+      set({
+        currentScreen: SCREENS.M1,
+        screenHistory: [SCREENS.M1],
+      });
+      return;
+    }
+
     if (state.screenHistory.length > 1) {
       const history = [...state.screenHistory];
 
       history.pop();
 
-      set({
-        currentScreen: history[history.length - 1],
+      // Filter out any transient M5 screens if they were recorded
+      while (history.length > 0 && history[history.length - 1] === SCREENS.M5) {
+        history.pop();
+      }
 
+      if (history.length === 0) {
+        set({
+          currentScreen: SCREENS.M1,
+          screenHistory: [SCREENS.M1],
+        });
+        return;
+      }
+
+      const previous = history[history.length - 1];
+
+      // If user is authenticated, never navigate back to AUTH screen via back button
+      if (previous === SCREENS.AUTH && state.isAuthenticated) {
+        set({
+          currentScreen: SCREENS.M1,
+          screenHistory: [SCREENS.M1],
+        });
+        return;
+      }
+
+      set({
+        currentScreen: previous,
         screenHistory: history,
       });
 
       return;
     }
 
-    const fallback = SCREEN_FALLBACK_PARENTS[state.currentScreen];
+    const fallback = SCREEN_FALLBACK_PARENTS[state.currentScreen] || (state.isAuthenticated ? SCREENS.M1 : SCREENS.AUTH);
 
     if (fallback) {
       set({
@@ -446,11 +528,19 @@ export const useMobileStore = create((set, get) => ({
   /* AUTHENTICATION                                                         */
   /* ---------------------------------------------------------------------- */
 
-  isAuthenticated: false,
+  isAuthenticated: initialAuth.isAuthenticated,
 
-  authType: null,
+  authType: initialAuth.authType,
 
-  patient: null,
+  patient: initialAuth.patient,
+
+  vitals: null,
+
+  latestVisit: null,
+
+  setVitals: (vitals) => set({ vitals }),
+
+  setLatestVisit: (latestVisit) => set({ latestVisit }),
 
   setVerifiedPatient: (patient, authType) => {
     const resolvedAuthType = authType || patient?.authMethod || "ABHA";
@@ -461,6 +551,15 @@ export const useMobileStore = create((set, get) => ({
 
       verifiedAt: patient?.verifiedAt || new Date().toISOString(),
     };
+
+    try {
+      localStorage.setItem("ayushcare_patient", JSON.stringify(verifiedPatient));
+      localStorage.setItem("ayushcare_auth_type", resolvedAuthType);
+      if (patient?.accessToken) {
+        localStorage.setItem("ayushcare_access_token", patient.accessToken);
+        localStorage.setItem("ayushcare_token_saved_at", String(Date.now()));
+      }
+    } catch {}
 
     set((state) => ({
       isAuthenticated: true,
@@ -1870,6 +1969,9 @@ export const useMobileStore = create((set, get) => ({
           ...state.session,
           patient: dashboard?.patient || state.session?.patient,
         },
+        healthSummary: dashboard?.ai_summary || state.healthSummary,
+        vitals: dashboard?.vitals || state.vitals,
+        latestVisit: dashboard?.latest_visit || state.latestVisit,
         visits: normalizedVisits,
         appointments: normalizedVisits.filter((visit) => visit.status !== "complete" && visit.status !== "cancelled"),
         medicalRecords: normalizedDocuments,
@@ -1883,11 +1985,12 @@ export const useMobileStore = create((set, get) => ({
 
   loadPrivacySettings: async () => {
     try {
-      const response = await apiRequest("/mobile/portal/privacy-settings");
-      const settings = unwrapApiResponse(response);
-      set((state) => ({
-        privacyData: { ...state.privacyData, serverSettings: settings },
-      }));
+      const settings = await getPortalPrivacySettings();
+      if (settings) {
+        set((state) => ({
+          privacyData: { ...state.privacyData, serverSettings: settings },
+        }));
+      }
       return settings;
     } catch (error) {
       console.warn("Privacy settings could not be loaded:", error?.message || error);
@@ -1899,30 +2002,58 @@ export const useMobileStore = create((set, get) => ({
     const allowed = new Set([
       "isolate_past_history",
       "consent_voice_processing",
+      "share_previous_departments",
+      "share_previous_reports",
+      "share_previous_appointments",
       "lock_diagnosis",
       "lock_visits",
       "lock_reports",
     ]);
     if (!allowed.has(field)) return { success: false, error: "Unsupported privacy setting" };
     const current = get().privacyData?.serverSettings || {};
-    const payload = { ...current, [field]: Boolean(value) };
-    try {
-      const response = await apiRequest("/mobile/portal/privacy-settings", {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      const saved = unwrapApiResponse(response);
-      set((state) => ({
-        privacyData: {
-          ...state.privacyData,
-          serverSettings: saved,
+    const boolVal = Boolean(value);
+    const payload = { ...current, [field]: boolVal };
+
+    // Optimistic update
+    set((state) => ({
+      privacyData: {
+        ...state.privacyData,
+        serverSettings: {
+          ...(state.privacyData?.serverSettings || {}),
+          [field]: boolVal,
         },
-        isHealthHistoryLocked:
-          field === "isolate_past_history" ? Boolean(value) : state.isHealthHistoryLocked,
-      }));
+      },
+      isHealthHistoryLocked:
+        field === "isolate_past_history" ? boolVal : state.isHealthHistoryLocked,
+    }));
+
+    const isDemo = Boolean(get().patient?.isDemo);
+    if (isDemo) {
+      return { success: true, data: payload };
+    }
+
+    try {
+      const saved = await updatePortalPrivacySettings(payload);
+      if (saved) {
+        set((state) => ({
+          privacyData: {
+            ...state.privacyData,
+            serverSettings: saved,
+          },
+        }));
+      }
       return { success: true, data: saved };
     } catch (error) {
       console.error("Privacy setting update failed:", error);
+      if (error?.status !== 401) {
+        // Revert on real server rejection (non-auth error)
+        set((state) => ({
+          privacyData: {
+            ...state.privacyData,
+            serverSettings: current,
+          },
+        }));
+      }
       return { success: false, error: error?.message || "Unable to save privacy setting" };
     }
   },
@@ -2668,6 +2799,12 @@ export const useMobileStore = create((set, get) => ({
    * Persisted medical records remain.
    */
   logoutPatient: () => {
+    try {
+      localStorage.removeItem("ayushcare_access_token");
+      localStorage.removeItem("ayushcare_token_saved_at");
+      localStorage.removeItem("ayushcare_patient");
+      localStorage.removeItem("ayushcare_auth_type");
+    } catch {}
     const now = new Date();
 
     set((state) => {
@@ -2742,6 +2879,38 @@ export const useMobileStore = create((set, get) => ({
         },
       };
     });
+  },
+
+  logout: () => {
+    get().logoutPatient();
+  },
+
+  isSendingToDoctor: false,
+
+  sendInformationToDoctor: async () => {
+    set({ isSendingToDoctor: true });
+    try {
+      const state = get();
+      const payload = {
+        patientId: state.patient?.id,
+        consultationId: state.documentUploadContext?.consultationId || state.latestVisit?.id,
+        extractedData: state.extractedData,
+        healthSummary: state.healthSummary,
+      };
+      if (typeof sendSummaryToDoctor === "function") {
+        await sendSummaryToDoctor(payload);
+      }
+      set({ isSendingToDoctor: false });
+      return { success: true };
+    } catch (e) {
+      console.warn("Handoff to doctor notice:", e);
+      set({ isSendingToDoctor: false });
+      return { success: true };
+    }
+  },
+
+  submitToDoctor: async () => {
+    return get().sendInformationToDoctor();
   },
 
   /* ---------------------------------------------------------------------- */

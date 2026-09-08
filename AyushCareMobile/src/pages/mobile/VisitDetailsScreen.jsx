@@ -18,7 +18,6 @@ import {
   getDocumentsForVisit,
 } from "../../services/visitService";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 function getVisitId(visit) {
@@ -255,8 +254,6 @@ export default function VisitDetailsScreen() {
             </button>
           </div>
         </main>
-
-        <BottomNavBar />
       </div>
     );
   }
@@ -465,8 +462,6 @@ export default function VisitDetailsScreen() {
           </>
         )}
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }

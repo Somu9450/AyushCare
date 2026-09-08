@@ -120,3 +120,10 @@ class ConversationTurnResponse(BaseModel):
     phase: ConversationPhase
     progress_percent: float
     is_complete: bool = False
+
+
+class TTSRequest(BaseModel):
+    """Request model for text-to-speech synthesis."""
+    text: Optional[str] = None
+    language: Optional[str] = "en"
+

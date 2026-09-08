@@ -15,7 +15,6 @@ import {
 
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import useLanguage from "../../i18n/translations";
 
 const MenuItem = ({
@@ -300,8 +299,6 @@ export const MoreScreen = () => {
           </p>
         </section>
       </main>
-
-      <BottomNavBar />
     </div>
   );
 };

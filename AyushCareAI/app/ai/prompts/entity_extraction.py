@@ -20,6 +20,7 @@ Extract these entity types:
 - **document-date**: Dates found in the document
 - **vital-sign**: Blood pressure, pulse, temperature, SpO2, weight
 - **allergy**: Drug or food allergies
+- **symptom**: Symptoms, chief complaints, issues mentioned by patient or doctor
 
 ## OUTPUT FORMAT
 Respond with a JSON array of extracted entities:

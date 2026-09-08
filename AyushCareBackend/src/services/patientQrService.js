@@ -8,5 +8,5 @@ export const createRawQrToken = () => randomBytes(24).toString('base64url');
 export const signPatientToken = (patient) => jwt.sign(
     { id: patient.id, email: patient.mobile_number, role: 'patient' },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '1d' }
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '8h' }
 );

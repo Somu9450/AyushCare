@@ -35,26 +35,65 @@ const firstNonEmpty = (...values) => {
 };
 
 const normalizeData = (data) => {
-  const source = data || {};
-  const entities = source.detected_entities || source.detectedEntities || {};
+  const source = data?.extractedData || data?.extracted_data || data?.documents?.[0]?.extracted_data || data || {};
+  const entityList = Array.isArray(source.entities)
+    ? source.entities
+    : Array.isArray(source.detected_entities)
+      ? source.detected_entities
+      : Array.isArray(data?.entities)
+        ? data.entities
+        : [];
+
+  const entities = (!Array.isArray(source.detected_entities) && source.detected_entities) || source.detectedEntities || {};
+
+  const medicinesFromList = entityList.filter(e => e.kind === "medicine").map(e => ({
+    name: e.label,
+    dosage: e.dosage,
+    frequency: e.frequency,
+    route: e.route
+  }));
+  const diagnosesFromList = entityList.filter(e => e.kind === "condition").map(e => ({
+    name: e.label,
+    diagnosis: e.label,
+    icd_code: e.icd_code
+  }));
+  const investigationsFromList = entityList.filter(e => ["lab-result", "procedure", "vital-sign"].includes(e.kind)).map(e => ({
+    name: e.label,
+    value: e.value,
+    unit: e.unit,
+    referenceRange: e.reference_range || e.referenceRange
+  }));
+  const symptomsFromList = entityList.filter(e => ["symptom", "complaint"].includes(e.kind)).map(e => ({
+    name: e.label,
+    symptom: e.label
+  }));
+  const allergiesFromList = entityList.filter(e => e.kind === "allergy").map(e => ({
+    name: e.label,
+    allergy: e.label
+  }));
+
+  const parsedDate = firstNonEmpty(
+    source.parsed_date,
+    source.parsedDate,
+    source.date,
+    source.documentDate,
+    entityList.find(e => e.kind === "document-date")?.value
+  );
 
   return {
     status: firstNonEmpty(
       source.extraction_status,
       source.extractionStatus,
+      source.processing_status,
       "success"
     ),
 
-    parsedDate: firstNonEmpty(
-      source.parsed_date,
-      source.parsedDate,
-      source.date,
-      source.documentDate
-    ),
+    parsedDate,
 
     medicines: safeArray(
       firstNonEmpty(
-        source.medicines,
+        source.medicines?.length ? source.medicines : null,
+        medicinesFromList.length ? medicinesFromList : null,
         source.medications,
         entities.medicines
       )
@@ -62,7 +101,8 @@ const normalizeData = (data) => {
 
     diagnoses: safeArray(
       firstNonEmpty(
-        source.diagnoses,
+        source.diagnoses?.length ? source.diagnoses : null,
+        diagnosesFromList.length ? diagnosesFromList : null,
         source.conditions,
         entities.diagnoses
       )
@@ -70,7 +110,8 @@ const normalizeData = (data) => {
 
     investigations: safeArray(
       firstNonEmpty(
-        source.investigations,
+        source.investigations?.length ? source.investigations : null,
+        investigationsFromList.length ? investigationsFromList : null,
         source.tests,
         source.labResults,
         entities.investigations,
@@ -81,7 +122,8 @@ const normalizeData = (data) => {
 
     symptoms: safeArray(
       firstNonEmpty(
-        source.symptoms,
+        source.symptoms?.length ? source.symptoms : null,
+        symptomsFromList.length ? symptomsFromList : null,
         source.complaints,
         source.chiefComplaint,
         source.chief_complaint,
@@ -91,7 +133,8 @@ const normalizeData = (data) => {
 
     allergies: safeArray(
       firstNonEmpty(
-        source.allergies,
+        source.allergies?.length ? source.allergies : null,
+        allergiesFromList.length ? allergiesFromList : null,
         entities.allergies
       )
     ),
@@ -100,7 +143,8 @@ const normalizeData = (data) => {
       source.raw_text,
       source.rawText,
       source.ocr_text,
-      source.ocrText
+      source.ocrText,
+      source.ocr_text_preview
     ),
   };
 };
@@ -131,9 +175,10 @@ const itemDetails = (item) => {
   const parts = [
     firstNonEmpty(item.dose, item.dosage),
     item.frequency,
+    item.route,
     item.duration,
     item.unit,
-    item.referenceRange,
+    firstNonEmpty(item.referenceRange, item.reference_range),
     item.result,
     item.value,
   ].filter(Boolean);
@@ -216,7 +261,9 @@ export default function M6_ExtractedInformation() {
 
   const abnormalValues = Array.isArray(extractedData?.abnormal_values)
     ? extractedData.abnormal_values
-    : Array.isArray(extractedData?.abnormalValues) ? extractedData.abnormalValues : [];
+    : Array.isArray(extractedData?.extractedData?.abnormal_values)
+      ? extractedData.extractedData.abnormal_values
+      : Array.isArray(extractedData?.abnormalValues) ? extractedData.abnormalValues : [];
 
   const insightText = abnormalValues.length
     ? `${abnormalValues.length} value${abnormalValues.length === 1 ? "" : "s"} may need attention.`
@@ -432,30 +479,27 @@ export default function M6_ExtractedInformation() {
             photographs or handwritten records. This information is not a
             medical diagnosis.
           </p>
+          <div className="pt-4 pb-8 space-y-3">
+            <button
+              type="button"
+              onClick={handleContinue}
+              className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.99]"
+            >
+              Confirm & View Timeline
+              <ArrowRight size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setScreen("M4")}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99]"
+            >
+              <ArrowLeft size={18} />
+              Back to document review
+            </button>
+          </div>
         </section>
       </main>
-
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          <button
-            type="button"
-            onClick={() => setScreen("M5")}
-            className="flex min-h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700"
-            aria-label="Back"
-          >
-            <ArrowLeft size={19} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 font-semibold text-white"
-          >
-            Confirm & View Timeline
-            <ArrowRight size={18} />
-          </button>
-        </div>
-      </div>
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">

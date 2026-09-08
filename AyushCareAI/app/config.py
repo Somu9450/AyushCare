@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     llm_request_timeout_seconds: float = 10.0
 
     # ── OCR ──────────────────────────────────────────────────────────────
-    ocr_provider: str = "groq_vision"  # "groq_vision" | "gemini_vision" | "tesseract"
+    ocr_provider: str = "gemini_vision"  # "gemini_vision" | "groq_vision" | "tesseract"
     tesseract_cmd: Optional[str] = None
 
     # ── ASR — Speech-to-Text ─────────────────────────────────────────────
