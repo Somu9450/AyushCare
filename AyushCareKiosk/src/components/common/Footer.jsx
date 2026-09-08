@@ -6,7 +6,6 @@ import { useTranslation } from '../../hooks/useTranslation';
 export default function Footer({ showContinue = false }) {
   const { currentScreen, prevScreen } = useKioskStore();
   const { t } = useTranslation();
-  const progress = Math.max(0, Math.min(100, (currentScreen / 10) * 100));
 
   return (
     <footer className="kiosk-footer">
@@ -28,9 +27,6 @@ export default function Footer({ showContinue = false }) {
             ))}
           </div>
           <span>Step {currentScreen} of 10</span>
-          <div className="footer-progress-line" aria-hidden="true">
-            <div style={{ width: `${progress}%` }} />
-          </div>
         </div>
 
         <div className="footer-spacer" />

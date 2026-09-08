@@ -506,12 +506,10 @@ button:disabled { cursor: not-allowed; }
 .kiosk-footer { position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; height: 92px; padding: 11px clamp(20px, 3.5vw, 54px); background: rgba(255,255,255,.98); border-top: 1px solid #d7e4e4; box-shadow: 0 -10px 30px rgba(18,65,65,.08); }
 .footer-inner { width: 100%; height: 100%; display: grid; grid-template-columns: minmax(180px,1fr) minmax(230px,420px) minmax(180px,1fr); align-items: center; gap: 24px; }
 .footer-back { min-width: 112px; justify-self: start; }
-.footer-progress { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #60757c; font-size: 12px; font-weight: 800; }
+.footer-progress { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #60757c; font-size: 12px; font-weight: 800; }
 .footer-progress-dots { display: flex; align-items: center; gap: 9px; }
 .footer-progress-dots span { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #c9d8da; background: #fff; }
 .footer-progress-dots span.active { border-color: var(--teal-700); background: var(--teal-700); }
-.footer-progress-line { width: min(260px, 80%); height: 3px; margin-top: -10px; background: transparent; overflow: hidden; }
-.footer-progress-line div { height: 100%; background: var(--teal-700); border-radius: 999px; }
 .footer-spacer { min-height: 1px; }
 
 .screen-loading { min-height: 440px; display: grid; place-items: center; align-content: center; gap: 12px; color: #62777d; font-weight: 750; }
