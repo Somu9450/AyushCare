@@ -17,7 +17,6 @@ import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 function formatDate(value, isHindi) {
@@ -409,8 +408,6 @@ export default function ConsentDetailsScreen() {
             : "Back to privacy"}
         </button>
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }

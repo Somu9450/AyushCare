@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Check,
   ChevronRight,
@@ -10,13 +10,15 @@ import {
   ShieldCheck,
   Type,
   Volume2,
+  Building2,
+  FileText,
+  CalendarDays,
 } from "lucide-react";
 
 import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 const TEXT_SIZES = [
@@ -43,14 +45,22 @@ export default function SettingsScreen() {
     setSelectedLanguage,
     accessibilitySettings,
     updateAccessibilitySettings,
+    privacyData,
+    updatePrivacySetting,
+    loadPrivacySettings,
     logout,
+    prevScreen,
     setScreen,
   } = useMobileStore();
 
   const { isHindi } = useLanguage();
 
-  const accessibility =
-    accessibilitySettings || {};
+  useEffect(() => {
+    void loadPrivacySettings?.();
+  }, [loadPrivacySettings]);
+
+  const accessibility = accessibilitySettings || {};
+  const serverPrivacy = privacyData?.serverSettings || {};
 
   const updateAccessibility = (
     partialSettings
@@ -102,6 +112,7 @@ export default function SettingsScreen() {
             ? "भाषा, पहुंच और ऐप प्राथमिकताएं"
             : "Language, accessibility and preferences"
         }
+        onBack={prevScreen}
       />
 
       <main className="mx-auto w-full max-w-md px-4 py-5 pb-24">
@@ -326,6 +337,65 @@ export default function SettingsScreen() {
           <SectionTitle
             title={
               isHindi
+                ? "डेटा साझाकरण नियंत्रण (डॉक्टर पोर्टल)"
+                : "Data Sharing Controls (Doctor Portal)"
+            }
+          />
+          <div className="space-y-3">
+            <SettingToggle
+              icon={Building2}
+              title={
+                isHindi
+                  ? "पिछले विभाग साझा करें"
+                  : "Share previous departments"
+              }
+              description={
+                isHindi
+                  ? "डॉक्टर पोर्टल पर पिछले विभागों की जानकारी देखने की अनुमति दें।"
+                  : "Allow doctors to view departments visited previously."
+              }
+              enabled={serverPrivacy.share_previous_departments !== false}
+              onChange={(val) => updatePrivacySetting("share_previous_departments", val)}
+            />
+
+            <SettingToggle
+              icon={FileText}
+              title={
+                isHindi
+                  ? "पिछली रिपोर्ट और पर्चे साझा करें"
+                  : "Share previous reports"
+              }
+              description={
+                isHindi
+                  ? "डॉक्टर पोर्टल पर पूर्व रिपोर्ट और नुस्खे देखने की अनुमति दें।"
+                  : "Allow doctors to view previously uploaded prescriptions and lab reports."
+              }
+              enabled={serverPrivacy.share_previous_reports !== false}
+              onChange={(val) => updatePrivacySetting("share_previous_reports", val)}
+            />
+
+            <SettingToggle
+              icon={CalendarDays}
+              title={
+                isHindi
+                  ? "पिछली अपॉइंटमेंट साझा करें"
+                  : "Share previous appointments"
+              }
+              description={
+                isHindi
+                  ? "डॉक्टर पोर्टल पर परामर्श और अपॉइंटमेंट इतिहास देखने की अनुमति दें।"
+                  : "Allow doctors to view past consultations and appointment history."
+              }
+              enabled={serverPrivacy.share_previous_appointments !== false}
+              onChange={(val) => updatePrivacySetting("share_previous_appointments", val)}
+            />
+          </div>
+        </section>
+
+        <section className="mt-7">
+          <SectionTitle
+            title={
+              isHindi
                 ? "गोपनीयता"
                 : "Privacy"
             }
@@ -385,8 +455,6 @@ export default function SettingsScreen() {
             : "Reset accessibility"}
         </button>
       </main>
-
-      <BottomNavBar />
     </div>
   );
 }
@@ -406,47 +474,63 @@ function SettingToggle({
   enabled,
   onChange,
 }) {
+  const handleToggle = () => {
+    onChange(!enabled);
+  };
+
   return (
-    <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleToggle();
+        }
+      }}
+      className={`group flex items-center justify-between gap-3.5 rounded-3xl border p-4 shadow-sm transition-all duration-200 cursor-pointer select-none active:scale-[0.98] ${
+        enabled
+          ? "border-teal-300 bg-teal-50/25 ring-1 ring-teal-200/60"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      }`}
+    >
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+        <div
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-colors duration-200 ${
+            enabled
+              ? "bg-teal-700 text-white shadow-sm"
+              : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          <Icon size={20} strokeWidth={enabled ? 2.3 : 1.9} />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-900 group-hover:text-teal-950">
+            {title}
+          </p>
+
+          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+            {description}
+          </p>
+        </div>
+      </div>
+
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-          enabled
-            ? "bg-teal-50 text-teal-700"
-            : "bg-slate-100 text-slate-500"
-        }`}
-      >
-        <Icon size={18} />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-slate-800">
-          {title}
-        </p>
-
-        <p className="mt-1 text-[11px] leading-5 text-slate-500">
-          {description}
-        </p>
-      </div>
-
-      <button
-        type="button"
         role="switch"
         aria-checked={enabled}
-        onClick={() => onChange(!enabled)}
-        className={`relative h-7 w-12 shrink-0 rounded-full transition ${
-          enabled
-            ? "bg-teal-700"
-            : "bg-slate-300"
+        className={`pointer-events-none relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+          enabled ? "bg-teal-700 shadow-inner" : "bg-slate-300"
         }`}
       >
         <span
-          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition ${
-            enabled
-              ? "left-6"
-              : "left-1"
+          aria-hidden="true"
+          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+            enabled ? "translate-x-5" : "translate-x-0"
           }`}
         />
-      </button>
+      </div>
     </div>
   );
 }

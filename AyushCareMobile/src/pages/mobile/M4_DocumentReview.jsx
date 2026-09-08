@@ -62,9 +62,11 @@ export default function M4_DocumentReview() {
     capturedDocuments,
     selectedDocumentType,
     documentType,
+    extractedData,
     setCapturedDocument,
     setCapturedDocuments,
     setRetargetPageForRetake,
+    setExtractedData,
     setScreen,
   } = useMobileStore();
 
@@ -185,6 +187,9 @@ export default function M4_DocumentReview() {
     const nextPages = pages.filter((_, pageIndex) => pageIndex !== index);
 
     syncPages(nextPages);
+    if (typeof setExtractedData === "function") {
+      setExtractedData(null);
+    }
 
     if (!nextPages.length) {
       setScreen("M3");
@@ -203,6 +208,9 @@ export default function M4_DocumentReview() {
     if (typeof setRetargetPageForRetake === "function") {
       setRetargetPageForRetake(selectedPage);
     }
+    if (typeof setExtractedData === "function") {
+      setExtractedData(null);
+    }
 
     setScreen("M3");
   };
@@ -214,6 +222,13 @@ export default function M4_DocumentReview() {
     }
 
     syncPages(pages);
+
+    // If already analyzed and pages haven't changed, skip re-uploading and go directly to results
+    if (extractedData?.success || extractedData?.detected_entities || extractedData?.documents?.length) {
+      setScreen("M6");
+      return;
+    }
+
     setScreen("M5");
   };
 
@@ -472,33 +487,29 @@ export default function M4_DocumentReview() {
               <Plus size={19} />
               Add another page
             </button>
+
+            <div className="pt-4 pb-8 space-y-3">
+              <button
+                type="button"
+                onClick={handleContinue}
+                className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.99]"
+              >
+                {extractedData?.success || extractedData?.detected_entities ? "View Extracted Information" : "Analyze document"}
+                <ArrowRight size={18} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setScreen("M3")}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.99]"
+              >
+                <ArrowLeft size={18} />
+                Back to camera / upload
+              </button>
+            </div>
           </>
         )}
       </main>
-
-      {pages.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
-          <div className="mx-auto flex max-w-2xl gap-3">
-            <button
-              type="button"
-              onClick={() => setScreen("M3")}
-              className="flex min-h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700"
-              aria-label="Back"
-            >
-              <ArrowLeft size={19} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleContinue}
-              className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 font-semibold text-white"
-            >
-              Analyze document
-              <ArrowRight size={18} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

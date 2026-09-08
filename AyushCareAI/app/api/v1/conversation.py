@@ -6,6 +6,8 @@ and retrieving conversation state.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from app.dependencies import get_conversation_engine
@@ -18,6 +20,7 @@ from app.models.conversation import (
     ConversationTurnResponse,
     PatientResponse,
     SpeechInput,
+    TTSRequest,
 )
 from app.services.conversation_engine import ConversationEngine
 
@@ -200,11 +203,18 @@ async def submit_speech(
 
 
 @router.post("/tts")
+@router.get("/tts")
 async def text_to_speech(
     session_id: str,
-    text: str,
-    language: str = "en",
+    body: Optional[TTSRequest] = None,
+    text: Optional[str] = None,
+    language: Optional[str] = None,
     engine: ConversationEngine = Depends(get_conversation_engine),
 ) -> dict:
     """Synthesize a question into speech audio for the patient."""
-    return await engine.synthesize_question(text, language)
+    effective_text = (body.text if body and body.text else text) or ""
+    effective_lang = (body.language if body and body.language else language) or "en"
+    if not effective_text:
+        raise HTTPException(status_code=400, detail="text is required")
+    return await engine.synthesize_question(effective_text, effective_lang)
+

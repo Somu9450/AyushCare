@@ -3,6 +3,7 @@ import React, { lazy, Suspense, useEffect } from "react";
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 
 import LanguageSwitcher from "./components/mobile/LanguageSwitcher";
+import BottomNavBar from "./components/mobile/BottomNavBar";
 import { exchangePatientQrToken } from "./services/authService";
 
 const AuthScreen = lazy(() => import("./pages/mobile/AuthScreen"));
@@ -41,6 +42,8 @@ const HEADER_SCREENS = new Set([
   SCREENS.SETTINGS,
   SCREENS.ABOUT,
 ]);
+
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function App() {
   const {
@@ -109,7 +112,11 @@ function App() {
       try {
         const result = await exchangePatientQrToken(token);
         if (cancelled) return;
-        const patient = result.patient || result.user || null;
+        const patientData = result.patient || result.user || {};
+        const patient = {
+          ...patientData,
+          accessToken: result.accessToken,
+        };
         useMobileStore.getState().setVerifiedPatient(patient, "QR");
         setDocumentUploadContext({
           consultationId: result.consultation_id || null,
@@ -121,11 +128,54 @@ function App() {
         window.history.replaceState({}, "", window.location.pathname);
       } catch (error) {
         console.error("Patient QR login failed:", error);
-        useMobileStore.getState().setScreen(SCREENS.AUTH);
+        window.history.replaceState({}, "", window.location.pathname);
+        if (!useMobileStore.getState().isAuthenticated) {
+          useMobileStore.getState().setScreen(SCREENS.AUTH);
+        }
       }
     })();
     return () => { cancelled = true; };
   }, [setDocumentUploadContext]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      useMobileStore.getState().loadPortalData?.();
+    }
+  }, [isAuthenticated]);
+
+  /* ---------------------------------------------------------------------- */
+  /* BROWSER HISTORY & BACK BUTTON SYNC                                     */
+  /* ---------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Set initial history state if not set
+    if (!window.history.state?.screen) {
+      window.history.replaceState({ screen: currentScreen }, "", window.location.pathname);
+    } else if (window.history.state?.screen !== currentScreen) {
+      window.history.pushState({ screen: currentScreen }, "", window.location.pathname);
+    }
+  }, [currentScreen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = (event) => {
+      const targetScreen = event.state?.screen;
+      if (targetScreen && Object.values(SCREENS).includes(targetScreen)) {
+        useMobileStore.setState({ currentScreen: targetScreen });
+      } else {
+        const store = useMobileStore.getState();
+        if (store.currentScreen !== SCREENS.M1 && store.currentScreen !== SCREENS.AUTH) {
+          store.prevScreen();
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   /* ---------------------------------------------------------------------- */
   /* SCREEN ROUTER                                                          */
@@ -194,8 +244,14 @@ function App() {
           </div>
         }
       >
-        {renderScreen()}
+        <ErrorBoundary onReset={() => setScreen(SCREENS.M1)}>
+          {renderScreen()}
+        </ErrorBoundary>
       </Suspense>
+
+      {isAuthenticated && currentScreen !== SCREENS.AUTH && (
+        <BottomNavBar />
+      )}
 
       {!HEADER_SCREENS.has(currentScreen) && (
         <LanguageSwitcher floating />

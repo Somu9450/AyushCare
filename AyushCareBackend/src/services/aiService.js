@@ -7,7 +7,7 @@ const baseUrl = () => {
     if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
     try {
         const parsed = new URL(configured);
-        const backendPort = String(process.env.PORT || '8000');
+        const backendPort = String(process.env.PORT || '8001');
         const sameBackend = ['localhost', '127.0.0.1'].includes(parsed.hostname) && (parsed.port || '80') === backendPort;
         if (sameBackend) {
             return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
@@ -23,7 +23,7 @@ const request = async (path, options = {}) => {
     if (process.env.MEDIKIOSK_AI_API_KEY) headers.Authorization = `Bearer ${process.env.MEDIKIOSK_AI_API_KEY}`;
 
     const controller = new AbortController();
-    const timeoutMs = Number(process.env.MEDIKIOSK_AI_TIMEOUT_MS || 20000);
+    const timeoutMs = Number(options.timeoutMs || process.env.MEDIKIOSK_AI_TIMEOUT_MS || 90000);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     try {
@@ -57,7 +57,7 @@ const json = (path, body, method = 'POST') => request(path, {
 });
 
 const AiServiceGateway = {
-    health: () => request('/health'),
+    health: () => request('/api/v1/health').catch(() => request('/health')),
     createSession: (patientId, facilityId = 'unassigned', language = 'en', intakePathway = 'general') =>
         json('/api/v1/sessions', { patient_id: patientId, facility_id: facilityId, language, intake_pathway: normalizeAiPathway(intakePathway) }),
     getSession: (sessionId) => request(`/api/v1/sessions/${sessionId}`),
@@ -78,16 +78,31 @@ const AiServiceGateway = {
         form.append('audio', new Blob([buffer], { type: cleanMime }), `speech.${extension}`);
         return request(`/api/v1/sessions/${sessionId}/conversation/speech?question_id=${encodeURIComponent(questionId)}&language=${encodeURIComponent(language)}`, { method: 'POST', body: form });
     },
-    tts: (sessionId, text, language = 'en') => request(`/api/v1/sessions/${sessionId}/conversation/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`),
+    tts: (sessionId, text, language = 'en') => json(`/api/v1/sessions/${sessionId}/conversation/tts`, { text, language }),
     uploadDocument: async (sessionId, buffer, mimeType, fileName, documentType = 'medical_document') => {
         const form = new FormData();
         form.append('file', new Blob([buffer], { type: mimeType }), fileName);
         form.append('document_type', documentType);
-        return request(`/api/v1/sessions/${sessionId}/documents/upload`, { method: 'POST', body: form });
+        return request(`/api/v1/sessions/${sessionId}/documents/upload`, {
+            method: 'POST',
+            body: form,
+            timeoutMs: Number(process.env.MEDIKIOSK_AI_OCR_TIMEOUT_MS || 180000)
+        });
     },
     listDocuments: (sessionId) => request(`/api/v1/sessions/${sessionId}/documents`),
     verifyDocumentEntity: (sessionId, documentId, entityId, status = 'verified') => request(`/api/v1/sessions/${sessionId}/documents/${documentId}/entities/${entityId}/verify?status=${encodeURIComponent(status)}`, { method: 'PUT' }),
-    generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false) => json(`/api/v1/sessions/${sessionId}/summary/generate`, { language, include_documents: includeDocuments, include_ayush: includeAyush }),
+    generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false, conversationHistory = null) => {
+        const payload = { language, include_documents: includeDocuments, include_ayush: includeAyush };
+        if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+            payload.conversation_history = conversationHistory;
+        }
+        return request(`/api/v1/sessions/${sessionId}/summary/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            timeoutMs: 120000
+        });
+    },
     getSummary: (sessionId) => request(`/api/v1/sessions/${sessionId}/summary`),
     editSummarySection: (sessionId, sectionId, editedBody, editReason) => json(`/api/v1/sessions/${sessionId}/summary/sections/${sectionId}`, { edited_body: editedBody, edit_reason: editReason }, 'PUT'),
     getConsentScopes: (sessionId) => request(`/api/v1/sessions/${sessionId}/consent/scopes`),

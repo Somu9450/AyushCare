@@ -56,7 +56,10 @@ export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = ""
 
   const accessToken = payload?.accessToken;
   if (accessToken) {
-    try { localStorage.setItem("ayushcare_access_token", accessToken); } catch {}
+    try {
+      localStorage.setItem("ayushcare_access_token", accessToken);
+      localStorage.setItem("ayushcare_token_saved_at", String(Date.now()));
+    } catch {}
   }
 
   return {
@@ -70,7 +73,7 @@ export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = ""
     } : payload?.user,
     session: {
       sessionId: payload?.patient?.id || null,
-      expiresInSeconds: 86400,
+      expiresInSeconds: 28800, // 8 hours
     },
   };
 }
@@ -80,8 +83,34 @@ export async function loginPatient({ authType = "MOBILE", identifier = "", otp =
 }
 
 export async function logoutPatient() {
-  try { localStorage.removeItem("ayushcare_access_token"); } catch {}
+  try {
+    localStorage.removeItem("ayushcare_access_token");
+    localStorage.removeItem("ayushcare_token_saved_at");
+  } catch {}
   return { success: true };
+}
+
+export async function selectPatientAccount(patientId) {
+  if (!patientId) throw new Error("Patient ID is required.");
+  const payload = unwrapApiResponse(
+    await apiRequest("/mobile/portal/select-patient", {
+      method: "POST",
+      body: JSON.stringify({ patientId }),
+    })
+  );
+
+  const accessToken = payload?.accessToken;
+  if (accessToken) {
+    try {
+      localStorage.setItem("ayushcare_access_token", accessToken);
+      localStorage.setItem("ayushcare_token_saved_at", String(Date.now()));
+    } catch {}
+  }
+
+  return {
+    success: true,
+    ...payload,
+  };
 }
 
 
@@ -93,7 +122,10 @@ export async function exchangePatientQrToken(token) {
     body: JSON.stringify({ token: value }),
   }));
   if (payload?.accessToken) {
-    try { localStorage.setItem('ayushcare_access_token', payload.accessToken); } catch {}
+    try {
+      localStorage.setItem('ayushcare_access_token', payload.accessToken);
+      localStorage.setItem('ayushcare_token_saved_at', String(Date.now()));
+    } catch {}
   }
   return {
     success: true,

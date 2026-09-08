@@ -19,7 +19,6 @@ import {
 
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import OriginalDocModal from "../../components/mobile/OriginalDocModal";
 import EditItemModal from "../../components/mobile/EditItemModal";
 import useLanguage from "../../i18n/translations";
@@ -295,8 +294,6 @@ export const DocumentDetailsScreen = () => {
             </button>
           </div>
         </main>
-
-        <BottomNavBar />
       </div>
     );
   }
@@ -843,8 +840,6 @@ export const DocumentDetailsScreen = () => {
           </button>
         </div>
       </main>
-
-      <BottomNavBar />
 
       <OriginalDocModal />
 

@@ -16,6 +16,16 @@ export async function getPortalPrivacySettings() {
   return unwrapApiResponse(await apiRequest("/mobile/portal/privacy-settings"));
 }
 
+export async function updatePortalPrivacySettings(payload) {
+  return unwrapApiResponse(
+    await apiRequest("/mobile/portal/privacy-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
 export function normalizePortalDocument(doc) {
   const type = doc?.document_type || "other";
   const status = String(doc?.status || "pending").toUpperCase();

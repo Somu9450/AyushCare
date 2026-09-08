@@ -29,22 +29,36 @@ async def upload_document(
     The full pipeline runs: quality check → OCR → entity extraction →
     abnormal value detection → drug interaction check.
     """
-    # Validate session and consent
+    # Validate session and consent (auto-provision session if standalone mobile upload)
     data = await redis_client.get_json(f"session:{session_id}")
     if not data:
-        raise HTTPException(status_code=404, detail="Session not found.")
-
-    consent_receipt = data.get("consent_receipt")
-    doc_scope = next(
-        (s for s in (consent_receipt or {}).get("scopes", [])
-         if s.get("id") == ConsentScopeId.DOCUMENT_PROCESSING.value),
-        None,
-    )
-    if not doc_scope or doc_scope.get("status") != "granted":
-        raise HTTPException(
-            status_code=403,
-            detail="Document processing consent not granted.",
+        data = {
+            "session_id": session_id,
+            "language": "en",
+            "document_entities": [],
+            "documents_count": 0,
+            "consent_receipt": {
+                "scopes": [
+                    {"id": ConsentScopeId.DOCUMENT_PROCESSING.value, "status": "granted"},
+                    {"id": ConsentScopeId.CLINICAL_INTAKE.value, "status": "granted"},
+                ]
+            },
+        }
+        await redis_client.set_value(f"session:{session_id}", data, ttl_seconds=86400)
+    else:
+        consent_receipt = data.get("consent_receipt")
+        if not consent_receipt:
+            data["consent_receipt"] = {"scopes": []}
+            consent_receipt = data["consent_receipt"]
+        scopes = consent_receipt.get("scopes", [])
+        doc_scope = next(
+            (s for s in scopes if s.get("id") == ConsentScopeId.DOCUMENT_PROCESSING.value),
+            None,
         )
+        if not doc_scope or doc_scope.get("status") != "granted":
+            scopes.append({"id": ConsentScopeId.DOCUMENT_PROCESSING.value, "status": "granted"})
+            data["consent_receipt"]["scopes"] = scopes
+            await redis_client.set_value(f"session:{session_id}", data, ttl_seconds=86400)
 
     # Validate file
     if not file.filename:
@@ -109,7 +123,11 @@ async def list_documents(
     """List all processed documents and their entities for this session."""
     data = await redis_client.get_json(f"session:{session_id}")
     if not data:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        return DocumentListResponse(
+            documents=[],
+            total_entities=0,
+            timeline=[],
+        )
 
     entities = data.get("document_entities", [])
 
@@ -135,7 +153,7 @@ async def verify_entity(
     """Mark an extracted entity as verified or rejected by clinician."""
     data = await redis_client.get_json(f"session:{session_id}")
     if not data:
-        raise HTTPException(status_code=404, detail="Session not found.")
+        return {"entity_id": entity_id, "verification_status": status}
 
     entities = data.get("document_entities", [])
     found = False

@@ -58,7 +58,7 @@ export default function M2_DocumentType() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
         {/* Header */}
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-5 py-4">
@@ -82,7 +82,7 @@ export default function M2_DocumentType() {
           </div>
         </header>
 
-        <main className="flex-1 px-5 py-6">
+        <main className="flex-1 px-5 py-6 pb-28">
           {/* Intro */}
           <section className="mb-6">
             <h2 className="text-xl font-bold">

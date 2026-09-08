@@ -89,6 +89,9 @@ export const initializeSchema = async () => {
         await addColumn(client, 'privacy_settings', 'lock_diagnosis', 'BOOLEAN DEFAULT FALSE');
         await addColumn(client, 'privacy_settings', 'lock_visits', 'BOOLEAN DEFAULT FALSE');
         await addColumn(client, 'privacy_settings', 'lock_reports', 'BOOLEAN DEFAULT FALSE');
+        await addColumn(client, 'privacy_settings', 'share_previous_departments', 'BOOLEAN DEFAULT TRUE');
+        await addColumn(client, 'privacy_settings', 'share_previous_reports', 'BOOLEAN DEFAULT TRUE');
+        await addColumn(client, 'privacy_settings', 'share_previous_appointments', 'BOOLEAN DEFAULT TRUE');
         await client.query(`DO $$ BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='consent_records' AND column_name='granted') THEN
                 ALTER TABLE consent_records ALTER COLUMN granted SET DEFAULT TRUE;
@@ -153,6 +156,8 @@ export const initializeSchema = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_consultation ON uploaded_documents(consultation_id,created_at);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_kiosk_pairing ON kiosk_sessions(pairing_token) WHERE is_active = TRUE;`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_privacy_patient ON privacy_settings(patient_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_clinical_summaries_consultation ON clinical_summaries(consultation_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vitals_consultation ON vitals(consultation_id);`);
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');

@@ -11,6 +11,7 @@ Orchestrates the full document processing pipeline:
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -104,7 +105,7 @@ class DocumentIntelligenceService:
         # Step 2: OCR text extraction
         try:
             ocr_result = await self._ocr.extract_text(image_bytes, language_hints)
-            ocr_text = ocr_result["text"]
+            ocr_text = re.sub(r"<think>.*?</think>", "", ocr_result["text"], flags=re.DOTALL).strip()
             detected_language = ocr_result.get("language", "en")
         except Exception as e:
             logger.error("ocr_failed", document_id=document_id, error=str(e))

@@ -25,6 +25,7 @@ class EntityKind(str, Enum):
     DOCUMENT_DATE = "document-date"
     VITAL_SIGN = "vital-sign"
     ALLERGY = "allergy"
+    SYMPTOM = "symptom"
 
 
 class AbnormalFlag(str, Enum):

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, LoaderCircle, RotateCcw } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, LoaderCircle, RotateCcw } from "lucide-react";
 import { useMobileStore } from "../../store/useMobileStore";
 import { analyzeDocumentOCR } from "../../services/documentService";
 
@@ -46,16 +46,56 @@ export default function M5_DocumentAnalysis() {
   }, [retryKey, activeType, pages, capturedDocument, documentUploadContext, setExtractedData, setScreen]);
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
-      <main className="mx-auto flex min-h-[80vh] max-w-md items-center justify-center">
+    <div className="min-h-screen bg-slate-50 pb-28 text-slate-900">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-4">
+          <button
+            type="button"
+            onClick={() => setScreen("M4")}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition active:scale-95"
+            aria-label="Back to review"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">AI Document Reader</p>
+            <h1 className="text-lg font-bold">Document Analysis</h1>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto flex min-h-[70vh] max-w-md items-center justify-center px-4 py-8">
         <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
           {error ? <AlertCircle size={42} className="mx-auto text-red-600" /> : <LoaderCircle size={42} className="mx-auto animate-spin text-teal-700" />}
           <h1 className="mt-5 text-xl font-bold">{error ? "Document analysis needs attention" : "Reading your document"}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">{error || stage}</p>
-          <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-700 transition-all" style={{ width: `${progress}%` }} /></div>
+          <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-teal-700 transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
           <p className="mt-2 text-xs font-semibold text-slate-500">{progress}%</p>
-          {error && <button type="button" onClick={() => setRetryKey((k) => k + 1)} className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 font-semibold text-white"><RotateCcw size={17}/> Try again</button>}
-          {!error && progress >= 95 && <div className="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-teal-700"><CheckCircle2 size={18}/> Extracting useful medical information</div>}
+          {error && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setRetryKey((k) => k + 1)}
+                className="inline-flex min-h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 font-semibold text-white shadow-sm"
+              >
+                <RotateCcw size={17} /> Try again
+              </button>
+              <button
+                type="button"
+                onClick={() => setScreen("M4")}
+                className="inline-flex min-h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-5 font-semibold text-slate-700"
+              >
+                Back to review
+              </button>
+            </div>
+          )}
+          {!error && progress >= 95 && (
+            <div className="mt-5 flex items-center justify-center gap-2 text-sm font-semibold text-teal-700">
+              <CheckCircle2 size={18} /> Extracting useful medical information
+            </div>
+          )}
         </section>
       </main>
     </div>

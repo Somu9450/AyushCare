@@ -15,7 +15,6 @@ import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import BottomNavBar from "../../components/mobile/BottomNavBar";
 import { useLanguage } from "../../i18n/translations";
 
 export default function ProfileScreen() {
@@ -284,8 +283,6 @@ export default function ProfileScreen() {
             : "Logging out ends the current identity session on this device."}
         </p>
       </main>
-
-      <BottomNavBar />
 
       {editing ? (
         <EditProfileModal
