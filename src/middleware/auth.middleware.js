@@ -4,7 +4,9 @@ import { asyncHandler } from '../utilities/asyncHandler.js';
 import pool from '../database/dbConnection.js';
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
-    const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.header("Authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+    const token = bearerToken || req.cookies?.accessToken;
 
     if (!token) {
         throw new ApiError(401, "Unauthorized request");
@@ -32,7 +34,9 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
 });
 
 export const verifyPatientJWT = asyncHandler(async (req, res, next) => {
-    const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+    const authHeader = req.header("Authorization");
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+    const token = bearerToken || req.cookies?.accessToken;
 
     if (!token) {
         throw new ApiError(401, "Unauthorized request. Missing token.");

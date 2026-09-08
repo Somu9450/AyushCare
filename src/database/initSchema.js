@@ -100,7 +100,32 @@ export const initializeSchema = async () => {
 
 
 
-        // Safe upgrades for databases created by the previous backend version.
+        // Safe upgrades for databases created by previous backend versions.
+        // CREATE TABLE IF NOT EXISTS does not upgrade an existing table, so every
+        // column used by current controllers is explicitly added below.
+        await addColumn(client, 'consent_records', 'title', 'TEXT');
+        await addColumn(client, 'consent_records', 'purpose', 'TEXT');
+        await addColumn(client, 'consent_records', 'required', 'BOOLEAN DEFAULT FALSE');
+        await addColumn(client, 'consent_records', 'status', "VARCHAR(30) DEFAULT 'granted'");
+        await client.query(`UPDATE consent_records SET title=COALESCE(title, scope_id), purpose=COALESCE(purpose,'AyushCare consent'), required=COALESCE(required,FALSE), status=COALESCE(status,CASE WHEN granted THEN 'granted' ELSE 'withdrawn' END) WHERE title IS NULL OR purpose IS NULL OR required IS NULL OR status IS NULL;`);
+        await client.query(`ALTER TABLE consent_records ALTER COLUMN title SET DEFAULT 'Consent';`);
+        await client.query(`ALTER TABLE consent_records ALTER COLUMN status SET DEFAULT 'granted';`);
+        await client.query(`ALTER TABLE consent_records ALTER COLUMN title SET NOT NULL;`);
+        await client.query(`ALTER TABLE consent_records ALTER COLUMN status SET NOT NULL;`);
+        await addColumn(client, 'consultations', 'assigned_doctor_id', 'UUID REFERENCES users(id) ON DELETE SET NULL');
+        await addColumn(client, 'uploaded_documents', 'file_path_hash', 'VARCHAR(512)');
+        await addColumn(client, 'uploaded_documents', 'document_type', 'VARCHAR(100)');
+        await addColumn(client, 'uploaded_documents', 'extracted_data', "JSONB DEFAULT '{}'");
+        await addColumn(client, 'uploaded_documents', 'status', "VARCHAR(30) DEFAULT 'pending'");
+        await addColumn(client, 'uploaded_documents', 'created_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
+        await client.query(`UPDATE uploaded_documents SET file_path_hash=COALESCE(file_path_hash,'legacy/unknown') WHERE file_path_hash IS NULL;`);
+        await client.query(`ALTER TABLE uploaded_documents ALTER COLUMN file_path_hash SET NOT NULL;`);
+        await addColumn(client, 'kiosk_sessions', 'pairing_token', 'VARCHAR(255)');
+        await addColumn(client, 'kiosk_sessions', 'kiosk_id', "VARCHAR(100) DEFAULT 'KIOSK-MAIN-01'");
+        await addColumn(client, 'kiosk_sessions', 'consultation_id', 'UUID REFERENCES consultations(id) ON DELETE CASCADE');
+        await addColumn(client, 'kiosk_sessions', 'is_active', 'BOOLEAN DEFAULT TRUE');
+        await addColumn(client, 'kiosk_sessions', 'expires_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
+
         await addColumn(client, 'patients', 'patient_code', 'VARCHAR(6) UNIQUE');
         await addColumn(client, 'patients', 'address', 'TEXT');
         await addColumn(client, 'patients', 'aadhaar_number', 'VARCHAR(12)');
@@ -131,6 +156,8 @@ export const initializeSchema = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_consultation ON uploaded_documents(consultation_id,created_at);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_kiosk_pairing ON kiosk_sessions(pairing_token) WHERE is_active = TRUE;`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_privacy_patient ON privacy_settings(patient_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_clinical_summaries_consultation ON clinical_summaries(consultation_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vitals_consultation ON vitals(consultation_id);`);
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');

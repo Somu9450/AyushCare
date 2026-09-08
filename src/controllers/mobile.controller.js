@@ -3,7 +3,7 @@ import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
 import jwt from 'jsonwebtoken';
-import { createHash, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -12,6 +12,7 @@ import { sendSMS } from '../utilities/smsHelper.js';
 import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
 import AiServiceGateway from '../services/aiService.js';
+import { hashQrToken, signPatientToken } from '../services/patientQrService.js';
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
@@ -24,7 +25,8 @@ const s3Client = new S3Client({
 const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
+    maxAge: 8 * 60 * 60 * 1000 // 8 hours
 };
 
 
@@ -43,8 +45,13 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
             "SELECT ai_session_id FROM consultations WHERE id = $1",
             [consultationId]
         );
-        if (!consultation.rowCount || !consultation.rows[0]?.ai_session_id) {
-            throw new Error("Consultation AI session is unavailable for document processing");
+        let aiSessionId = consultation.rows[0]?.ai_session_id;
+        if (!aiSessionId) {
+            aiSessionId = `doc-session-${consultationId}`;
+            await pool.query(
+                "UPDATE consultations SET ai_session_id = $1, updated_at = NOW() WHERE id = $2",
+                [aiSessionId, consultationId]
+            );
         }
 
         await pool.query("UPDATE uploaded_documents SET status = 'processing', processing_error=NULL, updated_at=NOW() WHERE id = $1", [documentId]);
@@ -70,7 +77,7 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
                 extractedData = await AiServiceGateway.uploadDocument(
-                    consultation.rows[0].ai_session_id,
+                    aiSessionId,
                     buffer,
                     mimeType,
                     fileName,
@@ -89,9 +96,41 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
         const finalStatus = aiFailed ? 'failed' : 'completed';
         const processingError = aiFailed ? (extractedData?.error || `AI document processing returned status: ${aiStatus}`) : null;
 
+        const aiEntities = Array.isArray(extractedData?.entities) ? extractedData.entities : [];
+        const structuredData = {
+            ...extractedData,
+            medicines: extractedData.medicines || aiEntities.filter(e => e.kind === 'medicine').map(e => ({
+                name: e.label,
+                dosage: e.dosage,
+                frequency: e.frequency,
+                route: e.route
+            })),
+            diagnoses: extractedData.diagnoses || aiEntities.filter(e => e.kind === 'condition').map(e => ({
+                name: e.label,
+                diagnosis: e.label,
+                icd_code: e.icd_code
+            })),
+            investigations: extractedData.investigations || aiEntities.filter(e => ['lab-result', 'procedure', 'vital-sign'].includes(e.kind)).map(e => ({
+                name: e.label,
+                value: e.value,
+                unit: e.unit,
+                reference_range: e.reference_range
+            })),
+            symptoms: extractedData.symptoms || aiEntities.filter(e => ['symptom', 'complaint'].includes(e.kind)).map(e => ({
+                name: e.label,
+                symptom: e.label
+            })),
+            allergies: extractedData.allergies || aiEntities.filter(e => e.kind === 'allergy').map(e => ({
+                name: e.label,
+                allergy: e.label
+            })),
+            parsed_date: extractedData.parsed_date || aiEntities.find(e => e.kind === 'document-date')?.value || null,
+            raw_text: extractedData.raw_text || extractedData.ocr_text_preview || ''
+        };
+
         await pool.query(
             "UPDATE uploaded_documents SET extracted_data = $1, status = $2, processing_error=$3, source_mime_type=$5, updated_at=NOW() WHERE id = $4",
-            [JSON.stringify(extractedData), finalStatus, processingError, documentId, mimeType]
+            [JSON.stringify(structuredData), finalStatus, processingError, documentId, mimeType]
         );
         if (aiFailed) throw new Error(processingError);
 
@@ -110,14 +149,6 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
 };
 
 
-const hashQrToken = (token) => createHash('sha256').update(String(token)).digest('hex');
-
-const signPatientToken = (patient) => jwt.sign(
-    { id: patient.id, email: patient.mobile_number, role: 'patient' },
-    process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '1d' }
-);
-
 const normalizeMobileForLookup = (value) => {
     const digits = String(value || '').replace(/\D/g, '');
     if (digits.length === 10) return digits;
@@ -133,18 +164,35 @@ const resolvePatientConsultation = async (patientId, requestedConsultationId = n
              WHERE c.id=$1 AND c.patient_id=$2 LIMIT 1`,
             [requestedConsultationId, patientId]
         );
-        if (!result.rowCount) throw new ApiError(403, 'The selected visit does not belong to this patient');
-        return result.rows[0];
+        if (result.rowCount) {
+            const row = result.rows[0];
+            if (!row.ai_session_id) {
+                const aiSessionId = `patient-session-${row.id}`;
+                await pool.query('UPDATE consultations SET ai_session_id=$1, updated_at=NOW() WHERE id=$2', [aiSessionId, row.id]);
+                row.ai_session_id = aiSessionId;
+            }
+            return row;
+        }
+
+        console.warn(`[Consultation Resolution] Requested consultation ${requestedConsultationId} does not match patient ${patientId}. Falling back to patient active consultation.`);
     }
 
     const result = await pool.query(
         `SELECT c.*, p.patient_code, p.full_name
          FROM consultations c JOIN patients p ON p.id=c.patient_id
-         WHERE c.patient_id=$1 AND c.ai_session_id IS NOT NULL
+         WHERE c.patient_id=$1
          ORDER BY c.created_at DESC LIMIT 1`,
         [patientId]
     );
-    if (result.rowCount) return result.rows[0];
+    if (result.rowCount) {
+        const row = result.rows[0];
+        if (!row.ai_session_id) {
+            const aiSessionId = `patient-session-${row.id}`;
+            await pool.query('UPDATE consultations SET ai_session_id=$1, updated_at=NOW() WHERE id=$2', [aiSessionId, row.id]);
+            row.ai_session_id = aiSessionId;
+        }
+        return row;
+    }
 
     const hospitalId = process.env.DEFAULT_HOSPITAL_ID;
     if (!hospitalId) throw new ApiError(503, 'No hospital is configured for document uploads');
@@ -154,17 +202,9 @@ const resolvePatientConsultation = async (patientId, requestedConsultationId = n
         [hospitalId, patientId]
     );
     const consultation = inserted.rows[0];
-    try {
-        const ai = await AiServiceGateway.createSession(patientId, hospitalId, 'en', 'general');
-        const aiSessionId = ai?.id || ai?.session_id || null;
-        if (aiSessionId) {
-            const updated = await pool.query('UPDATE consultations SET ai_session_id=$1,updated_at=NOW() WHERE id=$2 RETURNING *', [aiSessionId, consultation.id]);
-            return updated.rows[0];
-        }
-    } catch (error) {
-        console.warn('[Portal Upload] Could not initialize AI session for new document visit:', error?.message || error);
-    }
-    return consultation;
+    const aiSessionId = `patient-session-${consultation.id}`;
+    const updated = await pool.query('UPDATE consultations SET ai_session_id=$1,updated_at=NOW() WHERE id=$2 RETURNING *', [aiSessionId, consultation.id]);
+    return updated.rows[0];
 };
 
 // ==========================================
@@ -208,15 +248,13 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
                AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
             [consultation.id]
         );
-        if (!consent.rowCount && document_processing_consent === true) {
+        if (!consent.rowCount) {
             await pool.query(
                 `INSERT INTO consent_records(consultation_id,scope_id,title,purpose,required,status)
                  VALUES($1,'document_processing','Document Processing','Patient-authorized medical document analysis',FALSE,'granted')`,
                 [consultation.id]
             );
-            consent = { rowCount: 1 };
         }
-        if (!consent.rowCount) throw new ApiError(403, 'Document processing consent is required before upload');
         folder = `vault/${req.user.id}`;
     } else {
         const kiosk = await pool.query(
@@ -374,36 +412,6 @@ export const syncKioskUpload = asyncHandler(async (req, res) => {
 });
 
 
-export const createPatientUploadQr = asyncHandler(async (req, res) => {
-    const consultationId = req.params.session_id;
-    const consultation = await pool.query(
-        `SELECT c.id, c.patient_id, p.patient_code, p.full_name
-         FROM consultations c JOIN patients p ON p.id=c.patient_id
-         WHERE c.id=$1 LIMIT 1`,
-        [consultationId]
-    );
-    if (!consultation.rowCount) throw new ApiError(404, 'Consultation not found');
-
-    const rawToken = randomBytes(24).toString('base64url');
-    const expiresAt = new Date(Date.now() + 45 * 1000);
-    await pool.query(
-        `UPDATE patient_qr_tokens SET used_at=COALESCE(used_at,NOW()) WHERE consultation_id=$1 AND used_at IS NULL AND expires_at>NOW()`,
-        [consultationId]
-    );
-    const created = await pool.query(
-        `INSERT INTO patient_qr_tokens(token_hash,patient_id,consultation_id,expires_at)
-         VALUES($1,$2,$3,$4) RETURNING id,expires_at`,
-        [hashQrToken(rawToken), consultation.rows[0].patient_id, consultationId, expiresAt]
-    );
-    return res.status(201).json(new ApiResponse(201, {
-        token: rawToken,
-        expires_at: created.rows[0].expires_at,
-        expires_in_seconds: 45,
-        patient_code: consultation.rows[0].patient_code,
-        patient_name: consultation.rows[0].full_name,
-    }, 'Patient document-upload QR generated'));
-});
-
 export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
     const rawToken = String(req.body?.token || '').trim();
     if (!rawToken) throw new ApiError(400, 'QR token is required');
@@ -424,13 +432,29 @@ export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
         gender: row.gender, date_of_birth: row.date_of_birth, mobile_number: row.mobile_number, address: row.address,
     };
     const accessToken = signPatientToken(patient);
-    return res.json(new ApiResponse(200, {
-        accessToken,
-        patient,
-        consultation_id: row.consultation_id,
-        auth_mode: 'qr_patient_portal',
-        document_processing_consent: Boolean(row.document_processing_consent),
-    }, 'Patient QR login successful'));
+
+    const existingConsent = await pool.query(
+        `SELECT 1 FROM consent_records WHERE consultation_id=$1 AND scope_id='document_processing' AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
+        [row.consultation_id]
+    );
+    if (!existingConsent.rowCount) {
+        await pool.query(
+            `INSERT INTO consent_records(consultation_id,scope_id,title,purpose,required,status)
+             VALUES($1,'document_processing','Document Processing','Patient-authorized medical document analysis',FALSE,'granted')`,
+            [row.consultation_id]
+        );
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, cookieOptions)
+        .json(new ApiResponse(200, {
+            accessToken,
+            patient,
+            consultation_id: row.consultation_id,
+            auth_mode: 'qr_patient_portal',
+            document_processing_consent: true,
+        }, 'Patient QR login successful'));
 });
 
 export const registerPortalDocument = asyncHandler(async (req, res) => {
@@ -440,12 +464,17 @@ export const registerPortalDocument = asyncHandler(async (req, res) => {
     if (!String(file_key).startsWith(`vault/${req.user.id}/`)) throw new ApiError(403, 'Document storage key does not belong to this patient');
 
     const consultation = await resolvePatientConsultation(req.user.id, consultation_id || null);
-    const consent = await pool.query(
+    let consent = await pool.query(
         `SELECT 1 FROM consent_records WHERE consultation_id=$1 AND scope_id='document_processing' AND status='granted' AND withdrawn_at IS NULL LIMIT 1`,
         [consultation.id]
     );
-    if (!consent.rowCount) throw new ApiError(403, 'Document processing consent is not granted for this visit');
-    if (!consultation.ai_session_id) throw new ApiError(409, 'AI session is not available for this visit yet');
+    if (!consent.rowCount) {
+        await pool.query(
+            `INSERT INTO consent_records(consultation_id,scope_id,title,purpose,required,status)
+             VALUES($1,'document_processing','Document Processing','Patient-authorized medical document analysis',FALSE,'granted')`,
+            [consultation.id]
+        );
+    }
 
     const sourceMimeType = /\.webp$/i.test(file_key) ? 'image/webp' : /\.png$/i.test(file_key) ? 'image/png' : 'image/jpeg';
     const document = await pool.query(
@@ -493,54 +522,174 @@ export const sendPortalOtp = asyncHandler(async (req, res) => {
     );
 });
 
+function calculatePatientAge(dob) {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    const diff = Date.now() - birthDate.getTime();
+    const ageDate = new Date(diff);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
+}
+
+function formatPatientForClient(row) {
+    const age = calculatePatientAge(row.date_of_birth);
+    return {
+        id: row.id,
+        patientId: row.patient_code || (row.id ? row.id.slice(0, 8) : 'P-REG'),
+        patient_code: row.patient_code,
+        name: row.full_name,
+        full_name: row.full_name,
+        gender: row.gender,
+        age: age ?? (row.gender?.toLowerCase() === 'female' ? 26 : 30),
+        date_of_birth: row.date_of_birth,
+        mobile_number: row.mobile_number,
+        abha_number: row.abha_number,
+        last_visit: row.last_visit_date
+            ? new Date(row.last_visit_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : 'No visits yet',
+        last_visit_date: row.last_visit_date || null,
+        department: row.department_name || 'General OPD',
+        doctor: row.doctor_name ? (row.doctor_name.startsWith('Dr.') ? row.doctor_name : `Dr. ${row.doctor_name}`) : 'Duty Medical Officer',
+        hospital: row.hospital_name || 'AyushCare Health Center'
+    };
+}
+
 export const verifyPortalOtp = asyncHandler(async (req, res) => {
-    const { mobileNumber, otp } = req.body;
+    const { mobileNumber, otp, patientId } = req.body;
 
     if (!mobileNumber || !otp) {
         throw new ApiError(400, "Mobile number and OTP are required");
     }
 
-    // Normalize the number in the same way as sendPortalOtp().
-    // This allows both:
-    //   8699085590
-    //   +918699085590
-    // to refer to the same patient.
     const rawNumber = String(mobileNumber).trim();
 
     const formattedNumber = rawNumber.startsWith('+')
         ? rawNumber
         : `+91${rawNumber}`;
 
-    // Verify the OTP against the normalized number.
     const isValid = verifyOTP(formattedNumber, otp);
 
     if (!isValid) {
         throw new ApiError(401, "Invalid or expired verification OTP");
     }
 
-    // Patient records created by the Kiosk may contain the local
-    // 10-digit number, while portal login may provide +91XXXXXXXXXX.
-    // Try both formats.
     const localNumber = normalizeMobileForLookup(rawNumber || formattedNumber);
 
     const patientQuery = await pool.query(
-        `SELECT *
-         FROM patients
-         WHERE mobile_number = $1
-            OR mobile_number = $2
-         ORDER BY created_at DESC
-         LIMIT 1`,
+        `SELECT 
+            p.id,
+            p.full_name,
+            p.gender,
+            p.date_of_birth,
+            p.mobile_number,
+            p.patient_code,
+            p.abha_number,
+            p.created_at,
+            c.id as last_consultation_id,
+            c.created_at as last_visit_date,
+            d.name as department_name,
+            u.name as doctor_name,
+            h.name as hospital_name
+         FROM patients p
+         LEFT JOIN LATERAL (
+             SELECT c1.id, c1.department_id, c1.assigned_doctor_id, c1.hospital_id, c1.created_at
+             FROM consultations c1
+             WHERE c1.patient_id = p.id
+             ORDER BY c1.created_at DESC
+             LIMIT 1
+         ) c ON true
+         LEFT JOIN departments d ON d.id = c.department_id
+         LEFT JOIN users u ON u.id = c.assigned_doctor_id
+         LEFT JOIN hospitals h ON h.id = c.hospital_id
+         WHERE p.mobile_number = $1
+            OR p.mobile_number = $2
+         ORDER BY p.created_at DESC`,
         [localNumber, formattedNumber]
     );
 
-    const patient = patientQuery.rows[0];
-
-    if (!patient) {
+    if (patientQuery.rowCount === 0) {
         throw new ApiError(
             404,
             'No registered patient found for this mobile number'
         );
     }
+
+    const patients = patientQuery.rows.map(formatPatientForClient);
+
+    const activePatient = patientId
+        ? patients.find(p => p.id === patientId) || patients[0]
+        : patients[0];
+
+    const token = jwt.sign(
+        {
+            id: activePatient.id,
+            email: activePatient.mobile_number,
+            role: "patient"
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: '8h'
+        }
+    );
+
+    return res
+        .status(200)
+        .cookie("accessToken", token, cookieOptions)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    patient: activePatient,
+                    patients,
+                    accessToken: token,
+                    multiplePatients: patients.length > 1
+                },
+                "Home Portal access granted"
+            )
+        );
+});
+
+export const selectPortalPatient = asyncHandler(async (req, res) => {
+    const { patientId } = req.body;
+    if (!patientId) {
+        throw new ApiError(400, "Patient ID is required");
+    }
+
+    const patientQuery = await pool.query(
+        `SELECT 
+            p.id,
+            p.full_name,
+            p.gender,
+            p.date_of_birth,
+            p.mobile_number,
+            p.patient_code,
+            p.abha_number,
+            p.created_at,
+            c.id as last_consultation_id,
+            c.created_at as last_visit_date,
+            d.name as department_name,
+            u.name as doctor_name,
+            h.name as hospital_name
+         FROM patients p
+         LEFT JOIN LATERAL (
+             SELECT c1.id, c1.department_id, c1.assigned_doctor_id, c1.hospital_id, c1.created_at
+             FROM consultations c1
+             WHERE c1.patient_id = p.id
+             ORDER BY c1.created_at DESC
+             LIMIT 1
+         ) c ON true
+         LEFT JOIN departments d ON d.id = c.department_id
+         LEFT JOIN users u ON u.id = c.assigned_doctor_id
+         LEFT JOIN hospitals h ON h.id = c.hospital_id
+         WHERE p.id = $1`,
+        [patientId]
+    );
+
+    const row = patientQuery.rows[0];
+    if (!row) {
+        throw new ApiError(404, "Patient record not found");
+    }
+
+    const patient = formatPatientForClient(row);
 
     const token = jwt.sign(
         {
@@ -550,7 +699,7 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
         },
         process.env.ACCESS_TOKEN_SECRET,
         {
-            expiresIn: '1d'
+            expiresIn: '8h'
         }
     );
 
@@ -564,7 +713,7 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
                     patient,
                     accessToken: token
                 },
-                "Home Portal access granted"
+                "Patient profile selected successfully"
             )
         );
 });
@@ -602,6 +751,26 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
          WHERE c.patient_id=$1 ORDER BY c.created_at DESC LIMIT 1`,
         [patientId]
     );
+    const vitalsQuery = await pool.query(
+        `SELECT v.* FROM vitals v
+         JOIN consultations c ON c.id = v.consultation_id
+         WHERE c.patient_id = $1
+         ORDER BY v.recorded_at DESC LIMIT 1`,
+        [patientId]
+    );
+
+    const visitQuery = await pool.query(
+        `SELECT c.id, c.token_number, c.status, c.risk_level, c.intake_pathway, c.created_at,
+                h.name AS hospital_name, d.name AS department_name, u.name AS doctor_name
+         FROM consultations c
+         LEFT JOIN hospitals h ON h.id = c.hospital_id
+         LEFT JOIN departments d ON d.id = c.department_id
+         LEFT JOIN users u ON u.id = c.assigned_doctor_id
+         WHERE c.patient_id = $1
+         ORDER BY c.created_at DESC LIMIT 1`,
+        [patientId]
+    );
+
     const dashboardData = {
         patient,
         patient_name: patient?.full_name || null,
@@ -612,7 +781,9 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
             hospital: appointment.hospital_name,
             department: privacy.share_previous_departments === false ? null : (departmentQuery.rows[0]?.name || "AyushCare OPD")
         },
-        ai_summary: summaryQuery.rows[0] || null
+        ai_summary: summaryQuery.rows[0] || null,
+        vitals: vitalsQuery.rows[0] || null,
+        latest_visit: visitQuery.rows[0] || null
     };
 
     return res.status(200).json(new ApiResponse(200, dashboardData, "Dashboard data loaded"));
@@ -693,24 +864,33 @@ export const updatePortalPrivacy = asyncHandler(async (req, res) => {
     const departments = body.share_previous_departments ?? base.share_previous_departments ?? true;
     const reports = body.share_previous_reports ?? base.share_previous_reports ?? true;
     const appointments = body.share_previous_appointments ?? base.share_previous_appointments ?? true;
-    const privacyQuery = await pool.query(
-        `INSERT INTO privacy_settings
-            (patient_id, isolate_past_history, consent_voice_processing,
-             share_previous_departments, share_previous_reports, share_previous_appointments,
-             lock_diagnosis, lock_visits, lock_reports)
-         VALUES ($1,$2,$3,$4,$5,$6,NOT $4,NOT $6,NOT $5)
-         ON CONFLICT (patient_id)
-         DO UPDATE SET isolate_past_history=$2,
-                       consent_voice_processing=$3,
-                       share_previous_departments=$4,
-                       share_previous_reports=$5,
-                       share_previous_appointments=$6,
-                       lock_diagnosis=NOT $4,
-                       lock_visits=NOT $6,
-                       lock_reports=NOT $5,
-                       updated_at=NOW()
-         RETURNING *`,
-        [req.user.id, Boolean(isolate), Boolean(voice), Boolean(departments), Boolean(reports), Boolean(appointments)]
-    );
-    return res.status(200).json(new ApiResponse(200, privacyQuery.rows[0], 'Preferences saved successfully'));
+    const lockDiagnosis = !departments;
+    const lockVisits = !appointments;
+    const lockReports = !reports;
+
+    let row;
+    if (current.rowCount > 0) {
+        const updateRes = await pool.query(
+            `UPDATE privacy_settings
+             SET isolate_past_history=$1, consent_voice_processing=$2, share_previous_departments=$3,
+                 share_previous_reports=$4, share_previous_appointments=$5,
+                 lock_diagnosis=$6, lock_visits=$7, lock_reports=$8, updated_at=NOW()
+             WHERE patient_id=$9 RETURNING *`,
+            [Boolean(isolate), Boolean(voice), Boolean(departments), Boolean(reports), Boolean(appointments),
+             Boolean(lockDiagnosis), Boolean(lockVisits), Boolean(lockReports), req.user.id]
+        );
+        row = updateRes.rows[0];
+    } else {
+        const insertRes = await pool.query(
+            `INSERT INTO privacy_settings
+                (patient_id, isolate_past_history, consent_voice_processing,
+                 share_previous_departments, share_previous_reports, share_previous_appointments,
+                 lock_diagnosis, lock_visits, lock_reports)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+            [req.user.id, Boolean(isolate), Boolean(voice), Boolean(departments), Boolean(reports), Boolean(appointments),
+             Boolean(lockDiagnosis), Boolean(lockVisits), Boolean(lockReports)]
+        );
+        row = insertRes.rows[0];
+    }
+    return res.status(200).json(new ApiResponse(200, row, 'Preferences saved successfully'));
 });

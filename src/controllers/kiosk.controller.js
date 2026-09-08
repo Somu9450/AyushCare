@@ -4,6 +4,7 @@ import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
+import { createRawQrToken, hashQrToken } from '../services/patientQrService.js';
 
 const DEFAULT_HOSPITAL = () => process.env.DEFAULT_HOSPITAL_ID || null;
 
@@ -232,24 +233,26 @@ export const lookupPatients = asyncHandler(async (req, res) => {
     const joiner = patientId && mobile ? ' AND ' : ' OR ';
 
     const result = await pool.query(
-        `SELECT p.id,p.patient_code,p.full_name,p.gender,p.date_of_birth,
+        `SELECT p.id, p.patient_code, p.full_name, p.gender, p.date_of_birth,
                 EXTRACT(YEAR FROM AGE(p.date_of_birth))::int AS age,
-                p.mobile_number,p.address,p.aadhaar_number,p.abha_number,p.abha_address,p.created_at,
-                COALESCE(
-                  jsonb_agg(DISTINCT jsonb_build_object(
-                    'department_id', d.id,
-                    'department_name', d.name,
-                    'pathway', c.intake_pathway,
-                    'visited_at', c.created_at
-                  ) ORDER BY c.created_at DESC) FILTER (WHERE c.id IS NOT NULL),
-                  '[]'::jsonb
-                ) AS recent_visits
+                p.mobile_number, p.address, p.aadhaar_number, p.abha_number, p.abha_address, p.created_at,
+                COALESCE(visits.recent_visits, '[]'::jsonb) AS recent_visits
          FROM patients p
-         LEFT JOIN consultations c ON c.patient_id=p.id
-         LEFT JOIN departments d ON d.id=c.department_id
+         LEFT JOIN LATERAL (
+             SELECT jsonb_agg(
+                 jsonb_build_object(
+                     'department_id', d.id,
+                     'department_name', d.name,
+                     'pathway', c.intake_pathway,
+                     'visited_at', c.created_at
+                 ) ORDER BY c.created_at DESC
+             ) AS recent_visits
+             FROM consultations c
+             LEFT JOIN departments d ON d.id = c.department_id
+             WHERE c.patient_id = p.id
+         ) visits ON TRUE
          WHERE ${conditions.join(joiner)}
-         GROUP BY p.id
-         ORDER BY MAX(c.created_at) DESC NULLS LAST, p.created_at DESC`,
+         ORDER BY p.created_at DESC`,
         params
     );
     return res.json(new ApiResponse(200, { multiple: result.rowCount > 1, patients: result.rows }, 'Patient lookup completed'));
@@ -289,6 +292,42 @@ export const createKioskSession = asyncHandler(async (req, res) => {
     const expiresAt = new Date(Date.now() + Number(process.env.KIOSK_SESSION_TTL_MINUTES || 30) * 60 * 1000);
     const result = await pool.query(`INSERT INTO kiosk_sessions (pairing_token,kiosk_id,consultation_id,expires_at) VALUES ($1,$2,$3,$4) RETURNING *`, [token,kioskId,consultationId,expiresAt]);
     return res.status(201).json(new ApiResponse(201, result.rows[0], 'Kiosk pairing session created'));
+});
+
+export const createPatientUploadQr = asyncHandler(async (req, res) => {
+    const consultationId = req.params.session_id;
+    const result = await pool.query(
+        `SELECT c.id, c.patient_id, p.patient_code, p.full_name
+         FROM consultations c
+         JOIN patients p ON p.id=c.patient_id
+         WHERE c.id=$1 LIMIT 1`,
+        [consultationId]
+    );
+    if (!result.rowCount) throw new ApiError(404, 'Consultation not found');
+
+    const rawToken = createRawQrToken();
+    const expiresAt = new Date(Date.now() + 80 * 1000);
+
+    await pool.query(
+        `UPDATE patient_qr_tokens
+         SET used_at=COALESCE(used_at,NOW())
+         WHERE consultation_id=$1 AND used_at IS NULL AND expires_at>NOW()`,
+        [consultationId]
+    );
+
+    const created = await pool.query(
+        `INSERT INTO patient_qr_tokens(token_hash,patient_id,consultation_id,expires_at)
+         VALUES($1,$2,$3,$4) RETURNING id,expires_at`,
+        [hashQrToken(rawToken), result.rows[0].patient_id, consultationId, expiresAt]
+    );
+
+    return res.status(201).json(new ApiResponse(201, {
+        token: rawToken,
+        expires_at: created.rows[0].expires_at,
+        expires_in_seconds: 80,
+        patient_code: result.rows[0].patient_code,
+        patient_name: result.rows[0].full_name
+    }, 'Patient document-upload QR generated'));
 });
 
 export const getSession = asyncHandler(async (req,res) => {
@@ -399,7 +438,8 @@ export const speechDialogue = asyncHandler(async(req,res)=>{
 
 export const ttsDialogue = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {text,language=c.language||'en'}=req.query;
+    const text = req.body?.text || req.query.text;
+    const language = req.body?.language || req.query.language || c.language || 'en';
     if(!text) throw new ApiError(400,'text is required');
     const result=await AiServiceGateway.tts(c.ai_session_id,text,language);
     return res.json(new ApiResponse(200,result,'TTS generated'));
@@ -408,9 +448,26 @@ export const ttsDialogue = asyncHandler(async(req,res)=>{
 export const saveVitals = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
     const {systolic,diastolic,pulse,temperature,spo2,source='manual'}=req.body;
-    const result=await pool.query(`INSERT INTO vitals(consultation_id,systolic,diastolic,pulse,temperature,spo2,source) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(consultation_id) DO UPDATE SET systolic=$2,diastolic=$3,pulse=$4,temperature=$5,spo2=$6,source=$7,recorded_at=NOW() RETURNING *`,[c.id,systolic||null,diastolic||null,pulse||null,temperature||null,spo2||null,source]);
+    const existing = await pool.query('SELECT id FROM vitals WHERE consultation_id = $1 LIMIT 1', [c.id]);
+    let row;
+    if (existing.rowCount > 0) {
+        const updateRes = await pool.query(
+            `UPDATE vitals 
+             SET systolic=$1, diastolic=$2, pulse=$3, temperature=$4, spo2=$5, source=$6, recorded_at=NOW() 
+             WHERE consultation_id=$7 RETURNING *`,
+            [systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source, c.id]
+        );
+        row = updateRes.rows[0];
+    } else {
+        const insertRes = await pool.query(
+            `INSERT INTO vitals(consultation_id, systolic, diastolic, pulse, temperature, spo2, source, recorded_at) 
+             VALUES($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
+            [c.id, systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source]
+        );
+        row = insertRes.rows[0];
+    }
     await pool.query('UPDATE consultations SET updated_at=NOW() WHERE id=$1',[c.id]);
-    return res.status(201).json(new ApiResponse(201,result.rows[0],'Vitals saved'));
+    return res.status(201).json(new ApiResponse(201,row,'Vitals saved'));
 });
 
 export const listDepartments = asyncHandler(async(req,res)=>{
@@ -429,9 +486,29 @@ export const listDepartmentDoctors = asyncHandler(async(req,res)=>{
 
 export const generateSummary = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda'}=req.body||{};
-    const result=await AiServiceGateway.generateSummary(c.ai_session_id,language,include_documents,include_ayush);
-    await pool.query(`INSERT INTO clinical_summaries(consultation_id,chief_complaint,history_of_present_illness,ayush_attributes,ai_payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT(consultation_id) DO UPDATE SET chief_complaint=EXCLUDED.chief_complaint,history_of_present_illness=EXCLUDED.history_of_present_illness,ayush_attributes=EXCLUDED.ayush_attributes,ai_payload=EXCLUDED.ai_payload,updated_at=NOW(),generated_at=NOW()`,[c.id,result?.sections?.find(s=>/complaint/i.test(s.heading_en||''))?.body||null,result?.sections?.find(s=>/history/i.test(s.heading_en||''))?.body||null,JSON.stringify(c.intake_pathway==='ayurveda'?{pathway:'ayurveda'}:{}),JSON.stringify(result)]);
+    const {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda',conversation_history}=req.body||{};
+    const result=await AiServiceGateway.generateSummary(c.ai_session_id,language,include_documents,include_ayush,conversation_history);
+    
+    const chiefComplaint = result?.sections?.find(s=>/complaint/i.test(s.heading_en||''))?.body||null;
+    const historyIllness = result?.sections?.find(s=>/history/i.test(s.heading_en||''))?.body||null;
+    const ayushAttrs = JSON.stringify(c.intake_pathway==='ayurveda'?{pathway:'ayurveda'}:{});
+    const aiPayload = JSON.stringify(result);
+
+    const existing = await pool.query('SELECT id FROM clinical_summaries WHERE consultation_id = $1 LIMIT 1', [c.id]);
+    if (existing.rowCount > 0) {
+        await pool.query(
+            `UPDATE clinical_summaries 
+             SET chief_complaint = $1, history_of_present_illness = $2, ayush_attributes = $3, ai_payload = $4, updated_at = NOW(), generated_at = NOW() 
+             WHERE consultation_id = $5`,
+            [chiefComplaint, historyIllness, ayushAttrs, aiPayload, c.id]
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO clinical_summaries(consultation_id, chief_complaint, history_of_present_illness, ayush_attributes, ai_payload, generated_at, updated_at) 
+             VALUES($1, $2, $3, $4, $5, NOW(), NOW())`,
+            [c.id, chiefComplaint, historyIllness, ayushAttrs, aiPayload]
+        );
+    }
     return res.json(new ApiResponse(200,result,'AI summary generated'));
 });
 
