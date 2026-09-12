@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     log_level: str = "INFO"
+    enable_docs: bool = False
 
     # ── Server ───────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
