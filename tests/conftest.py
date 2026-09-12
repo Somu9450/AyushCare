@@ -48,7 +48,11 @@ def mock_llm_service():
             "question_id": "test_q1",
             "phase": "chief_complaint",
             "prompt": "What brings you here today?",
-            "question_type": "text",
+            "question_type": "multi_select",
+            "options": [
+                {"value": "pain", "label": "Pain"},
+                {"value": "fever", "label": "Fever"},
+            ],
             "clinical_context": "Initial complaint assessment",
             "section_complete": False,
             "red_flags_detected": [],

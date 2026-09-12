@@ -157,7 +157,7 @@ async def submit_speech(
 
     # Read and transcribe audio
     audio_bytes = await audio.read()
-    transcription = await engine.transcribe_speech(audio_bytes, language)
+    transcription = await engine.transcribe_speech(audio_bytes, language, filename=audio.filename or 'speech.webm')
 
     if not transcription["text"]:
         raise HTTPException(

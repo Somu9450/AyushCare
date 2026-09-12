@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from difflib import SequenceMatcher
 from typing import Any, Optional
 
 import structlog
@@ -25,6 +26,7 @@ from app.ai.prompts.history_taking import (
     build_emergency_screen_prompt,
 )
 from app.domain.clinical_protocol import (
+    CORE_INTAKE_SECTIONS,
     ClinicalSection,
     STANDARD_SECTIONS,
     AYUSH_EXTENSION_SECTIONS,
@@ -50,6 +52,8 @@ class ConversationError(Exception):
 
 class ConversationEngine:
     """Adaptive LLM-driven clinical interview engine."""
+
+    MAX_QUESTIONS = 8
 
     def __init__(
         self,
@@ -90,24 +94,17 @@ class ConversationEngine:
                 temperature=0.2,
             )
             first_question = self._parse_question_response(response)
+            if (
+                self._has_invalid_options(response)
+                or self._is_irrelevant_question(first_question)
+            ):
+                first_question = self._fallback_choice_question(
+                    ConversationPhase.EMERGENCY_SCREEN,
+                )
         except Exception as e:
             logger.error("conversation_start_failed", error=str(e))
-            # Fallback to a hardcoded first question
-            first_question = AIQuestion(
-                question_id="emergency_screen_1",
-                phase=ConversationPhase.EMERGENCY_SCREEN,
-                prompt="Are you experiencing any of the following emergency symptoms: severe chest pain, difficulty breathing, unconsciousness, heavy bleeding, sudden weakness, or seizures?",
-                question_type=QuestionType.CHOICE,
-                options=[
-                    Choice(value="none", label="None of these"),
-                    Choice(value="chest_pain", label="Severe chest pain"),
-                    Choice(value="breathing", label="Difficulty breathing"),
-                    Choice(value="unconscious", label="Fainting/unconsciousness"),
-                    Choice(value="bleeding", label="Heavy bleeding"),
-                    Choice(value="weakness", label="Sudden weakness"),
-                    Choice(value="seizure", label="Seizures"),
-                ],
-                clinical_context="Emergency screening must be performed before any clinical interview.",
+            first_question = self._fallback_choice_question(
+                ConversationPhase.EMERGENCY_SCREEN,
             )
 
         return ConversationState(
@@ -152,6 +149,19 @@ class ConversationEngine:
             input_mode=input_mode,
         )
 
+        if state.current_question and state.current_question.question_id == question_id:
+            if state.current_question.question_type == QuestionType.MULTI_SELECT:
+                import json
+                try:
+                    parsed = json.loads(answer)
+                except (TypeError, json.JSONDecodeError):
+                    parsed = None
+                if not isinstance(parsed, list) or not parsed:
+                    raise ConversationError("A multi-select question requires at least one selected option.")
+                allowed = {option.value for option in (state.current_question.options or [])}
+                if allowed and any(str(value) not in allowed for value in parsed):
+                    raise ConversationError("One or more selected options are invalid for this question.")
+
         # Record the answer
         answered_entry = {
             "question_id": question_id,
@@ -181,11 +191,43 @@ class ConversationEngine:
                 new_flags.append(flag)
                 state.red_flags.append(flag)
 
+        # Emergency screening is a hard safety boundary. Record and evaluate the
+        # answer first, then stop routine questioning on a positive response.
+        if state.phase == ConversationPhase.EMERGENCY_SCREEN:
+            # Speech recognition rarely returns the exact option label. Treat
+            # common English/Hindi negative answers as a safe response and
+            # only terminate when an actual emergency signal is present.
+            if self._is_emergency_positive(answer):
+                state.phase = ConversationPhase.COMPLETED
+                state.is_complete = True
+                return ConversationTurnResponse(
+                    answer_confirmed=answer,
+                    next_question=None,
+                    red_flags=new_flags,
+                    phase=ConversationPhase.COMPLETED,
+                    progress_percent=100.0,
+                    is_complete=True,
+                )
+
+        if len(state.answered_questions) >= self.MAX_QUESTIONS:
+            state.phase = ConversationPhase.COMPLETED
+            state.is_complete = True
+            return ConversationTurnResponse(
+                answer_confirmed=answer,
+                next_question=None,
+                red_flags=new_flags,
+                phase=ConversationPhase.COMPLETED,
+                progress_percent=100.0,
+                is_complete=True,
+            )
+
         # Determine next phase
         next_phase = self._determine_next_phase(state, intake_pathway)
 
         # Check if interview is complete
         if next_phase == ConversationPhase.COMPLETED:
+            state.phase = ConversationPhase.COMPLETED
+            state.is_complete = True
             return ConversationTurnResponse(
                 answer_confirmed=answer,
                 next_question=None,
@@ -207,6 +249,8 @@ class ConversationEngine:
             conversation_history=state.answered_questions,
             language=language,
             topics_covered=topics_covered,
+            presenting_complaint=self._get_presenting_complaint(state.answered_questions),
+            max_questions=self.MAX_QUESTIONS,
         )
 
         try:
@@ -215,12 +259,56 @@ class ConversationEngine:
                 user_prompt=user_prompt,
                 temperature=0.3,
             )
+            # The model may explicitly say that the current clinical section is
+            # sufficiently covered. Respect that signal instead of returning an
+            # empty/irrelevant question to the kiosk.
+            if response.get("section_complete") is True and len(state.answered_questions) >= 2:
+                state.phase = ConversationPhase.COMPLETED
+                state.is_complete = True
+                return ConversationTurnResponse(
+                    answer_confirmed=answer,
+                    next_question=None,
+                    red_flags=new_flags,
+                    phase=ConversationPhase.COMPLETED,
+                    progress_percent=100.0,
+                    is_complete=True,
+                )
             next_question = self._parse_question_response(response)
+
+            needs_correction = (
+                self._is_duplicate_question(next_question, state.answered_questions)
+                or self._is_irrelevant_question(next_question)
+                or self._has_invalid_options(response)
+            )
+            if needs_correction:
+                response = await self._llm.generate_json(
+                    system_prompt=system_prompt,
+                    user_prompt=(
+                        f"{user_prompt}\nThe proposed question was invalid because it was "
+                        "repeated, unrelated, or missing required options. "
+                        "Generate a different relevant question or set "
+                        '"section_complete": true.'
+                    ),
+                    temperature=0.3,
+                )
+                next_question = self._parse_question_response(response)
+
+            if (
+                self._is_duplicate_question(next_question, state.answered_questions)
+                or self._is_irrelevant_question(next_question)
+                or self._has_invalid_options(response)
+            ):
+                next_question = self._fallback_choice_question(
+                    state.phase,
+                    self._get_presenting_complaint(state.answered_questions),
+                )
 
             # Check if LLM indicates section is complete
             if response.get("section_complete"):
                 next_phase = self._advance_phase(state.phase, intake_pathway)
                 if next_phase == ConversationPhase.COMPLETED:
+                    state.phase = ConversationPhase.COMPLETED
+                    state.is_complete = True
                     return ConversationTurnResponse(
                         answer_confirmed=answer,
                         next_question=None,
@@ -248,14 +336,7 @@ class ConversationEngine:
 
         except Exception as e:
             logger.error("next_question_generation_failed", error=str(e))
-            # Fallback generic question for the current phase
-            next_question = AIQuestion(
-                question_id=f"{state.phase.value}_{len(state.answered_questions)}",
-                phase=state.phase,
-                prompt="Please tell me more about your current health concern.",
-                question_type=QuestionType.TEXT,
-                clinical_context="Fallback question due to LLM error.",
-            )
+            next_question = self._fallback_choice_question(state.phase, self._get_presenting_complaint(state.answered_questions))
 
         state.current_question = next_question
 
@@ -275,6 +356,8 @@ class ConversationEngine:
         self,
         audio_bytes: bytes,
         language: str = "en",
+        *,
+        filename: str = "audio.wav",
     ) -> dict:
         """Transcribe speech input and return text + confidence.
 
@@ -289,7 +372,7 @@ class ConversationEngine:
                 "quality": quality,
             }
 
-        result = await self._asr.transcribe(audio_bytes, language)
+        result = await self._asr.transcribe(audio_bytes, language, filename=filename)
         return {
             "text": result["text"],
             "confidence": result["confidence"],
@@ -334,16 +417,222 @@ class ConversationEngine:
         except ValueError:
             phase = ConversationPhase.CHIEF_COMPLAINT
 
+        question_type_value = response.get("question_type", "text")
+        selection_mode = str(response.get("selection_mode", "")).lower()
+        if selection_mode in {"multiple", "multi", "multi_select"} or response.get("multiple") is True:
+            question_type_value = "multi_select"
+        try:
+            question_type = QuestionType(question_type_value)
+        except ValueError:
+            question_type = QuestionType.TEXT
+
+        if question_type == QuestionType.TEXT and options and len(options) >= 2:
+            question_type = QuestionType.CHOICE
+
+        if question_type in (QuestionType.CHOICE, QuestionType.MULTI_SELECT):
+            if not options or len(options) < 2:
+                question_type = QuestionType.TEXT
+                options = None
+
         return AIQuestion(
             question_id=response.get("question_id", f"q_{uuid.uuid4().hex[:8]}"),
             phase=phase,
             prompt=response.get("prompt", ""),
             prompt_local=response.get("prompt_local"),
             helper=response.get("helper"),
-            question_type=QuestionType(response.get("question_type", "text")),
+            question_type=question_type,
             options=options,
+            selection_mode=response.get("selection_mode") or (
+                "multiple" if question_type == QuestionType.MULTI_SELECT else "single"
+            ),
             is_follow_up=response.get("is_follow_up", False),
             clinical_context=response.get("clinical_context"),
+        )
+
+    def _is_duplicate_question(
+        self, question: AIQuestion, answered: list[dict]
+    ) -> bool:
+        """Detect repeated question IDs or wording before returning a question."""
+        prompt = " ".join(question.prompt.lower().split())
+        for entry in answered:
+            previous_prompt = " ".join(entry.get("question", "").lower().split())
+            if question.question_id == entry.get("question_id"):
+                return True
+            if prompt and (
+                prompt == previous_prompt
+                or SequenceMatcher(None, prompt, previous_prompt).ratio() >= 0.88
+            ):
+                return True
+        return False
+
+    def _is_irrelevant_question(self, question: AIQuestion) -> bool:
+        """Reject non-clinical social questions from the patient-facing flow."""
+        text = question.prompt.lower()
+        blocked_topics = (
+            "monthly income", "annual income", "salary", "marital status",
+            "education", "highest level", "address", "where do you live",
+            "housing", "own house", "rented house", "employment",
+        )
+        return any(topic in text for topic in blocked_topics)
+
+    def _fallback_choice_question(self, phase: ConversationPhase, complaint: str = "") -> AIQuestion:
+        """Return a relevant option question when the provider response is invalid."""
+        complaint_key = complaint.lower()
+        complaint_questions = {
+            "fever_cough": (
+                "How long have you had the fever, cough, or breathing problem?",
+                [
+                    Choice(value="less_1_day", label="Less than 1 day"),
+                    Choice(value="1_3_days", label="1–3 days"),
+                    Choice(value="4_7_days", label="4–7 days"),
+                    Choice(value="more_1_week", label="More than 1 week"),
+                ],
+            ),
+            "abdominal_pain": (
+                "Where is the stomach pain mainly located?",
+                [
+                    Choice(value="upper", label="Upper abdomen"),
+                    Choice(value="lower", label="Lower abdomen"),
+                    Choice(value="right", label="Right side"),
+                    Choice(value="left", label="Left side"),
+                    Choice(value="all_over", label="All over"),
+                ],
+            ),
+            "headache": (
+                "How is the headache affecting you?",
+                [
+                    Choice(value="mild", label="Mild"),
+                    Choice(value="moderate", label="Moderate"),
+                    Choice(value="severe", label="Severe"),
+                    Choice(value="with_dizziness", label="With dizziness"),
+                ],
+            ),
+            "joint_pain": (
+                "Which best describes the joint or muscle problem?",
+                [
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="swelling", label="Swelling"),
+                    Choice(value="stiffness", label="Stiffness"),
+                    Choice(value="reduced_movement", label="Reduced movement"),
+                ],
+            ),
+            "skin_issue": (
+                "What is the main skin problem?",
+                [
+                    Choice(value="rash", label="Rash"),
+                    Choice(value="itching", label="Itching"),
+                    Choice(value="wound", label="Wound"),
+                    Choice(value="swelling", label="Swelling"),
+                ],
+            ),
+            "urinary": (
+                "Which urinary symptom is most noticeable?",
+                [
+                    Choice(value="burning", label="Burning while urinating"),
+                    Choice(value="frequency", label="Passing urine often"),
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="blood", label="Blood in urine"),
+                ],
+            ),
+            "eye_ear": (
+                "Which problem is most noticeable?",
+                [
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="discharge", label="Discharge"),
+                    Choice(value="hearing", label="Hearing difficulty"),
+                    Choice(value="vision", label="Vision difficulty"),
+                ],
+            ),
+        }
+        fallback_questions = {
+            ConversationPhase.EMERGENCY_SCREEN: (
+                "Are you experiencing any emergency symptoms right now?",
+                [
+                    Choice(value="none", label="None of these"),
+                    Choice(value="chest_pain", label="Severe chest pain"),
+                    Choice(value="breathing", label="Difficulty breathing"),
+                    Choice(value="bleeding", label="Heavy bleeding"),
+                    Choice(value="weakness", label="Sudden weakness"),
+                    Choice(value="seizure", label="Seizure"),
+                ],
+            ),
+            ConversationPhase.CHIEF_COMPLAINT: (
+                "Which problem is bothering you most?",
+                [
+                    Choice(value="pain", label="Pain"),
+                    Choice(value="fever", label="Fever"),
+                    Choice(value="breathing", label="Breathing problem"),
+                    Choice(value="weakness", label="Weakness or tiredness"),
+                    Choice(value="other", label="Other"),
+                ],
+            ),
+            ConversationPhase.HPI: (
+                "How would you describe the symptom?",
+                [
+                    Choice(value="new", label="Started recently"),
+                    Choice(value="ongoing", label="Ongoing for some time"),
+                    Choice(value="worse", label="Getting worse"),
+                    Choice(value="comes_goes", label="Comes and goes"),
+                    Choice(value="not_sure", label="Not sure"),
+                ],
+            ),
+            ConversationPhase.PAST_MEDICAL: (
+                "Do you have any of these health conditions?",
+                [
+                    Choice(value="none", label="None"),
+                    Choice(value="diabetes", label="Diabetes"),
+                    Choice(value="blood_pressure", label="High blood pressure"),
+                    Choice(value="other", label="Another condition"),
+                ],
+            ),
+            ConversationPhase.DRUG_ALLERGY: (
+                "Which option best describes your medicines or allergies?",
+                [
+                    Choice(value="none", label="No regular medicines or allergies"),
+                    Choice(value="medicines", label="I take regular medicines"),
+                    Choice(value="allergy", label="I have a medicine allergy"),
+                    Choice(value="not_sure", label="Not sure"),
+                ],
+            ),
+            ConversationPhase.REVIEW_OF_SYSTEMS: (
+                "Are you experiencing any other symptoms?",
+                [
+                    Choice(value="none", label="No other symptoms"),
+                    Choice(value="yes", label="Yes, I have other symptoms"),
+                    Choice(value="not_sure", label="Not sure"),
+                ],
+            ),
+        }
+        if phase == ConversationPhase.HPI and complaint_key in complaint_questions:
+            prompt, options = complaint_questions[complaint_key]
+        else:
+            prompt, options = fallback_questions.get(
+            phase,
+            (
+                "Which option best describes your current health concern?",
+                [
+                    Choice(value="better", label="Getting better"),
+                    Choice(value="same", label="About the same"),
+                    Choice(value="worse", label="Getting worse"),
+                    Choice(value="not_sure", label="Not sure"),
+                ],
+            ),
+        )
+        return AIQuestion(
+            question_id=f"{phase.value}_fallback",
+            phase=phase,
+            prompt=prompt,
+            question_type=QuestionType.CHOICE,
+            options=options,
+            clinical_context="Option fallback used when the AI response was invalid.",
+        )
+
+    def _has_invalid_options(self, response: dict) -> bool:
+        """Require every patient-facing question to be an option control."""
+        question_type = response.get("question_type")
+        options = response.get("options")
+        return question_type not in ("choice", "multi_select") or (
+            not isinstance(options, list) or len(options) < 2
         )
 
     def _build_answer_map(self, answered: list[dict]) -> dict:
@@ -383,6 +672,47 @@ class ConversationEngine:
 
         return result
 
+    @staticmethod
+    def _is_emergency_positive(answer: str) -> bool:
+        """Detect explicit emergency symptoms without false-ending normal speech."""
+        import json
+        raw = str(answer or "").strip()
+        values = [raw]
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    values.extend(str(v) for v in parsed)
+            except Exception:
+                pass
+        text = " ".join(values).lower()
+        text = " ".join(text.split())
+        if not text:
+            return False
+        if text in {"yes", "yes.", "yeah", "haan", "ha", "हाँ", "जी हाँ", "हां"}:
+            return True
+        emergency_values = {"chest_pain", "breathing", "bleeding", "weakness", "seizure", "unconscious", "stroke", "vomiting_blood", "black_stool"}
+        if any(v in emergency_values for v in values[1:]):
+            return True
+        negative_patterns = (
+            "no ", "no,", "none", "nothing", "not ", "i don't", "i do not",
+            "i have no", "i am not", "don't have", "do not have", "no emergency",
+            "नहीं", "कोई नहीं", "नहीं है", "मुझे नहीं", "ऐसा कुछ नहीं",
+        )
+        if any(text.startswith(prefix) or f" {prefix.strip()}" in text for prefix in negative_patterns):
+            positive_construction = ("i have " in text or "i am having " in text or "having " in text or ("मुझे " in text and "नहीं" not in text))
+            if not positive_construction:
+                return False
+        emergency_terms = (
+            "severe chest pain", "chest pain", "difficulty breathing", "breathing difficulty",
+            "can't breathe", "cannot breathe", "heavy bleeding", "severe bleeding",
+            "unconscious", "fainted", "seizure", "convulsion", "sudden weakness",
+            "sudden paralysis", "stroke", "blue lips", "vomiting blood", "blood in vomit",
+            "black stool", "very severe pain", "बेहोश", "दौरा", "सांस लेने में दिक्कत",
+            "सांस नहीं", "सीने में तेज दर्द", "बहुत ज्यादा खून", "अचानक कमजोरी",
+        )
+        return any(term in text for term in emergency_terms)
+
     def _determine_next_phase(
         self, state: ConversationState, intake_pathway: str
     ) -> ConversationPhase:
@@ -393,11 +723,8 @@ class ConversationEngine:
 
         # If emergency was confirmed, stop the interview
         if current == ConversationPhase.EMERGENCY_SCREEN:
-            last_answer = state.answered_questions[-1].get("answer", "").lower() if state.answered_questions else ""
-            if any(kw in last_answer for kw in ["none", "no", "nothing"]):
-                return ConversationPhase.CHIEF_COMPLAINT
-            # If they selected an emergency symptom, the red-flag system handles it
-            # but we still advance to chief complaint for triage info
+            # A non-emergency answer moves to the chief-complaint question.
+            # Explicit emergency answers are already completed above.
             return ConversationPhase.CHIEF_COMPLAINT
 
         return current
@@ -406,7 +733,7 @@ class ConversationEngine:
         self, current: ConversationPhase, intake_pathway: str
     ) -> ConversationPhase:
         """Get the next phase after the current one is complete."""
-        all_sections = list(STANDARD_SECTIONS)
+        all_sections = list(CORE_INTAKE_SECTIONS)
         if intake_pathway == "ayush":
             all_sections.extend(AYUSH_EXTENSION_SECTIONS)
 
@@ -436,6 +763,22 @@ class ConversationEngine:
 
         return ConversationPhase.COMPLETED
 
+    def _get_presenting_complaint(self, answered: list[dict]) -> str:
+        """Return the earliest explicit primary complaint answer."""
+        for entry in answered:
+            question = str(entry.get("question", "")).lower()
+            answer = str(entry.get("answer", "")).strip()
+            if not answer:
+                continue
+            if (
+                entry.get("question_id") == "chief_complaint"
+                or "chief complaint" in question
+                or "main problem" in question
+                or "problem is bothering you most" in question
+            ):
+                return answer
+        return ""
+
     def _extract_topics(
         self, answered: list[dict], phase: ConversationPhase
     ) -> list[str]:
@@ -457,10 +800,7 @@ class ConversationEngine:
             ConversationPhase.CHIEF_COMPLAINT,
             ConversationPhase.HPI,
             ConversationPhase.PAST_MEDICAL,
-            ConversationPhase.PAST_SURGICAL,
             ConversationPhase.DRUG_ALLERGY,
-            ConversationPhase.FAMILY_HISTORY,
-            ConversationPhase.PERSONAL_HISTORY,
             ConversationPhase.REVIEW_OF_SYSTEMS,
         ]
         if intake_pathway == "ayush":

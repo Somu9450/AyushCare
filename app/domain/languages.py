@@ -31,7 +31,20 @@ LOCALE_REGISTRY: list[LocaleDefinition] = [
     LocaleDefinition("gu", "Gujarati", "ગુજરાતી", "gu-IN", "pilot", True, True, "gu"),
     LocaleDefinition("kn", "Kannada", "ಕನ್ನಡ", "kn-IN", "pilot", True, True, "kn"),
     LocaleDefinition("ml", "Malayalam", "മലയാളം", "ml-IN", "pilot", True, True, "ml"),
-    LocaleDefinition("pa", "Punjabi", "ਪੰਜਾਬੀ", "pa-IN", "planned", False, True, "pa"),
+    LocaleDefinition("pa", "Punjabi", "ਪੰਜਾਬੀ", "pa-IN", "pilot", True, True, "pa"),
+    LocaleDefinition("as", "Assamese", "অসমীয়া", "as-IN", "planned", False, False, "as"),
+    LocaleDefinition("brx", "Bodo", "बड़ो", "brx-IN", "planned", False, False, "brx"),
+    LocaleDefinition("doi", "Dogri", "डोगरी", "doi-IN", "planned", False, False, "doi"),
+    LocaleDefinition("ks", "Kashmiri", "कॉशुर", "ks-IN", "planned", False, False, "ks"),
+    LocaleDefinition("kok", "Konkani", "कोंकणी", "kok-IN", "planned", False, False, "kok"),
+    LocaleDefinition("mai", "Maithili", "मैथिली", "mai-IN", "planned", False, False, "mai"),
+    LocaleDefinition("mni", "Manipuri", "মৈতৈলোন্", "mni-IN", "planned", False, False, "mni"),
+    LocaleDefinition("ne", "Nepali", "नेपाली", "ne-IN", "planned", False, False, "ne"),
+    LocaleDefinition("or", "Odia", "ଓଡ଼ିଆ", "or-IN", "planned", False, False, "or"),
+    LocaleDefinition("sa", "Sanskrit", "संस्कृतम्", "sa-IN", "planned", False, False, "sa"),
+    LocaleDefinition("sat", "Santali", "ᱥᱟᱱᱛᱟᱲᱤ", "sat-IN", "planned", False, False, "sat"),
+    LocaleDefinition("sd", "Sindhi", "سنڌي", "sd-IN", "planned", False, False, "sd"),
+    LocaleDefinition("ur", "Urdu", "اردو", "ur-IN", "planned", False, False, "ur"),
 ]
 
 _LOCALE_MAP: dict[str, LocaleDefinition] = {loc.code: loc for loc in LOCALE_REGISTRY}

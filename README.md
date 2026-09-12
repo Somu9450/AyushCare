@@ -33,7 +33,7 @@ copy .env.example .env
 
 ### 3. Run Development Server
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
 ### 4. Run Tests
@@ -108,8 +108,8 @@ docker-compose up --build
 
 ## Safety
 
-> **This system does NOT diagnose, prescribe, or replace clinical judgement.**
-> All output is for clinician review only.
+> **This system does NOT diagnose, prescribe, or replace clinical judgement**
+> All output is for clinician review only
 
 - 10 deterministic red-flag rules with emergency escalation
 - LLM-augmented compound pattern detection

@@ -41,6 +41,15 @@ STANDARD_SECTIONS = [
     ClinicalSection.REVIEW_OF_SYSTEMS,
 ]
 
+CORE_INTAKE_SECTIONS = [
+    ClinicalSection.EMERGENCY_SCREEN,
+    ClinicalSection.CHIEF_COMPLAINT,
+    ClinicalSection.HPI,
+    ClinicalSection.PAST_MEDICAL,
+    ClinicalSection.DRUG_ALLERGY,
+    ClinicalSection.REVIEW_OF_SYSTEMS,
+]
+
 AYUSH_EXTENSION_SECTIONS = [
     ClinicalSection.AYUSH_DASHAVIDHA,
     ClinicalSection.AYUSH_AHARA_VIHARA,
