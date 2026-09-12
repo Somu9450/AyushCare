@@ -26,8 +26,9 @@ def test_settings() -> Settings:
     """Test settings with no real API keys."""
     return Settings(
         environment="development",
-        gemini_api_key=None,
         groq_api_key=None,
+        bhashini_udyat_key=None,
+        bhashini_inference_key=None,
         database_url="sqlite+aiosqlite:///./test.db",
         redis_url="redis://localhost:6379/1",
         secret_key="test-secret-key",

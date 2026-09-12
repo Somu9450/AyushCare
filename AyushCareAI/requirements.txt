@@ -5,8 +5,7 @@ python-multipart
 pydantic
 pydantic-settings
 
-# AI / LLM Providers (Free Tiers)
-google-generativeai
+# AI / LLM Provider
 groq
 
 # OCR & Vision (Groq Vision + Tesseract)

@@ -2,6 +2,7 @@
 
 Handles medical document image processing with quality assessment,
 multi-language text extraction, and structured output.
+Gemini Vision has been removed — Bhashini OCR will be added in Phase 5.
 """
 
 from __future__ import annotations
@@ -51,9 +52,10 @@ class OCRService:
     MIN_HEIGHT = 480
     MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20MB
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, bhashini_client: Optional[Any] = None) -> None:
         self._settings = settings
         self._provider = settings.ocr_provider
+        self.bhashini_client = bhashini_client
         self._groq_client: Any = None
         if settings.groq_api_key:
             try:
@@ -65,10 +67,10 @@ class OCRService:
 
     @property
     def is_available(self) -> bool:
-        if self._provider == "groq_vision":
+        if self.bhashini_client is not None:
+            return True
+        if self._provider in ("groq_vision", "bhashini"):
             return self._groq_client is not None
-        if self._provider == "gemini_vision":
-            return bool(self._settings.gemini_api_key)
         return self._provider == "tesseract"
 
     def assess_image_quality(self, image_bytes: bytes) -> ImageQuality:
@@ -116,31 +118,28 @@ class OCRService:
         """Extract text from a medical document image.
 
         Priority order:
-        1. Configured cloud vision provider (Gemini Vision or Groq Vision)
-        2. Automatic fallback cloud vision provider
+        1. Bhashini OCR (if bhashini_client provided)
+        2. Groq Vision (cloud fallback)
         3. Tesseract OCR (local fallback)
         """
-        # Build ordered list of cloud vision providers to attempt
-        if self._provider == "groq_vision":
-            candidates = ["groq_vision", "gemini_vision"]
-        else:
-            candidates = ["gemini_vision", "groq_vision"]
-
         errors = []
-        for provider in candidates:
-            if provider == "gemini_vision" and self._settings.gemini_api_key:
-                try:
-                    return await self._extract_gemini(image_bytes, language_hints)
-                except Exception as e:
-                    logger.warning("gemini_vision_ocr_failed", error=str(e))
-                    errors.append(f"Gemini: {e}")
 
-            if provider == "groq_vision" and self._groq_client:
-                try:
-                    return await self._extract_groq_vision(image_bytes, language_hints)
-                except Exception as e:
-                    logger.warning("groq_vision_ocr_failed", error=str(e))
-                    errors.append(f"Groq: {e}")
+        # Try Bhashini OCR if client is available
+        if self.bhashini_client:
+            try:
+                lang = language_hints[0] if language_hints else "hi"
+                return await self._extract_bhashini(image_bytes, lang)
+            except Exception as e:
+                logger.warning("bhashini_ocr_failed", error=str(e))
+                errors.append(f"Bhashini OCR: {e}")
+
+        # Try Groq Vision
+        if self._groq_client:
+            try:
+                return await self._extract_groq_vision(image_bytes, language_hints)
+            except Exception as e:
+                logger.warning("groq_vision_ocr_failed", error=str(e))
+                errors.append(f"Groq: {e}")
 
         # Local tesseract fallback if installed
         try:
@@ -150,6 +149,27 @@ class OCRService:
             errors.append(f"Tesseract: {e}")
 
         raise OCRError(f"All OCR providers failed: {'; '.join(errors)}")
+
+    async def _extract_bhashini(
+        self,
+        image_bytes: bytes,
+        source_lang: str = "hi",
+    ) -> dict:
+        """Extract text using Bhashini OCR API."""
+        encoded_image = base64.b64encode(image_bytes).decode("ascii")
+        res = await self.bhashini_client.ocr(image_base64=encoded_image, source_lang=source_lang)
+        text = res.get("text", "")
+        logger.info(
+            "ocr_extraction_complete",
+            provider="bhashini",
+            text_length=len(text),
+        )
+        return {
+            "text": text,
+            "confidence": res.get("confidence", 0.85),
+            "language": source_lang,
+            "pages": 1,
+        }
 
     async def _extract_groq_vision(
         self,
@@ -222,62 +242,6 @@ class OCRService:
             "language": language_hints[0] if language_hints else "en",
             "pages": 1,
         }
-
-    async def _extract_gemini(
-        self,
-        image_bytes: bytes,
-        language_hints: Optional[list[str]] = None,
-    ) -> dict:
-        """Extract text using Gemini Vision with model fallbacks."""
-        import google.generativeai as genai
-
-        genai.configure(api_key=self._settings.gemini_api_key)
-
-        img = Image.open(BytesIO(image_bytes))
-        prompt = (
-            "You are a clinical document transcription assistant. Transcribe ALL text, "
-            "prescriptions, medications, dosages, lab tests, values, reference ranges, "
-            "dates, and doctor notes from this medical image accurately and verbatim. "
-            "Maintain original formatting and return only the transcription without commentary."
-        )
-
-        candidate_models = [
-            self._settings.gemini_model,
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-        ]
-        models_to_try = []
-        for m in candidate_models:
-            if m and m not in models_to_try:
-                models_to_try.append(m)
-
-        last_err = None
-        for model_name in models_to_try:
-            try:
-                model = genai.GenerativeModel(model_name=model_name)
-                response = await model.generate_content_async([prompt, img])
-                text = response.text or ""
-                text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-                if text:
-                    logger.info(
-                        "ocr_extraction_complete",
-                        provider="gemini_vision",
-                        model=model_name,
-                        text_length=len(text),
-                    )
-                    return {
-                        "text": text.strip(),
-                        "confidence": 0.95,
-                        "language": language_hints[0] if language_hints else "en",
-                        "pages": 1,
-                    }
-            except Exception as ex:
-                last_err = ex
-                logger.warning("gemini_vision_model_failed", model=model_name, error=str(ex))
-                continue
-
-        raise last_err or OCRError("Gemini Vision failed to extract text")
 
     async def _extract_tesseract(
         self,

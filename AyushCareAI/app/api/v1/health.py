@@ -27,7 +27,7 @@ async def health_check() -> HealthResponse:
     except Exception:
         pass
 
-    llm_ok = settings.primary_llm_available or settings.fallback_llm_available
+    llm_ok = settings.primary_llm_available
     ocr_ok = (
         settings.ocr_provider == "tesseract"
         or (
@@ -35,12 +35,12 @@ async def health_check() -> HealthResponse:
             and bool(settings.groq_api_key)
         )
         or (
-            settings.ocr_provider == "gemini_vision"
-            and bool(settings.gemini_api_key)
+            settings.ocr_provider == "bhashini"
+            and bool(settings.bhashini_udyat_key)
         )
     )
-    asr_ok = bool(settings.groq_api_key)
-    tts_ok = True  # Edge-TTS is free and built-in
+    asr_ok = bool(settings.groq_api_key) or bool(settings.bhashini_udyat_key)
+    tts_ok = True  # Bhashini TTS or Edge-TTS fallback
 
     return HealthResponse(
         version=settings.app_version,

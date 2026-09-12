@@ -1,7 +1,7 @@
-"""LLM service — unified interface for Gemini (primary) and Groq (fallback).
+"""LLM service — Groq as the sole LLM provider.
 
-Provides structured output parsing, automatic retry with exponential backoff,
-and transparent provider fallback.
+Provides structured output parsing, automatic retry with exponential backoff.
+Groq uses openai/gpt-oss-120b for clinical reasoning and qwen/qwen3.6-27b for vision.
 """
 
 from __future__ import annotations
@@ -19,40 +19,30 @@ logger = structlog.get_logger(__name__)
 
 
 class LLMError(Exception):
-    """Raised when all LLM providers fail."""
+    """Raised when the LLM provider fails."""
 
 
 class LLMService:
-    """Unified LLM interface with provider fallback."""
+    """Unified LLM interface using Groq as the sole provider."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._gemini_client: Any = None
         self._groq_client: Any = None
-        self._initialize_providers()
+        self._initialize_provider()
 
-    def _initialize_providers(self) -> None:
-        """Lazily initialize LLM provider clients."""
-        if self._settings.gemini_api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self._settings.gemini_api_key)
-                self._gemini_client = genai
-                logger.info("llm_provider_initialized", provider="gemini")
-            except Exception as e:
-                logger.warning("llm_gemini_init_failed", error=str(e))
-
+    def _initialize_provider(self) -> None:
+        """Initialize the Groq LLM client."""
         if self._settings.groq_api_key:
             try:
                 from groq import AsyncGroq
                 self._groq_client = AsyncGroq(api_key=self._settings.groq_api_key)
-                logger.info("llm_provider_initialized", provider="groq")
+                logger.info("llm_provider_initialized", provider="groq", model=self._settings.groq_model)
             except Exception as e:
                 logger.warning("llm_groq_init_failed", error=str(e))
 
     @property
     def is_available(self) -> bool:
-        return self._gemini_client is not None or self._groq_client is not None
+        return self._groq_client is not None
 
     async def generate(
         self,
@@ -64,7 +54,7 @@ class LLMService:
         response_format: Optional[str] = None,
         model_tier: str = "standard",
     ) -> str:
-        """Generate a completion from the best available provider.
+        """Generate a completion from Groq.
 
         Args:
             system_prompt: System instructions for the LLM.
@@ -72,50 +62,30 @@ class LLMService:
             temperature: Override default temperature.
             max_tokens: Override default max_tokens.
             response_format: "json" to request JSON-mode output.
-            model_tier: "standard" or "advanced" (uses larger model).
+            model_tier: "standard" or "advanced" (both use Groq).
 
         Returns:
             The generated text response.
 
         Raises:
-            LLMError: If all providers fail.
+            LLMError: If the provider fails.
         """
-        errors: list[str] = []
+        if self._groq_client is None:
+            raise LLMError("Groq API key not configured. Set GROQ_API_KEY.")
 
-        # Try Gemini first
-        if self._gemini_client is not None:
-            try:
-                return await asyncio.wait_for(
-                    self._call_gemini(
-                        system_prompt, user_prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        response_format=response_format,
-                        model_tier=model_tier,
-                    ),
-                    timeout=self._settings.llm_request_timeout_seconds,
-                )
-            except Exception as e:
-                logger.warning("llm_gemini_failed", error=str(e))
-                errors.append(f"Gemini: {e}")
-
-        # Fallback to Groq
-        if self._groq_client is not None:
-            try:
-                return await asyncio.wait_for(
-                    self._call_groq(
-                        system_prompt, user_prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        response_format=response_format,
-                    ),
-                    timeout=self._settings.llm_request_timeout_seconds,
-                )
-            except Exception as e:
-                logger.warning("llm_groq_failed", error=str(e))
-                errors.append(f"Groq: {e}")
-
-        raise LLMError(f"All LLM providers failed: {'; '.join(errors)}")
+        try:
+            return await asyncio.wait_for(
+                self._call_groq(
+                    system_prompt, user_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                ),
+                timeout=self._settings.llm_request_timeout_seconds,
+            )
+        except Exception as e:
+            logger.error("llm_groq_failed", error=str(e))
+            raise LLMError(f"Groq LLM failed: {e}") from e
 
     async def generate_json(
         self,
@@ -152,59 +122,6 @@ class LLMService:
         except json.JSONDecodeError as e:
             logger.error("llm_json_parse_failed", raw_response=raw[:500], error=str(e))
             raise LLMError(f"Failed to parse LLM JSON output: {e}") from e
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type(Exception),
-        reraise=True,
-    )
-    async def _call_gemini(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        response_format: Optional[str] = None,
-        model_tier: str = "standard",
-    ) -> str:
-        """Call Google Gemini API with retry."""
-        model_name = (
-            self._settings.gemini_model_advanced
-            if model_tier == "advanced"
-            else self._settings.gemini_model
-        )
-        temp = temperature if temperature is not None else self._settings.gemini_temperature
-        tokens = max_tokens if max_tokens is not None else self._settings.gemini_max_tokens
-
-        model = self._gemini_client.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt,
-        )
-
-        generation_config = {
-            "temperature": temp,
-            "max_output_tokens": tokens,
-        }
-        if response_format == "json":
-            generation_config["response_mime_type"] = "application/json"
-
-        response = await model.generate_content_async(
-            user_prompt,
-            generation_config=generation_config,
-        )
-
-        if not response.text:
-            raise LLMError("Gemini returned empty response")
-
-        logger.debug(
-            "llm_gemini_response",
-            model=model_name,
-            prompt_len=len(user_prompt),
-            response_len=len(response.text),
-        )
-        return response.text
 
     @retry(
         stop=stop_after_attempt(3),
