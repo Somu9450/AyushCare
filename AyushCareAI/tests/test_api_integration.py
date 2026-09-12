@@ -39,6 +39,10 @@ async def async_client(
     app.dependency_overrides[get_tts_service] = lambda: mock_tts_service
     app.dependency_overrides[get_conversation_engine] = lambda: test_engine
 
+    from app.config import get_settings
+    from app.infrastructure.storage import init_storage
+    await init_storage(get_settings())
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client

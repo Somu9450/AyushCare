@@ -1,10 +1,12 @@
 """ASR (Automatic Speech Recognition) service.
 
-Powered by Groq Whisper (Free, ultra-fast, state-of-the-art multilingual).
+Primary: Bhashini Conformer (22 Indian languages, optimized for noisy environments).
+Fallback: Groq Whisper (English-centric, fast).
 """
 
 from __future__ import annotations
 
+import base64
 from typing import Any, Optional
 
 import structlog
@@ -20,10 +22,15 @@ class ASRError(Exception):
 
 
 class ASRService:
-    """Automatic Speech Recognition service using Groq Whisper."""
+    """Automatic Speech Recognition service with Bhashini + Groq Whisper."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        bhashini_client: Any = None,
+    ) -> None:
         self._settings = settings
+        self._bhashini_client = bhashini_client
         self._groq_client: Any = None
         self._initialize()
 
@@ -38,7 +45,7 @@ class ASRService:
 
     @property
     def is_available(self) -> bool:
-        return self._groq_client is not None or bool(self._settings.gemini_api_key)
+        return self._bhashini_client is not None or self._groq_client is not None
 
     @staticmethod
     def _clean_audio_payload(audio_bytes: bytes, filename: str = "audio.wav") -> tuple[bytes, str]:
@@ -82,45 +89,73 @@ class ASRService:
         encoding: str = "LINEAR16",
         filename: str = "audio.wav",
     ) -> dict:
-        """Transcribe audio to text with Groq Whisper and Gemini fallback.
+        """Transcribe audio to text.
 
-        Args:
-            audio_bytes: Raw audio data.
-            language: 2-letter language code.
-            sample_rate_hertz: Audio sample rate.
-            encoding: Audio encoding format.
+        Priority: Bhashini ASR (primary) → Groq Whisper (fallback).
 
         Returns:
             dict with keys: 'text', 'confidence', 'language', 'alternatives'
         """
         clean_bytes, resolved_name = self._clean_audio_payload(audio_bytes, filename)
 
-        # Primary: Groq Whisper
+        # Primary: Bhashini ASR
+        if self._bhashini_client and self._settings.asr_provider == "bhashini":
+            try:
+                res = await self._transcribe_bhashini(clean_bytes, language)
+                if res.get("text"):
+                    return res
+            except Exception as e:
+                logger.warning("bhashini_asr_error_trying_fallback", error=str(e))
+
+        # Fallback: Groq Whisper
         if self._groq_client:
             try:
                 res = await self._transcribe_groq(clean_bytes, language, filename=resolved_name)
                 if res.get("text"):
                     return res
             except Exception as e:
-                logger.warning("groq_whisper_error_trying_fallback", error=str(e))
-
-        # Fallback: Google Gemini
-        if self._settings.gemini_api_key:
-            try:
-                gemini_text = await self._transcribe_gemini(clean_bytes, language, resolved_name)
-                if gemini_text:
-                    return {
-                        "text": gemini_text,
-                        "confidence": 0.90,
-                        "language": language,
-                        "alternatives": [],
-                    }
-            except Exception as e:
-                logger.warning("gemini_asr_failed", error=str(e))
+                logger.warning("groq_whisper_error", error=str(e))
 
         return {
             "text": "",
             "confidence": 0.0,
+            "language": language,
+            "alternatives": [],
+        }
+
+    async def _transcribe_bhashini(
+        self,
+        audio_bytes: bytes,
+        language: str = "en",
+    ) -> dict:
+        """Transcribe audio using Bhashini Conformer ASR."""
+        bhashini_lang = get_bhashini_code(language) or language
+
+        # Select model: English-specific or multilingual conformer
+        if bhashini_lang == "en":
+            service_id = self._settings.bhashini_asr_en_model
+        else:
+            service_id = self._settings.bhashini_asr_model
+
+        # Encode audio to base64 for Bhashini API
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        result = await self._bhashini_client.asr(
+            audio_base64=audio_b64,
+            source_lang=bhashini_lang,
+            service_id=service_id,
+        )
+
+        logger.info(
+            "bhashini_asr_transcription_complete",
+            language=bhashini_lang,
+            text_length=len(result.get("text", "")),
+            confidence=result.get("confidence", 0.0),
+        )
+
+        return {
+            "text": result.get("text", "").strip(),
+            "confidence": result.get("confidence", 0.85),
             "language": language,
             "alternatives": [],
         }
@@ -160,37 +195,6 @@ class ASRService:
             "language": language,
             "alternatives": [],
         }
-
-    async def _transcribe_gemini(
-        self,
-        audio_bytes: bytes,
-        language: str = "en",
-        filename: str = "audio.webm",
-    ) -> str:
-        """Transcribe audio using Google Gemini multimodal capabilities."""
-        import google.generativeai as genai
-        genai.configure(api_key=self._settings.gemini_api_key)
-
-        model_name = self._settings.gemini_model or "gemini-3.6-flash"
-        model = genai.GenerativeModel(model_name)
-
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "webm"
-        mime_type = f"audio/{ext}" if ext != "m4a" else "audio/mp4"
-
-        prompt = (
-            f"Please transcribe this spoken audio accurately. The expected language is '{language}'. "
-            "Output ONLY the transcribed words with no comments, introductory phrases, or markdown formatting. "
-            "If the audio is silence or unintelligible noise, output an empty string."
-        )
-
-        response = await model.generate_content_async([
-            {"mime_type": mime_type, "data": audio_bytes},
-            prompt,
-        ])
-
-        text = (response.text or "").strip()
-        logger.info("gemini_transcription_complete", language=language, text_length=len(text))
-        return text
 
     async def assess_audio_quality(self, audio_bytes: bytes) -> dict:
         """Assess audio quality metrics (RMS, duration estimation).
@@ -233,4 +237,3 @@ class ASRService:
             "duration_estimate_sec": round(duration_estimate, 1),
             "issues": issues,
         }
-
