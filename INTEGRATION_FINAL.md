@@ -1,2 +1,0 @@
-# Final AI Integration
-English/Hindi speech uses the same `process_answer` state machine as text. Emergency screening recognizes common English/Hindi negative speech and does not falsely end the interview. Maximum interview length is 8 answers. Questions are complaint-focused and can be choice, multi_select, text, or number when clinically appropriate. Hindi questions/options use `prompt_local` / `label_local`. Document pipeline: quality -> OCR -> entity extraction -> abnormal values -> drug interaction checks.
