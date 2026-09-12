@@ -107,9 +107,15 @@ async def init_db(settings: Settings) -> None:
         expire_on_commit=False,
     )
 
-    # Create tables
-    async with _engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Create tables safely across multiple workers
+    try:
+        async with _engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        if "already exists" in str(e).lower():
+            logger.info("database_tables_already_exist")
+        else:
+            raise
 
     logger.info("database_initialized", url=settings.database_url.split("@")[-1])
 

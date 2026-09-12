@@ -80,12 +80,12 @@ def create_app() -> FastAPI:
     # ── Routers ──────────────────────────────────────────────────────────
     app.include_router(api_v1_router)
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     async def root_health():
         from app.api.v1.health import health_check
         return await health_check()
 
-    @app.get("/")
+    @app.api_route("/", methods=["GET", "HEAD"])
     async def root():
         return {"service": "medikiosk-ai", "status": "running"}
 
