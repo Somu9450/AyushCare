@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, selectPortalPatient, getPortalDashboard, getPortalVisits, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy } from '../controllers/mobile.controller.js';
+import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, selectPortalPatient, getPortalDashboard, getPortalVisits, getPortalVisitDetails, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy, getPortalPrivacyContext, updatePortalPrivacyRule } from '../controllers/mobile.controller.js';
 import { verifyPatientJWT } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -22,12 +22,15 @@ router.post('/portal/auth/verify-otp', verifyPortalOtp);
 router.post('/portal/select-patient', selectPortalPatient);
 router.get('/portal/dashboard', verifyPatientJWT, getPortalDashboard);
 router.get('/portal/visits', verifyPatientJWT, getPortalVisits);
+router.get('/portal/visits/:visit_id', verifyPatientJWT, getPortalVisitDetails);
 router.get('/portal/audio-summary', verifyPatientJWT, getAudioSummary);
 router.get('/portal/documents', verifyPatientJWT, getPortalDocuments);
 router.get('/portal/documents/:document_id', verifyPatientJWT, getPortalDocument);
 router.post('/portal/documents/upload-url', verifyPatientJWT, getUploadUrl);
 router.post('/portal/documents/register', verifyPatientJWT, registerPortalDocument);
 router.get('/portal/privacy-settings', verifyPatientJWT, getPortalPrivacy);
+router.get('/portal/privacy-context', verifyPatientJWT, getPortalPrivacyContext);
+router.patch('/portal/privacy-rules', verifyPatientJWT, updatePortalPrivacyRule);
 router.patch('/portal/privacy-settings', verifyPatientJWT, updatePortalPrivacy);
 
 export default router;

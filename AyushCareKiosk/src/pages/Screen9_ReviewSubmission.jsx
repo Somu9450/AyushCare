@@ -85,7 +85,7 @@ export default function Screen9_ReviewSubmission(){
             style={{ padding: '6px 12px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <RotateCw size={14} className={loading ? 'spin' : ''} />
-            {loading ? t('loading') : 'Refresh Summary'}
+            {loading ? t('loading') : t('refreshSummary','Refresh Summary')}
           </button>
         </div>
         {loading&&!summary?
@@ -108,7 +108,7 @@ export default function Screen9_ReviewSubmission(){
                 disabled={loading}
                 style={{ marginTop: '10px' }}
               >
-                {loading ? <Loader2 className="spin" size={16} /> : 'Generate AI Summary'}
+                {loading ? <Loader2 className="spin" size={16} /> : t('generateAiSummary','Generate AI Summary')}
               </button>
             </div>
         }
@@ -116,13 +116,13 @@ export default function Screen9_ReviewSubmission(){
 
       <div className="consent-card">
         <ShieldCheck size={28}/>
-        <h3>Consent recorded</h3>
+        <h3>{t('consentRecorded','Consent recorded')}</h3>
         <p>
           Your clinical-intake consent was recorded before the AI health
           interview started.
         </p>
         {sessionData.consent?.document_processing &&
-          <p>Medical document processing is also enabled for this session.</p>
+          <p>{t('documentProcessingEnabled','Medical document processing is also enabled for this session.')}</p>
         }
         <button
           className="primary-btn wide"
@@ -144,7 +144,7 @@ export default function Screen9_ReviewSubmission(){
           disabled={loading}
           style={{ padding: '6px 14px', fontSize: '13px', whiteSpace: 'nowrap' }}
         >
-          Retry Summary
+          {t('retrySummary','Retry Summary')}
         </button>
       </div>
     )}

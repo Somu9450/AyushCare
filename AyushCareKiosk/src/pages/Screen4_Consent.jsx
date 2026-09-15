@@ -72,11 +72,7 @@ export default function Screen4_Consent() {
       <div className="section-head">
         <div>
           <p className="eyebrow">03 • {t('consent')}</p>
-          <h2>Privacy & consent</h2>
-          <p>
-            Please review and give consent before we start your AI-assisted
-            health interview.
-          </p>
+          <h2>{t('privacyConsentShort','Privacy & consent')}</h2>
         </div>
         <ShieldCheck size={42} />
       </div>
@@ -86,8 +82,7 @@ export default function Screen4_Consent() {
           <div className="info-strip">
             <ShieldCheck size={20} />
             <span>
-              Your answers are used to prepare your clinical intake for the
-              healthcare team.
+              {t('answersUsed','Your answers are used to prepare your clinical intake for the healthcare team.')}
             </span>
           </div>
 
@@ -99,8 +94,7 @@ export default function Screen4_Consent() {
                 onChange={(e) => setClinicalIntake(e.target.checked)}
               />
               <span>
-                I consent to clinical intake and processing of the information
-                I provide.
+                {t('clinicalConsentShort','I consent to clinical intake and processing of the information I provide.')}
               </span>
             </label>
 
@@ -111,21 +105,19 @@ export default function Screen4_Consent() {
                 onChange={(e) => setDocumentProcessing(e.target.checked)}
               />
               <span>
-                I consent to processing of medical documents that I choose to
-                upload during this session.
+                {t('documentConsent','I consent to processing of medical documents that I choose to upload during this session.')}
               </span>
             </label>
           </div>
         </div>
 
         <div className="consent-card">
-          <h3>Before you continue</h3>
+          <h3>{t('beforeContinue','Before you continue')}</h3>
           <p>
-            You can skip document upload later if you do not have any records.
-            Clinical intake consent is required to begin the health interview.
+            {t('consentContinueHelp','You can skip document upload later if you do not have any records. Clinical intake consent is required to begin the health interview.')}
           </p>
           {loadingScopes && (
-            <small className="muted">Checking available consent scopes…</small>
+            <small className="muted">{t('checkingConsent','Checking available consent scopes…')}</small>
           )}
         </div>
       </div>

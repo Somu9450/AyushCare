@@ -773,3 +773,11 @@ button:disabled { cursor: not-allowed; }
   from { opacity: 1; transform: scale(1); }
   to { opacity: .6; transform: scale(1.15); }
 }
+.audio-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, background .18s ease; }
+.audio-btn.audio-playing { box-shadow:0 0 0 5px rgba(20,140,125,.14); animation: audio-pulse 1.1s ease-in-out infinite; }
+.audio-btn:disabled { cursor:not-allowed; opacity:.55; }
+.hold-to-speak-btn { position:relative; overflow:hidden; }
+.hold-to-speak-btn.recording::after { content:""; position:absolute; inset:0; border-radius:inherit; border:2px solid currentColor; opacity:.25; animation: listening-ring 1.1s ease-out infinite; pointer-events:none; }
+@keyframes audio-pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.025)} }
+@keyframes listening-ring { from{transform:scale(.96);opacity:.4} to{transform:scale(1.12);opacity:0} }
+@media (prefers-reduced-motion:reduce){.audio-btn.audio-playing,.hold-to-speak-btn.recording::after,.pulse-mic{animation:none}}

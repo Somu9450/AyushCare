@@ -16,6 +16,7 @@ export default function Screen8_QRUpload() {
   const [seconds, setSeconds] = useState(QR_SECONDS);
   const advanced = useRef(false);
   const docsRef = useRef(docs);
+  const processedCountRef = useRef(0);
 
   useEffect(() => { docsRef.current = docs; }, [docs]);
 
@@ -45,6 +46,14 @@ export default function Screen8_QRUpload() {
       const list = Array.isArray(state?.documents) ? state.documents : [];
       setDocs(list);
       docsRef.current = list;
+      const completedCount = list.filter((d) => String(d.status).toLowerCase() === 'completed').length;
+      if (completedCount > processedCountRef.current && sessionData.consultationId) {
+        processedCountRef.current = completedCount;
+        try {
+          const summary = await kioskApi.summaryGenerate(sessionData.consultationId, { language: sessionData.language || 'en', include_documents: true, include_ayush: sessionData.pathway === 'ayurveda' });
+          updateSession({ documents: list, liveDocumentSummary: summary });
+        } catch { updateSession({ documents: list }); }
+      }
     } catch {}
   };
 
@@ -88,20 +97,20 @@ export default function Screen8_QRUpload() {
   return (
     <section className="screen-card qr-screen">
       <div className="qr-timebar">
-        <span><Clock3 size={18}/> Mobile document upload</span>
+        <span><Clock3 size={18}/> {t('mobileUploadShort','Mobile document upload')}</span>
         <strong>{seconds}s</strong>
       </div>
 
       <p className="eyebrow">06 • {t('documents')}</p>
       <h2>{t('mobileUpload')}</h2>
-      <p>Scan this QR with your phone to open your AyushCare account and upload prescriptions or reports.</p>
+      <p>{t('qrHelp','Scan this QR with your phone to open your AyushCare account and upload prescriptions or reports.')}</p>
 
       <div className="qr-layout">
         <div className="qr-placeholder">
           {qrImage ? <img className="qr-image" src={qrImage} alt="Patient document upload QR code" /> : <Loader2 className="spin" size={32} />}
-          <strong>{qr?.patient_code || 'Generating…'}</strong>
-          <small>QR access expires automatically after 80 seconds.</small>
-          <div className="qr-secure-note"><ShieldCheck size={16}/> Secure patient-account access</div>
+          <strong>{qr?.abha_number || t('generating','Generating…')}</strong>
+          <small>{t('qrExpires','QR access expires automatically after 80 seconds.')}</small>
+          <div className="qr-secure-note"><ShieldCheck size={16}/> {t('securePatientAccess','Secure patient-account access')}</div>
         </div>
 
         <div className="document-panel">
@@ -109,13 +118,13 @@ export default function Screen8_QRUpload() {
             <span>{t('documents')}</span>
             <button className="icon-button" onClick={refreshDocs}><RefreshCw size={17}/></button>
           </div>
-          {docs.length === 0 ? <p className="muted">No documents uploaded yet.</p> : docs.map((d) => (
+          {docs.length === 0 ? <p className="muted">{t('noDocuments')}</p> : docs.map((d) => (
             <div className="doc-row" key={d.id}>
               <CheckCircle2 size={18}/><span>{d.document_type || d.file_path_hash?.split('/').pop() || 'Document'}</span><small>{d.status}</small>
             </div>
           ))}
           <button className="secondary-btn" onClick={makeQr} disabled={loading}>
-            {loading ? <Loader2 className="spin"/> : <Smartphone size={18}/>} Generate new QR
+            {loading ? <Loader2 className="spin"/> : <Smartphone size={18}/>} {t('generateNewQr','Generate new QR')}
           </button>
         </div>
       </div>

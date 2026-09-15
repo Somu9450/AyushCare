@@ -78,7 +78,7 @@ export const MoreScreen = () => {
     prevScreen,
   } = useMobileStore();
 
-  const { t, isHindi } = useLanguage();
+  const { t, tr, isHindi } = useLanguage();
 
   const displayName = isHindi
     ? patient?.hindiName || patient?.name || "मरीज़"
@@ -87,7 +87,7 @@ export const MoreScreen = () => {
   const maskedMobile =
     patient?.maskedMobile ||
     patient?.mobile ||
-    (isHindi ? "उपलब्ध नहीं" : "Not provided");
+    (tr('Not provided', 'उपलब्ध नहीं'));
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50 text-slate-900 select-none">
@@ -117,7 +117,7 @@ export const MoreScreen = () => {
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-white/10 border border-white/15 text-[9px] font-bold text-teal-100">
                   <Smartphone className="w-3 h-3" />
-                  {isHindi ? "मोबाइल ऐप" : "Mobile App"}
+                  {tr('Mobile App', 'मोबाइल ऐप')}
                 </span>
               </div>
             </div>
@@ -128,7 +128,7 @@ export const MoreScreen = () => {
         <section className="space-y-2.5">
           <div className="px-1">
             <h2 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              {isHindi ? "खाता" : "Account"}
+              {tr('Account', 'खाता')}
             </h2>
           </div>
 
@@ -136,9 +136,7 @@ export const MoreScreen = () => {
             icon={UserRound}
             title={t("profile_title")}
             description={
-              isHindi
-                ? "व्यक्तिगत जानकारी और पहचान विवरण देखें"
-                : "View personal information and identity details"
+              tr('View personal information and identity details', 'व्यक्तिगत जानकारी और पहचान विवरण देखें')
             }
             onClick={() => setScreen(SCREENS.PROFILE)}
           />
@@ -147,9 +145,7 @@ export const MoreScreen = () => {
             icon={CalendarDays}
             title={t("appointments_title")}
             description={
-              isHindi
-                ? "आगामी परामर्श और अपॉइंटमेंट देखें"
-                : "View upcoming consultations and appointments"
+              tr('View upcoming consultations and appointments', 'आगामी परामर्श और अपॉइंटमेंट देखें')
             }
             onClick={() => setScreen(SCREENS.APPOINTMENTS)}
           />
@@ -158,9 +154,7 @@ export const MoreScreen = () => {
             icon={ClipboardList}
             title={t("visits_title")}
             description={
-              isHindi
-                ? "पिछली अस्पताल मुलाकातों का इतिहास देखें"
-                : "View your previous healthcare visits"
+              tr('View your previous healthcare visits', 'पिछली अस्पताल मुलाकातों का इतिहास देखें')
             }
             onClick={() => setScreen(SCREENS.VISITS)}
           />
@@ -170,7 +164,7 @@ export const MoreScreen = () => {
         <section className="space-y-2.5">
           <div className="px-1">
             <h2 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              {isHindi ? "गोपनीयता और डेटा" : "Privacy & Data"}
+              {tr('Privacy & Data', 'गोपनीयता और डेटा')}
             </h2>
           </div>
 
@@ -178,9 +172,7 @@ export const MoreScreen = () => {
             icon={ShieldCheck}
             title={t("privacy_title")}
             description={
-              isHindi
-                ? "स्वास्थ्य इतिहास, सहमति और सक्रिय सत्र नियंत्रित करें"
-                : "Manage health-history sharing, consent and active sessions"
+              tr('Manage health-history sharing, consent and active sessions', 'स्वास्थ्य इतिहास, सहमति और सक्रिय सत्र नियंत्रित करें')
             }
             onClick={() => setScreen(SCREENS.PRIVACY)}
           />
@@ -190,7 +182,7 @@ export const MoreScreen = () => {
         <section className="space-y-2.5">
           <div className="px-1">
             <h2 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              {isHindi ? "प्राथमिकताएं" : "Preferences"}
+              {tr('Preferences', 'प्राथमिकताएं')}
             </h2>
           </div>
 
@@ -198,9 +190,7 @@ export const MoreScreen = () => {
             icon={Settings}
             title={t("settings_title")}
             description={
-              isHindi
-                ? "भाषा, पहुंच और ऐप प्राथमिकताएं बदलें"
-                : "Manage language, accessibility and app preferences"
+              tr('Manage language, accessibility and app preferences', 'भाषा, पहुंच और ऐप प्राथमिकताएं बदलें')
             }
             onClick={() => setScreen(SCREENS.SETTINGS)}
           />
@@ -208,14 +198,10 @@ export const MoreScreen = () => {
           <MenuItem
             icon={Accessibility}
             title={
-              isHindi
-                ? "पहुंच सुविधाएं"
-                : "Accessibility"
+              tr('Accessibility', 'पहुंच सुविधाएं')
             }
             description={
-              isHindi
-                ? "टेक्स्ट, ऑडियो और उपयोग संबंधी सुविधाएं"
-                : "Text, audio and usability preferences"
+              tr('Text, audio and usability preferences', 'टेक्स्ट, ऑडियो और उपयोग संबंधी सुविधाएं')
             }
             onClick={() => setScreen(SCREENS.SETTINGS)}
           />
@@ -223,14 +209,10 @@ export const MoreScreen = () => {
           <MenuItem
             icon={Globe2}
             title={
-              isHindi
-                ? "भाषा"
-                : "Language"
+              tr('Language', 'भाषा')
             }
             description={
-              isHindi
-                ? "हिंदी या अंग्रेज़ी इंटरफ़ेस चुनें"
-                : "Choose Hindi or English interface"
+              tr('Choose Hindi or English interface', 'हिंदी या अंग्रेज़ी इंटरफ़ेस चुनें')
             }
             onClick={() => setScreen(SCREENS.SETTINGS)}
           />
@@ -240,7 +222,7 @@ export const MoreScreen = () => {
         <section className="space-y-2.5">
           <div className="px-1">
             <h2 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-              {isHindi ? "ऐप के बारे में" : "About"}
+              {tr('About', 'ऐप के बारे में')}
             </h2>
           </div>
 
@@ -248,9 +230,7 @@ export const MoreScreen = () => {
             icon={Info}
             title={t("about_title")}
             description={
-              isHindi
-                ? "AyushCare मोबाइल साथी के बारे में जानकारी"
-                : "Learn about the AyushCare mobile companion"
+              tr('Learn about the AyushCare mobile companion', 'AyushCare मोबाइल साथी के बारे में जानकारी')
             }
             onClick={() => setScreen(SCREENS.ABOUT)}
           />
@@ -264,17 +244,13 @@ export const MoreScreen = () => {
 
               <div className="min-w-0">
                 <p className="text-xs font-black text-slate-700">
-                  {isHindi
-                    ? "वर्तमान मोबाइल सत्र"
-                    : "Current mobile session"}
+                  {tr('Current mobile session', 'वर्तमान मोबाइल सत्र')}
                 </p>
 
                 <p className="text-[11px] text-slate-500 mt-1 break-words">
                   {session.sessionId ||
                     session.id ||
-                    (isHindi
-                      ? "डेमो सत्र"
-                      : "Demo session")}
+                    (tr('Demo session', 'डेमो सत्र'))}
                 </p>
               </div>
             </div>
@@ -293,9 +269,7 @@ export const MoreScreen = () => {
           </button>
 
           <p className="text-center text-[10px] text-slate-400 mt-2.5 leading-relaxed">
-            {isHindi
-              ? "लॉग आउट करने से इस डिवाइस पर आपका सक्रिय ऐप सत्र समाप्त हो जाएगा।"
-              : "Logging out ends the active app session on this device."}
+            {tr('Logging out ends the active app session on this device.', 'लॉग आउट करने से इस डिवाइस पर आपका सक्रिय ऐप सत्र समाप्त हो जाएगा।')}
           </p>
         </section>
       </main>

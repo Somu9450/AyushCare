@@ -201,7 +201,7 @@ export default function M8_HealthSummary() {
     prevScreen,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const summary = useMemo(
@@ -319,10 +319,10 @@ export default function M8_HealthSummary() {
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
-              {isHindi ? "एआई स्वास्थ्य सारांश" : "AI Health Summary"}
+              {tr('AI Health Summary', 'एआई स्वास्थ्य सारांश')}
             </p>
             <h1 className="truncate text-lg font-bold text-slate-900">
-              {isHindi ? "स्वास्थ्य सारांश एवं विज़िट" : "Health Summary & Vitals"}
+              {tr('Health Summary & Vitals', 'स्वास्थ्य सारांश एवं विज़िट')}
             </h1>
           </div>
 
@@ -338,15 +338,13 @@ export default function M8_HealthSummary() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm text-teal-100">
-                {isHindi ? `नमस्ते, ${patientName}` : `Hello, ${patientName}`}
+                {tr('Hello, ${patientName}', 'नमस्ते, ${patientName}')}
               </p>
               <h2 className="mt-1 text-2xl font-bold">
-                {isHindi ? "आपका स्वास्थ्य सारांश तैयार है" : "Your Health Summary"}
+                {tr('Your Health Summary', 'आपका स्वास्थ्य सारांश तैयार है')}
               </h2>
               <p className="mt-2 text-sm leading-6 text-teal-50">
-                {isHindi
-                  ? "कियोस्क और रिकॉर्ड से प्राप्त आपका क्लिनिकल सारांश और वाइटल्स यहाँ संकलित हैं।"
-                  : "Clinical insights, recorded vitals, and consultation details synthesized by AyushCare AI."}
+                {tr('Clinical insights, recorded vitals, and consultation details synthesized by AyushCare AI.', 'कियोस्क और रिकॉर्ड से प्राप्त आपका क्लिनिकल सारांश और वाइटल्स यहाँ संकलित हैं।')}
               </p>
             </div>
 
@@ -361,7 +359,7 @@ export default function M8_HealthSummary() {
             className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 font-semibold text-teal-800 transition hover:bg-teal-50"
           >
             {isSpeaking ? <VolumeX size={19} /> : <Volume2 size={19} />}
-            {isSpeaking ? (isHindi ? "सुनना बंद करें" : "Stop listening") : (isHindi ? "सारांश सुनें" : "Listen to summary")}
+            {isSpeaking ? (tr('Stop listening', 'सुनना बंद करें')) : (tr('Listen to summary', 'सारांश सुनें'))}
           </button>
         </section>
 
@@ -371,13 +369,13 @@ export default function M8_HealthSummary() {
             <div className="flex items-center gap-2 text-teal-800 mb-3">
               <Ticket size={20} />
               <h2 className="font-bold text-slate-900">
-                {isHindi ? "विज़िट एवं टोकन विवरण" : "Visit & Queue Details"}
+                {tr('Visit & Queue Details', 'विज़िट एवं टोकन विवरण')}
               </h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-2xl bg-teal-50/60 p-3 border border-teal-100">
                 <p className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide">
-                  {isHindi ? "टोकन नंबर" : "Token No"}
+                  {tr('Token No', 'टोकन नंबर')}
                 </p>
                 <p className="mt-1 text-lg font-black text-teal-900">
                   {activeVisit.token_number || "Active"}
@@ -386,7 +384,7 @@ export default function M8_HealthSummary() {
 
               <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {isHindi ? "विभाग" : "Department"}
+                  {tr('Department', 'विभाग')}
                 </p>
                 <p className="mt-1 text-sm font-bold text-slate-800 truncate">
                   {activeVisit.department_name || "General OPD"}
@@ -395,7 +393,7 @@ export default function M8_HealthSummary() {
 
               <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {isHindi ? "चिकित्सक" : "Doctor"}
+                  {tr('Doctor', 'चिकित्सक')}
                 </p>
                 <p className="mt-1 text-sm font-bold text-slate-800 truncate">
                   {activeVisit.doctor_name || "Assigned Doctor"}
@@ -404,7 +402,7 @@ export default function M8_HealthSummary() {
 
               <div className="rounded-2xl bg-slate-50 p-3 border border-slate-200">
                 <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                  {isHindi ? "अस्पताल" : "Hospital"}
+                  {tr('Hospital', 'अस्पताल')}
                 </p>
                 <p className="mt-1 text-sm font-bold text-slate-800 truncate">
                   {activeVisit.hospital_name || facilityName}
@@ -419,7 +417,7 @@ export default function M8_HealthSummary() {
           <div className="flex items-center gap-2 text-rose-600 mb-3">
             <Heart size={20} />
             <h2 className="font-bold text-slate-900">
-              {isHindi ? "दर्ज वाइटल्स (शारीरिक माप)" : "Recorded Vitals"}
+              {tr('Recorded Vitals', 'दर्ज वाइटल्स (शारीरिक माप)')}
             </h2>
           </div>
 
@@ -440,7 +438,7 @@ export default function M8_HealthSummary() {
             <div className="rounded-2xl bg-blue-50/50 p-3 border border-blue-100">
               <div className="flex items-center gap-1.5 text-blue-700 text-xs font-semibold">
                 <Heart size={14} />
-                <span>{isHindi ? "पल्स (नाड़ी)" : "Pulse"}</span>
+                <span>{tr('Pulse', 'पल्स (नाड़ी)')}</span>
               </div>
               <p className="mt-1 text-lg font-black text-slate-900">
                 {activeVitals?.pulse || "--"}{" "}
@@ -451,7 +449,7 @@ export default function M8_HealthSummary() {
             <div className="rounded-2xl bg-amber-50/50 p-3 border border-amber-100">
               <div className="flex items-center gap-1.5 text-amber-700 text-xs font-semibold">
                 <Thermometer size={14} />
-                <span>{isHindi ? "तापमान" : "Temperature"}</span>
+                <span>{tr('Temperature', 'तापमान')}</span>
               </div>
               <p className="mt-1 text-lg font-black text-slate-900">
                 {activeVitals?.temperature || "--"}{" "}
@@ -462,7 +460,7 @@ export default function M8_HealthSummary() {
             <div className="rounded-2xl bg-teal-50/50 p-3 border border-teal-100">
               <div className="flex items-center gap-1.5 text-teal-700 text-xs font-semibold">
                 <Activity size={14} />
-                <span>{isHindi ? "ऑक्सीजन" : "SpO₂"}</span>
+                <span>{tr('SpO₂', 'ऑक्सीजन')}</span>
               </div>
               <p className="mt-1 text-lg font-black text-slate-900">
                 {activeVitals?.spo2 || "--"}{" "}
@@ -478,14 +476,14 @@ export default function M8_HealthSummary() {
             <div className="flex items-center gap-2 text-teal-800">
               <Stethoscope size={20} />
               <h2 className="font-bold text-slate-900">
-                {isHindi ? "क्लिनिकल इंटेक एवं लक्षण" : "Clinical Intake & Symptoms"}
+                {tr('Clinical Intake & Symptoms', 'क्लिनिकल इंटेक एवं लक्षण')}
               </h2>
             </div>
 
             {chiefComplaint && (
               <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  {isHindi ? "मुख्य शिकायत (Chief Complaint)" : "Chief Complaint"}
+                  {tr('Chief Complaint', 'मुख्य शिकायत (Chief Complaint)')}
                 </p>
                 <p className="mt-1.5 text-base font-semibold text-slate-900 leading-relaxed">
                   {chiefComplaint}
@@ -496,7 +494,7 @@ export default function M8_HealthSummary() {
             {historyOfIllness && (
               <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  {isHindi ? "इतिहास एवं आयुष विश्लेषण" : "History & Ayush Assessment"}
+                  {tr('History & Ayush Assessment', 'इतिहास एवं आयुष विश्लेषण')}
                 </p>
                 <p className="mt-1.5 text-sm text-slate-700 leading-relaxed whitespace-pre-line">
                   {historyOfIllness}
@@ -521,28 +519,28 @@ export default function M8_HealthSummary() {
         {/* Extracted Document Entities */}
         <InfoSection
           icon={<Activity size={18} />}
-          title={isHindi ? "लक्षण या समस्याएं" : "Symptoms or complaints"}
+          title={tr('Symptoms or complaints', 'लक्षण या समस्याएं')}
           items={summary.symptoms}
           emptyText="No symptoms reported."
         />
 
         <InfoSection
           icon={<Pill size={18} />}
-          title={isHindi ? "दवाइयाँ" : "Medicines mentioned"}
+          title={tr('Medicines mentioned', 'दवाइयाँ')}
           items={summary.medicines}
           emptyText="No medicines mentioned."
         />
 
         <InfoSection
           icon={<FlaskConical size={18} />}
-          title={isHindi ? "जाँच व परीक्षण" : "Tests or investigations"}
+          title={tr('Tests or investigations', 'जाँच व परीक्षण')}
           items={summary.investigations}
           emptyText="No investigations mentioned."
         />
 
         <InfoSection
           icon={<ShieldCheck size={18} />}
-          title={isHindi ? "निदान / स्थितियां" : "Diagnoses or conditions"}
+          title={tr('Diagnoses or conditions', 'निदान / स्थितियां')}
           items={summary.diagnoses}
           emptyText="No diagnoses mentioned."
         />
@@ -556,12 +554,10 @@ export default function M8_HealthSummary() {
             />
             <div>
               <p className="font-semibold text-amber-900">
-                {isHindi ? "यह चिकित्सीय परामर्श का विकल्प नहीं है" : "Clinical Disclaimer"}
+                {tr('Clinical Disclaimer', 'यह चिकित्सीय परामर्श का विकल्प नहीं है')}
               </p>
               <p className="mt-1 text-xs leading-5 text-amber-800">
-                {isHindi
-                  ? "यह सारांश आपके द्वारा दी गई जानकारी और कियोस्क साक्षात्कार पर आधारित है। अंतिम निदान चिकित्सक द्वारा किया जाएगा।"
-                  : "This summary is based on the information provided during the AI interview and your uploaded records. Final diagnosis and care will be provided by your doctor."}
+                {tr('This summary is based on the information provided during the AI interview and your uploaded records. Final diagnosis and care will be provided by your doctor.', 'यह सारांश आपके द्वारा दी गई जानकारी और कियोस्क साक्षात्कार पर आधारित है। अंतिम निदान चिकित्सक द्वारा किया जाएगा।')}
               </p>
             </div>
           </div>
@@ -574,7 +570,7 @@ export default function M8_HealthSummary() {
             className="flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-teal-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.99]"
           >
             <ArrowLeft size={18} />
-            {isHindi ? "मुख्य पृष्ठ पर वापस जाएं" : "Back to Home"}
+            {tr('Back to Home', 'मुख्य पृष्ठ पर वापस जाएं')}
           </button>
         </div>
       </main>

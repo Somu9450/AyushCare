@@ -107,6 +107,8 @@ class ConversationEngine:
                 ConversationPhase.EMERGENCY_SCREEN,
             )
 
+        first_question = await self._prepare_question_audio(first_question, language)
+
         return ConversationState(
             session_id=session_id,
             phase=ConversationPhase.EMERGENCY_SCREEN,
@@ -338,6 +340,7 @@ class ConversationEngine:
             logger.error("next_question_generation_failed", error=str(e))
             next_question = self._fallback_choice_question(state.phase, self._get_presenting_complaint(state.answered_questions))
 
+        next_question = await self._prepare_question_audio(next_question, language)
         state.current_question = next_question
 
         # Calculate progress
@@ -351,6 +354,23 @@ class ConversationEngine:
             progress_percent=progress,
             is_complete=False,
         )
+
+    async def _prepare_question_audio(self, question: AIQuestion, language: str) -> AIQuestion:
+        """Pre-synthesize patient-facing question audio so the client can play immediately."""
+        if not question or not question.prompt_local and not question.prompt:
+            return question
+        text = question.prompt_local or question.prompt
+        try:
+            audio = await self._tts.synthesize(text, language)
+            return question.model_copy(update={
+                "audio_base64": audio.get("audio_base64") or None,
+                "audio_encoding": audio.get("encoding"),
+                "audio_mime_type": audio.get("mime_type") or ("audio/wav" if str(audio.get("encoding", "")).upper() == "WAV" else "audio/mpeg"),
+                "tts_duration_estimate_sec": audio.get("duration_estimate_sec"),
+            })
+        except Exception as exc:
+            logger.warning("question_tts_prefetch_failed", language=language, error=str(exc))
+            return question
 
     async def transcribe_speech(
         self,

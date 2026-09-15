@@ -1,54 +1,37 @@
-import React, { useState } from 'react';
-import { Volume2, Loader2 } from 'lucide-react';
-import { kioskApi } from '../../services/api';
+import React, { useEffect, useState } from 'react';
+import { Volume2, VolumeX, Loader2, Square } from 'lucide-react';
+import { audioService } from '../../services/audioService';
+import { getErrorMessage } from '../../services/api';
 import { useKioskStore } from '../../store/useKioskStore';
 
-function browserSpeak(text, language) {
-  if (!window.speechSynthesis || !text) return;
-  const localeMap = { en: 'en-IN', hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN', mr: 'mr-IN', gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN', pa: 'pa-IN' };
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = localeMap[language] || language || 'en-IN';
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find((voice) => voice.lang?.toLowerCase().startsWith(utterance.lang.toLowerCase().split('-')[0]));
-  if (preferred) utterance.voice = preferred;
-  utterance.rate = 0.9;
-  window.speechSynthesis.speak(utterance);
-}
-
-export default function AudioButton({ textToRead, label = 'Speak' }) {
+export default function AudioButton({ textToRead, audioPayload = null, label = 'Speak', className = '', autoPlay = false }) {
   const { language, sessionData, audioEnabled } = useKioskStore();
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState('idle');
+  const [error, setError] = useState('');
 
-  const speak = async () => {
-    if (!audioEnabled || !textToRead) return;
-    setLoading(true);
-    try {
-      const r = await kioskApi.tts(
-        sessionData.consultationId,
-        textToRead,
-        language
-      );
-      const data = r?.audio_base64 || r?.audio?.base64;
-      if (data) {
-        const encoding = String(r?.encoding || '').toUpperCase();
-        const mime = encoding === 'WAV' ? 'audio/wav' : 'audio/mpeg';
-        const audio = new Audio(`data:${r?.mime_type || mime};base64,${data}`);
-        await audio.play();
-      } else {
-        browserSpeak(textToRead, language);
-      }
-    } catch {
-      browserSpeak(textToRead, language);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => { const off = audioService.subscribe(setState); return off; }, []);
+  useEffect(() => () => audioService.stop(), []);
+  useEffect(() => {
+    if (!audioEnabled || audioPayload?.base64 || !textToRead || !sessionData.consultationId) return;
+    void audioService.prefetch(sessionData.consultationId, textToRead, language).catch(() => {});
+  }, [textToRead, language, sessionData.consultationId, audioEnabled]);
+  useEffect(() => {
+    if (!autoPlay || !audioEnabled || !textToRead || !sessionData.consultationId) return;
+    const timer = window.setTimeout(() => {
+      void (audioPayload?.base64 ? audioService.playPayload({ base64: audioPayload.base64, mime: audioPayload.mime_type || (String(audioPayload.encoding || '').toUpperCase()==='WAV' ? 'audio/wav' : 'audio/mpeg') }) : audioService.speak(sessionData.consultationId, textToRead, language)).catch((e) => setError(getErrorMessage(e)));
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [autoPlay, textToRead, audioPayload?.base64, audioPayload?.encoding, audioPayload?.mime_type, language, sessionData.consultationId, audioEnabled]);
+
+  const toggle = async () => {
+    if (!audioEnabled) return;
+    if (state === 'playing' || state === 'loading') { audioService.stop(); return; }
+    setError('');
+    try { await (audioPayload?.base64 ? audioService.playPayload({ base64: audioPayload.base64, mime: audioPayload.mime_type || (String(audioPayload.encoding || '').toUpperCase()==='WAV' ? 'audio/wav' : 'audio/mpeg') }) : audioService.speak(sessionData.consultationId, textToRead, language)); }
+    catch (e) { setError(getErrorMessage(e)); }
   };
 
-  return (
-    <button className="audio-btn" onClick={speak} disabled={loading}>
-      {loading ? <Loader2 className="spin" size={16} /> : <Volume2 size={16} />}
-      {label}
-    </button>
-  );
+  return <button type="button" className={`audio-btn ${state === 'playing' ? 'audio-playing' : ''} ${className}`} onClick={toggle} disabled={!audioEnabled} title={error || label} aria-label={error || label}>
+    {!audioEnabled ? <VolumeX size={16}/> : state === 'loading' ? <Loader2 className="spin" size={16}/> : state === 'playing' ? <Square size={14}/> : <Volume2 size={16}/>}<span>{state === 'playing' ? 'Stop' : label}</span>
+  </button>;
 }

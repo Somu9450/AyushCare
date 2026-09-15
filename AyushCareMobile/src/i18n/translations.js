@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import useMobileStore from "../store/useMobileStore.js";
+import { apiRequest } from "../services/apiClient.js";
+import { subscribeTranslations, getCachedTranslation, ensureTranslation } from "../services/remoteTranslationService.js";
 
 export const translations = {
   en: {
@@ -623,24 +626,33 @@ export const translations = {
  */
 export const useLanguage = () => {
   const { selectedLanguage, setSelectedLanguage } = useMobileStore();
-  const lang = selectedLanguage === "hi" ? "hi" : "en";
+  const lang = selectedLanguage || "en";
+  const [, refresh] = useState(0);
+  useEffect(() => subscribeTranslations(() => refresh((v) => v + 1)), []);
   const dict = translations[lang] || translations.en;
 
   const t = (key, fallback = "") => {
-    return dict[key] || translations.en[key] || fallback || key;
+    const source = dict[key] || translations.en[key] || fallback || key;
+    if (lang === "en") return source;
+    const cached = getCachedTranslation(source, lang);
+    if (cached) return cached;
+    void ensureTranslation(source, lang, apiRequest);
+    return source;
   };
 
-  const toggleLanguage = () => {
-    setSelectedLanguage(lang === "en" ? "hi" : "en");
+  const tr = (english, hindi = english) => {
+    if (lang === "hi") return hindi;
+    if (lang === "en") return english;
+    const source = String(english || "");
+    const cached = getCachedTranslation(source, lang);
+    if (cached) return cached;
+    void ensureTranslation(source, lang, apiRequest);
+    return source;
   };
 
-  return {
-    lang,
-    isHindi: lang === "hi",
-    t,
-    toggleLanguage,
-    setLanguage: setSelectedLanguage,
-  };
+  const toggleLanguage = () => setSelectedLanguage(lang === "en" ? "hi" : "en");
+
+  return { lang, isHindi: lang === "hi", t, tr, toggleLanguage, setLanguage: setSelectedLanguage };
 };
 
 export default useLanguage;

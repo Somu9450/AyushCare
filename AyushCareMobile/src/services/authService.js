@@ -14,44 +14,42 @@ function maskMobile(value) {
   return digits.length >= 4 ? `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}` : "****";
 }
 
-export async function requestOtp({ authType = "MOBILE", identifier = "" } = {}) {
-  if (String(authType).toUpperCase() !== "MOBILE") {
-    return { success: false, error: "The current backend supports patient portal OTP through a mobile number." };
-  }
-  const mobileNumber = normalizeMobile(identifier);
-  if (!/^\+91\d{10}$/.test(mobileNumber)) {
-    return { success: false, error: "Enter a valid 10-digit Indian mobile number." };
-  }
-
-  const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/send-otp", {
-    method: "POST",
-    body: JSON.stringify({ mobileNumber }),
-  }));
+export async function requestOtp({ authType = "ABHA", identifier = "" } = {}) {
+  const type = String(authType).toUpperCase();
+  const clean = String(identifier || '').replace(/\D/g,'');
+  if (type === 'ABHA') {
+    if (clean.length !== 14) return { success:false, error:'Enter a valid 14-digit ABHA number.' };
+  } else if (type === 'MOBILE') {
+    if (clean.length !== 10) return { success:false, error:'Enter a valid 10-digit Indian mobile number.' };
+  } else return { success:false, error:'Use ABHA number or mobile number.' };
+  const mobileNumber = type === 'MOBILE' ? normalizeMobile(clean) : undefined;
+  const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/send-otp", { method: "POST", body: JSON.stringify(type === 'ABHA' ? { abhaNumber: clean } : { mobileNumber }) }));
 
   return {
     success: true,
-    authType: "MOBILE",
-    mobileNumber,
-    maskedIdentifier: maskMobile(mobileNumber),
+    authType: type,
+    mobileNumber: payload?.mobile || mobileNumber,
+    abhaNumber: type === "ABHA" ? clean : undefined,
+    maskedIdentifier: type === "ABHA" ? maskMobile(payload?.mobile) : maskMobile(mobileNumber),
     otpSent: true,
     expiresInSeconds: 300,
     ...payload,
   };
 }
 
-export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = "" } = {}) {
-  if (String(authType).toUpperCase() !== "MOBILE") {
-    return { success: false, error: "The current backend supports mobile OTP authentication." };
-  }
-
-  const mobileNumber = normalizeMobile(identifier);
+export async function verifyOtp({ authType = "ABHA", identifier = "", otp = "" } = {}) {
+  const type = String(authType).toUpperCase();
+  const clean = String(identifier || '').replace(/\D/g,'');
+  const mobileNumber = type === 'MOBILE' ? normalizeMobile(clean) : undefined;
+  if (type === 'ABHA' && clean.length !== 14) return { success:false, error:'Enter a valid 14-digit ABHA number.' };
+  if (type === 'MOBILE' && !/^\+91\d{10}$/.test(mobileNumber)) return { success:false, error:'Enter a valid 10-digit mobile number.' };
   if (!/^\d{6}$/.test(String(otp).trim())) {
     return { success: false, error: "Enter the 6-digit OTP." };
   }
 
   const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/verify-otp", {
     method: "POST",
-    body: JSON.stringify({ mobileNumber, otp: String(otp).trim() }),
+    body: JSON.stringify(type === "ABHA" ? { abhaNumber: clean, otp: String(otp).trim() } : { mobileNumber, otp: String(otp).trim() }),
   }));
 
   const accessToken = payload?.accessToken;
@@ -67,7 +65,7 @@ export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = ""
     ...payload,
     user: payload?.patient ? {
       id: payload.patient.id,
-      patientId: payload.patient.id,
+      patientId: payload.patient.abha_number || payload.patient.abhaNumber || payload.patient.id,
       name: payload.patient.full_name,
       mobile: payload.patient.mobile_number,
     } : payload?.user,
@@ -78,7 +76,7 @@ export async function verifyOtp({ authType = "MOBILE", identifier = "", otp = ""
   };
 }
 
-export async function loginPatient({ authType = "MOBILE", identifier = "", otp = "" } = {}) {
+export async function loginPatient({ authType = "ABHA", identifier = "", otp = "" } = {}) {
   return verifyOtp({ authType, identifier, otp });
 }
 
@@ -91,11 +89,11 @@ export async function logoutPatient() {
 }
 
 export async function selectPatientAccount(patientId) {
-  if (!patientId) throw new Error("Patient ID is required.");
+  if (!patientId) throw new Error("ABHA number is required.");
   const payload = unwrapApiResponse(
     await apiRequest("/mobile/portal/select-patient", {
       method: "POST",
-      body: JSON.stringify({ patientId }),
+      body: JSON.stringify({ abhaNumber: patientId }),
     })
   );
 
@@ -132,7 +130,7 @@ export async function exchangePatientQrToken(token) {
     ...payload,
     user: payload?.patient ? {
       id: payload.patient.id,
-      patientId: payload.patient.patient_code || payload.patient.id,
+      patientId: payload.patient.abha_number || payload.patient.abhaNumber || payload.patient.id,
       name: payload.patient.full_name,
       mobile: payload.patient.mobile_number,
     } : undefined,

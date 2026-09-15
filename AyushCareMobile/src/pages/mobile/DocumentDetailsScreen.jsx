@@ -32,13 +32,13 @@ const normalizeArray = (value) => {
 const getTypeLabel = (record, isHindi) => {
   switch (record?.type) {
     case "prescription":
-      return isHindi ? "पर्चा" : "Prescription";
+      return tr('Prescription', 'पर्चा');
     case "lab_report":
-      return isHindi ? "लैब रिपोर्ट" : "Lab Report";
+      return tr('Lab Report', 'लैब रिपोर्ट');
     case "discharge_summary":
-      return isHindi ? "डिस्चार्ज सारांश" : "Discharge Summary";
+      return tr('Discharge Summary', 'डिस्चार्ज सारांश');
     default:
-      return record?.typeLabel || (isHindi ? "अन्य रिकॉर्ड" : "Medical Record");
+      return record?.typeLabel || (tr('Medical Record', 'अन्य रिकॉर्ड'));
   }
 };
 
@@ -46,32 +46,32 @@ const StatusBadge = ({ status, isHindi }) => {
   const config = {
     UPLOADED: {
       icon: Clock3,
-      label: isHindi ? "अपलोड किया गया" : "Uploaded",
+      label: tr('Uploaded', 'अपलोड किया गया'),
       className: "bg-slate-100 text-slate-700 border-slate-300",
     },
     CONFIRMED: {
       icon: CheckCircle2,
-      label: isHindi ? "सत्यापित" : "Confirmed",
+      label: tr('Confirmed', 'सत्यापित'),
       className: "bg-teal-50 text-teal-800 border-teal-200",
     },
     NEEDS_REVIEW: {
       icon: AlertCircle,
-      label: isHindi ? "समीक्षा आवश्यक" : "Needs Review",
+      label: tr('Needs Review', 'समीक्षा आवश्यक'),
       className: "bg-amber-50 text-amber-900 border-amber-300",
     },
     PROCESSING: {
       icon: Clock3,
-      label: isHindi ? "प्रक्रिया जारी" : "Processing",
+      label: tr('Processing', 'प्रक्रिया जारी'),
       className: "bg-blue-50 text-blue-800 border-blue-200",
     },
     PROCESSED: {
       icon: CheckCircle2,
-      label: isHindi ? "प्रसंस्कृत" : "Processed",
+      label: tr('Processed', 'प्रसंस्कृत'),
       className: "bg-emerald-50 text-emerald-800 border-emerald-200",
     },
     FAILED: {
       icon: AlertCircle,
-      label: isHindi ? "विफल" : "Failed",
+      label: tr('Failed', 'विफल'),
       className: "bg-rose-50 text-rose-800 border-rose-200",
     },
   };
@@ -113,7 +113,7 @@ const VerificationBadge = ({ needsVerification, isHindi }) => {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black">
         <AlertCircle className="w-3 h-3" />
-        {isHindi ? "जांचें" : "Verify"}
+        {tr('Verify', 'जांचें')}
       </span>
     );
   }
@@ -121,7 +121,7 @@ const VerificationBadge = ({ needsVerification, isHindi }) => {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
       <CheckCircle2 className="w-3 h-3" />
-      {isHindi ? "सत्यापित" : "Verified"}
+      {tr('Verified', 'सत्यापित')}
     </span>
   );
 };
@@ -139,7 +139,7 @@ export const DocumentDetailsScreen = () => {
     setActiveNavTab,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const record = useMemo(() => {
     if (selectedMedicalRecord) {
@@ -179,13 +179,13 @@ export const DocumentDetailsScreen = () => {
     record?.displayDate ||
     record?.date ||
     record?.createdAt ||
-    (isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable");
+    (tr('Date unavailable', 'तारीख उपलब्ध नहीं'));
 
   const source =
     record?.source ||
     record?.clinic ||
     record?.hospital ||
-    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+    (tr('Healthcare facility', 'स्वास्थ्य केंद्र'));
 
   const pages =
     Array.isArray(record?.pages) && record.pages.length > 0
@@ -262,7 +262,7 @@ export const DocumentDetailsScreen = () => {
     return (
       <div className="min-h-full flex flex-col bg-slate-50 text-slate-900">
         <MobileHeader
-          title={isHindi ? "दस्तावेज़ विवरण" : "Document Details"}
+          title={tr('Document Details', 'दस्तावेज़ विवरण')}
           showBack={true}
           onBack={prevScreen}
         />
@@ -274,15 +274,11 @@ export const DocumentDetailsScreen = () => {
             </div>
 
             <h1 className="mt-4 text-lg font-black">
-              {isHindi
-                ? "दस्तावेज़ उपलब्ध नहीं है"
-                : "Document unavailable"}
+              {tr('Document unavailable', 'दस्तावेज़ उपलब्ध नहीं है')}
             </h1>
 
             <p className="mt-1.5 text-xs text-slate-500">
-              {isHindi
-                ? "कृपया रिकॉर्ड सूची से दस्तावेज़ दोबारा खोलें।"
-                : "Please open the document again from your records."}
+              {tr('Please open the document again from your records.', 'कृपया रिकॉर्ड सूची से दस्तावेज़ दोबारा खोलें।')}
             </p>
 
             <button
@@ -290,7 +286,7 @@ export const DocumentDetailsScreen = () => {
               onClick={prevScreen}
               className="mt-5 w-full h-11 rounded-xl bg-teal-800 text-white text-xs font-bold cursor-pointer"
             >
-              {isHindi ? "वापस जाएं" : "Go back"}
+              {tr('Go back', 'वापस जाएं')}
             </button>
           </div>
         </main>
@@ -301,7 +297,7 @@ export const DocumentDetailsScreen = () => {
   return (
     <div className="min-h-full flex flex-col bg-slate-50 text-slate-900 select-none">
       <MobileHeader
-        title={isHindi ? "दस्तावेज़ विवरण" : "Document Details"}
+        title={tr('Document Details', 'दस्तावेज़ विवरण')}
         showBack={true}
         onBack={prevScreen}
       />
@@ -324,7 +320,7 @@ export const DocumentDetailsScreen = () => {
           <div>
             <h1 className="text-xl sm:text-2xl font-black leading-snug break-words">
               {record.title ||
-                (isHindi ? "चिकित्सीय रिकॉर्ड" : "Medical Record")}
+                (tr('Medical Record', 'चिकित्सीय रिकॉर्ड'))}
             </h1>
 
             <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-slate-500">
@@ -344,7 +340,7 @@ export const DocumentDetailsScreen = () => {
                 <>
                   <span>·</span>
                   <span className="font-semibold text-teal-800">
-                    {totalPages} {isHindi ? "पृष्ठ" : "pages"}
+                    {totalPages} {tr('pages', 'पृष्ठ')}
                   </span>
                 </>
               )}
@@ -365,9 +361,7 @@ export const DocumentDetailsScreen = () => {
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
             <div className="text-[11px] text-slate-400 leading-relaxed">
-              {isHindi
-                ? "मूल दस्तावेज़ से निकाली गई जानकारी"
-                : "Information extracted from the source document"}
+              {tr('Information extracted from the source document', 'मूल दस्तावेज़ से निकाली गई जानकारी')}
             </div>
 
             <button
@@ -376,7 +370,7 @@ export const DocumentDetailsScreen = () => {
               className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold hover:bg-teal-100 active:scale-95 transition cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5" />
-              {isHindi ? "मूल देखें" : "View Original"}
+              {tr('View Original', 'मूल देखें')}
             </button>
           </div>
         </section>
@@ -384,9 +378,7 @@ export const DocumentDetailsScreen = () => {
         {/* Associated visit */}
         <Section
           title={
-            isHindi
-              ? "संबंधित स्वास्थ्य परामर्श"
-              : "Associated Healthcare Encounter"
+            tr('Associated Healthcare Encounter', 'संबंधित स्वास्थ्य परामर्श')
           }
           icon={Stethoscope}
         >
@@ -428,9 +420,7 @@ export const DocumentDetailsScreen = () => {
             </button>
           ) : (
             <p className="text-xs text-slate-500 italic">
-              {isHindi
-                ? "यह रिकॉर्ड किसी विशिष्ट मुलाकात से लिंक नहीं है।"
-                : "This record is not linked to a specific visit."}
+              {tr('This record is not linked to a specific visit.', 'यह रिकॉर्ड किसी विशिष्ट मुलाकात से लिंक नहीं है।')}
             </p>
           )}
         </Section>
@@ -442,15 +432,11 @@ export const DocumentDetailsScreen = () => {
 
             <div>
               <p className="text-xs font-black text-amber-900">
-                {isHindi
-                  ? "दस्तावेज़ से निकाली गई जानकारी"
-                  : "Information read from the document"}
+                {tr('Information read from the document', 'दस्तावेज़ से निकाली गई जानकारी')}
               </p>
 
               <p className="text-[11px] text-amber-900/80 mt-1 leading-relaxed">
-                {isHindi
-                  ? "किसी भी दवा, जांच या अन्य जानकारी को मूल दस्तावेज़ से मिलाकर देखें। यह नैदानिक निर्णय नहीं है।"
-                  : "Check medicines, investigations and other information against the original document. This is not a clinical decision."}
+                {tr('Check medicines, investigations and other information against the original document. This is not a clinical decision.', 'किसी भी दवा, जांच या अन्य जानकारी को मूल दस्तावेज़ से मिलाकर देखें। यह नैदानिक निर्णय नहीं है।')}
               </p>
             </div>
           </div>
@@ -458,15 +444,13 @@ export const DocumentDetailsScreen = () => {
 
         {/* Medicines */}
         <Section
-          title={isHindi ? "पहचानी गई दवाइयां" : "Extracted Medicines"}
+          title={tr('Extracted Medicines', 'पहचानी गई दवाइयां')}
           icon={Pill}
         >
           {medicines.length === 0 ? (
             <EmptyExtraction
               text={
-                isHindi
-                  ? "इस रिकॉर्ड से कोई दवा नहीं मिली।"
-                  : "No medicines were extracted from this record."
+                tr('No medicines were extracted from this record.', 'इस रिकॉर्ड से कोई दवा नहीं मिली।')
               }
             />
           ) : (
@@ -487,7 +471,7 @@ export const DocumentDetailsScreen = () => {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-black text-slate-900">
                           {medicine?.name ||
-                            (isHindi ? "दवा" : "Medicine")}
+                            (tr('Medicine', 'दवा'))}
                         </p>
 
                         {(medicine?.dosage ||
@@ -510,9 +494,7 @@ export const DocumentDetailsScreen = () => {
                           <p className="text-[11px] text-amber-800 mt-2 flex items-start gap-1">
                             <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
                             {medicine?.verificationReason ||
-                              (isHindi
-                                ? "मूल पर्चे से मिलान करें।"
-                                : "Verify against the original document.")}
+                              (tr('Verify against the original document.', 'मूल पर्चे से मिलान करें।'))}
                           </p>
                         )}
                       </div>
@@ -536,7 +518,7 @@ export const DocumentDetailsScreen = () => {
                           className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
                         >
                           <Edit2 className="w-3 h-3" />
-                          {isHindi ? "संपादित करें" : "Edit"}
+                          {tr('Edit', 'संपादित करें')}
                         </button>
                       </div>
                     </div>
@@ -549,15 +531,13 @@ export const DocumentDetailsScreen = () => {
 
         {/* Lab investigations */}
         <Section
-          title={isHindi ? "जांच परिणाम" : "Investigations & Results"}
+          title={tr('Investigations & Results', 'जांच परिणाम')}
           icon={FlaskConical}
         >
           {investigations.length === 0 ? (
             <EmptyExtraction
               text={
-                isHindi
-                  ? "इस रिकॉर्ड में कोई जांच परिणाम नहीं मिला।"
-                  : "No investigation results were extracted."
+                tr('No investigation results were extracted.', 'इस रिकॉर्ड में कोई जांच परिणाम नहीं मिला।')
               }
             />
           ) : (
@@ -579,7 +559,7 @@ export const DocumentDetailsScreen = () => {
                         <p className="text-sm font-black text-slate-900">
                           {test?.testName ||
                             test?.name ||
-                            (isHindi ? "जांच" : "Investigation")}
+                            (tr('Investigation', 'जांच'))}
                         </p>
 
                         <p className="text-sm font-bold text-slate-700 mt-1">
@@ -590,7 +570,7 @@ export const DocumentDetailsScreen = () => {
 
                         {test?.referenceRange && (
                           <p className="text-[11px] text-slate-500 mt-1">
-                            {isHindi ? "संदर्भ सीमा" : "Reference range"}:{" "}
+                            {tr('Reference range', 'संदर्भ सीमा')}:{" "}
                             {test.referenceRange}
                           </p>
                         )}
@@ -599,9 +579,7 @@ export const DocumentDetailsScreen = () => {
                           <p className="text-[11px] text-amber-800 mt-2 flex items-start gap-1">
                             <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
                             {test?.verificationReason ||
-                              (isHindi
-                                ? "मूल रिपोर्ट से मिलान करें।"
-                                : "Verify against the original report.")}
+                              (tr('Verify against the original report.', 'मूल रिपोर्ट से मिलान करें।'))}
                           </p>
                         )}
                       </div>
@@ -623,7 +601,7 @@ export const DocumentDetailsScreen = () => {
                           className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
                         >
                           <Edit2 className="w-3 h-3" />
-                          {isHindi ? "संपादित करें" : "Edit"}
+                          {tr('Edit', 'संपादित करें')}
                         </button>
                       </div>
                     </div>
@@ -637,18 +615,14 @@ export const DocumentDetailsScreen = () => {
         {/* Diagnosis */}
         <Section
           title={
-            isHindi
-              ? "निदान / दस्तावेज़ में लिखी जानकारी"
-              : "Diagnosis / Document Information"
+            tr('Diagnosis / Document Information', 'निदान / दस्तावेज़ में लिखी जानकारी')
           }
           icon={Stethoscope}
         >
           {diagnosis.length === 0 ? (
             <EmptyExtraction
               text={
-                isHindi
-                  ? "कोई विशिष्ट निदान जानकारी नहीं मिली।"
-                  : "No specific diagnosis information was extracted."
+                tr('No specific diagnosis information was extracted.', 'कोई विशिष्ट निदान जानकारी नहीं मिली।')
               }
             />
           ) : (
@@ -675,9 +649,7 @@ export const DocumentDetailsScreen = () => {
                         {item?.needsVerification && (
                           <p className="text-[11px] text-amber-800 mt-1.5">
                             {item?.verificationReason ||
-                              (isHindi
-                                ? "मूल दस्तावेज़ से जांचें।"
-                                : "Verify against the original document.")}
+                              (tr('Verify against the original document.', 'मूल दस्तावेज़ से जांचें।'))}
                           </p>
                         )}
                       </div>
@@ -702,7 +674,7 @@ export const DocumentDetailsScreen = () => {
                           className="inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
                         >
                           <Edit2 className="w-3 h-3" />
-                          {isHindi ? "संपादित करें" : "Edit"}
+                          {tr('Edit', 'संपादित करें')}
                         </button>
                       </div>
                     </div>
@@ -717,7 +689,7 @@ export const DocumentDetailsScreen = () => {
         {recordDetails.length > 0 && (
           <Section
             title={
-              isHindi ? "दस्तावेज़ विवरण" : "Document Details"
+              tr('Document Details', 'दस्तावेज़ विवरण')
             }
             icon={ClipboardList}
           >
@@ -747,7 +719,7 @@ export const DocumentDetailsScreen = () => {
                     }
                     className="shrink-0 text-xs font-bold text-teal-800 cursor-pointer"
                   >
-                    {isHindi ? "संपादित करें" : "Edit"}
+                    {tr('Edit', 'संपादित करें')}
                   </button>
                 </div>
               ))}
@@ -758,7 +730,7 @@ export const DocumentDetailsScreen = () => {
         {/* Procedure */}
         {procedures.length > 0 && (
           <Section
-            title={isHindi ? "प्रक्रिया विवरण" : "Procedure Details"}
+            title={tr('Procedure Details', 'प्रक्रिया विवरण')}
             icon={ClipboardList}
           >
             <div className="space-y-2.5">
@@ -773,7 +745,7 @@ export const DocumentDetailsScreen = () => {
                   <div>
                     <p className="text-sm font-black text-slate-900">
                       {procedure?.name ||
-                        (isHindi ? "प्रक्रिया" : "Procedure")}
+                        (tr('Procedure', 'प्रक्रिया'))}
                     </p>
 
                     {procedure?.notes && (
@@ -794,7 +766,7 @@ export const DocumentDetailsScreen = () => {
                     className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-teal-800 cursor-pointer"
                   >
                     <Edit2 className="w-3 h-3" />
-                    {isHindi ? "संपादित करें" : "Edit"}
+                    {tr('Edit', 'संपादित करें')}
                   </button>
                 </div>
               ))}
@@ -809,7 +781,7 @@ export const DocumentDetailsScreen = () => {
 
             <div>
               <p className="text-xs font-bold text-slate-700">
-                {isHindi ? "स्रोत" : "Source"}
+                {tr('Source', 'स्रोत')}
               </p>
 
               <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
@@ -818,9 +790,7 @@ export const DocumentDetailsScreen = () => {
               </p>
 
               <p className="text-[10px] text-slate-400 mt-1">
-                {isHindi
-                  ? "यह जानकारी रिकॉर्ड में उपलब्ध स्रोत विवरण पर आधारित है।"
-                  : "This information is based on source details available with the record."}
+                {tr('This information is based on source details available with the record.', 'यह जानकारी रिकॉर्ड में उपलब्ध स्रोत विवरण पर आधारित है।')}
               </p>
             </div>
           </div>
@@ -834,9 +804,7 @@ export const DocumentDetailsScreen = () => {
             className="w-full h-12 rounded-2xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer shadow-xs"
           >
             <ArrowLeft className="w-4 h-4" />
-            {isHindi
-              ? "चिकित्सीय रिकॉर्ड पर वापस जाएं"
-              : "Back to Medical Records"}
+            {tr('Back to Medical Records', 'चिकित्सीय रिकॉर्ड पर वापस जाएं')}
           </button>
         </div>
       </main>

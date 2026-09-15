@@ -2,9 +2,12 @@ import React from "react";
 import { Volume2, VolumeX, ChevronDown } from "lucide-react";
 import { useKioskStore } from "../../store/useKioskStore";
 import LanguageToggle from "./LanguageToggle";
+import { audioService } from '../../services/audioService';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export default function Navbar() {
   const { audioEnabled, toggleAudio } = useKioskStore();
+  const { t } = useTranslation();
 
   return (
     <header className="kiosk-nav">
@@ -20,11 +23,11 @@ export default function Navbar() {
           <strong>
             <span>Ayush</span>Care
           </strong>
-          <small>Digital Patient Care Kiosk</small>
+          <small>{t('kioskTitle','Digital Patient Care Kiosk')}</small>
         </div>
         <div className="brand-tagline">
-          <span>Healthier India</span>
-          <span>Stronger Tomorrow</span>
+          <span>{t('healthierIndia','Healthier India')}</span>
+          <span>{t('strongerTomorrow','Stronger Tomorrow')}</span>
         </div>
       </div>
 
@@ -32,9 +35,9 @@ export default function Navbar() {
         <LanguageToggle />
         <button
           className="icon-button nav-sound"
-          onClick={toggleAudio}
-          aria-label={audioEnabled ? "Mute audio" : "Enable audio"}
-          title={audioEnabled ? "Mute audio" : "Enable audio"}
+          onClick={() => { if (audioEnabled) audioService.stop(); toggleAudio(); }}
+          aria-label={audioEnabled ? t('muteAudio','Mute audio') : t('enableAudio','Enable audio')}
+          title={audioEnabled ? t('muteAudio','Mute audio') : t('enableAudio','Enable audio')}
         >
           {audioEnabled ? <Volume2 size={22} /> : <VolumeX size={22} />}
         </button>

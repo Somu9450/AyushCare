@@ -26,7 +26,7 @@ export default function ProfileScreen() {
     setScreen,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const activePatient =
     patient || session?.patient || {};
@@ -49,12 +49,9 @@ export default function ProfileScreen() {
 
   const displayName =
     activePatient?.name ||
-    (isHindi ? "मरीज़" : "Patient");
+    (tr('Patient', 'मरीज़'));
 
-  const patientId =
-    activePatient?.patientId ||
-    activePatient?.id ||
-    "—";
+  const patientId = activePatient?.abhaNumber || activePatient?.abha_number || activePatient?.patientId || "—";
 
   const authMethod =
     activePatient?.authMethod ||
@@ -109,11 +106,9 @@ export default function ProfileScreen() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={isHindi ? "प्रोफ़ाइल" : "Profile"}
+        title={tr('Profile', 'प्रोफ़ाइल')}
         subtitle={
-          isHindi
-            ? "अपनी जानकारी और खाता सेटिंग देखें"
-            : "Manage your personal information"
+          tr('Manage your personal information', 'अपनी जानकारी और खाता सेटिंग देखें')
         }
       />
 
@@ -130,7 +125,7 @@ export default function ProfileScreen() {
               </h1>
 
               <p className="mt-1 truncate text-xs text-slate-500">
-                Patient ID · {patientId}
+                ABHA · {patientId}
               </p>
             </div>
 
@@ -139,9 +134,7 @@ export default function ProfileScreen() {
               onClick={() => setEditing(true)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
               aria-label={
-                isHindi
-                  ? "प्रोफ़ाइल संपादित करें"
-                  : "Edit profile"
+                tr('Edit profile', 'प्रोफ़ाइल संपादित करें')
               }
             >
               <Edit3 size={17} />
@@ -156,12 +149,8 @@ export default function ProfileScreen() {
 
             <p className="text-xs font-medium leading-5 text-teal-900">
               {authMethod
-                ? isHindi
-                  ? `${authMethod} से पहचान सत्यापित`
-                  : `Identity verified using ${authMethod}`
-                : isHindi
-                  ? "पहचान सत्यापन उपलब्ध है"
-                  : "Identity verification available"}
+                ? tr('Identity verified using ${authMethod}', '${authMethod} से पहचान सत्यापित')
+                : tr('Identity verification available', 'पहचान सत्यापन उपलब्ध है')}
             </p>
           </div>
         </section>
@@ -169,9 +158,7 @@ export default function ProfileScreen() {
         <section className="mt-6">
           <SectionTitle
             title={
-              isHindi
-                ? "व्यक्तिगत जानकारी"
-                : "Personal information"
+              tr('Personal information', 'व्यक्तिगत जानकारी')
             }
           />
 
@@ -179,7 +166,7 @@ export default function ProfileScreen() {
             <InfoRow
               icon={User}
               label={
-                isHindi ? "पूरा नाम" : "Full name"
+                tr('Full name', 'पूरा नाम')
               }
               value={displayName}
             />
@@ -187,9 +174,7 @@ export default function ProfileScreen() {
             <InfoRow
               icon={Phone}
               label={
-                isHindi
-                  ? "मोबाइल नंबर"
-                  : "Mobile number"
+                tr('Mobile number', 'मोबाइल नंबर')
               }
               value={
                 activePatient?.mobile ||
@@ -200,7 +185,7 @@ export default function ProfileScreen() {
 
             <InfoRow
               icon={Mail}
-              label={isHindi ? "ईमेल" : "Email"}
+              label={tr('Email', 'ईमेल')}
               value={
                 activePatient?.email || "—"
               }
@@ -209,9 +194,7 @@ export default function ProfileScreen() {
             <InfoRow
               icon={CalendarDays}
               label={
-                isHindi
-                  ? "जन्म तिथि"
-                  : "Date of birth"
+                tr('Date of birth', 'जन्म तिथि')
               }
               value={
                 activePatient?.dateOfBirth ||
@@ -226,23 +209,17 @@ export default function ProfileScreen() {
         <section className="mt-6">
           <SectionTitle
             title={
-              isHindi
-                ? "खाता और सुरक्षा"
-                : "Account & security"
+              tr('Account & security', 'खाता और सुरक्षा')
             }
           />
 
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
             <ActionRow
               title={
-                isHindi
-                  ? "गोपनीयता नियंत्रण"
-                  : "Privacy controls"
+                tr('Privacy controls', 'गोपनीयता नियंत्रण')
               }
               subtitle={
-                isHindi
-                  ? "सहमति और डेटा एक्सेस प्रबंधित करें"
-                  : "Manage consent and data access"
+                tr('Manage consent and data access', 'सहमति और डेटा एक्सेस प्रबंधित करें')
               }
               onClick={() =>
                 setScreen(SCREENS.PRIVACY)
@@ -251,14 +228,10 @@ export default function ProfileScreen() {
 
             <ActionRow
               title={
-                isHindi
-                  ? "सेटिंग्स"
-                  : "Settings"
+                tr('Settings', 'सेटिंग्स')
               }
               subtitle={
-                isHindi
-                  ? "भाषा और पहुंच विकल्प"
-                  : "Language and accessibility"
+                tr('Language and accessibility', 'भाषा और पहुंच विकल्प')
               }
               onClick={() =>
                 setScreen(SCREENS.SETTINGS)
@@ -274,13 +247,11 @@ export default function ProfileScreen() {
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-3.5 text-sm font-bold text-rose-700 shadow-sm"
         >
           <LogOut size={17} />
-          {isHindi ? "लॉग आउट" : "Log out"}
+          {tr('Log out', 'लॉग आउट')}
         </button>
 
         <p className="mt-4 px-3 text-center text-[10px] leading-5 text-slate-400">
-          {isHindi
-            ? "लॉग आउट करने पर इस डिवाइस की वर्तमान पहचान सत्र समाप्त हो जाएगा।"
-            : "Logging out ends the current identity session on this device."}
+          {tr('Logging out ends the current identity session on this device.', 'लॉग आउट करने पर इस डिवाइस की वर्तमान पहचान सत्र समाप्त हो जाएगा।')}
         </p>
       </main>
 
@@ -379,15 +350,11 @@ function EditProfileModal({
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-900">
-              {isHindi
-                ? "प्रोफ़ाइल संपादित करें"
-                : "Edit profile"}
+              {tr('Edit profile', 'प्रोफ़ाइल संपादित करें')}
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              {isHindi
-                ? "अपनी जानकारी अपडेट करें"
-                : "Update your personal details"}
+              {tr('Update your personal details', 'अपनी जानकारी अपडेट करें')}
             </p>
           </div>
 
@@ -403,7 +370,7 @@ function EditProfileModal({
         <div className="space-y-3">
           <Field
             label={
-              isHindi ? "पूरा नाम" : "Full name"
+              tr('Full name', 'पूरा नाम')
             }
             value={form.name}
             onChange={(value) =>
@@ -416,9 +383,7 @@ function EditProfileModal({
 
           <Field
             label={
-              isHindi
-                ? "मोबाइल नंबर"
-                : "Mobile number"
+              tr('Mobile number', 'मोबाइल नंबर')
             }
             type="tel"
             value={form.mobile}
@@ -432,7 +397,7 @@ function EditProfileModal({
 
           <Field
             label={
-              isHindi ? "ईमेल" : "Email"
+              tr('Email', 'ईमेल')
             }
             type="email"
             value={form.email}
@@ -446,9 +411,7 @@ function EditProfileModal({
 
           <Field
             label={
-              isHindi
-                ? "जन्म तिथि"
-                : "Date of birth"
+              tr('Date of birth', 'जन्म तिथि')
             }
             type="date"
             value={form.dateOfBirth}
@@ -466,9 +429,7 @@ function EditProfileModal({
           onClick={onSave}
           className="mt-5 w-full rounded-2xl bg-teal-800 px-5 py-3.5 text-sm font-bold text-white"
         >
-          {isHindi
-            ? "परिवर्तन सहेजें"
-            : "Save changes"}
+          {tr('Save changes', 'परिवर्तन सहेजें')}
         </button>
       </div>
     </div>

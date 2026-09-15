@@ -60,7 +60,7 @@ function dateTimestamp(visit) {
 
 function formatDate(value, isHindi) {
   if (!value) {
-    return isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable";
+    return isHindi ? 'तारीख उपलब्ध नहीं' : 'Date unavailable';
   }
 
   const parsed = new Date(value);
@@ -70,7 +70,7 @@ function formatDate(value, isHindi) {
   }
 
   return parsed.toLocaleDateString(
-    isHindi ? "hi-IN" : "en-IN",
+    isHindi ? 'hi-IN' : 'en-IN',
     {
       day: "numeric",
       month: "short",
@@ -91,7 +91,7 @@ export default function MyVisitsScreen() {
     loadPortalData,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,9 +119,7 @@ export default function MyVisitsScreen() {
     } catch (loadError) {
       setError(
         loadError?.message ||
-          (isHindi
-            ? "विज़िट इतिहास लोड नहीं हो सका।"
-            : "Unable to load visit history.")
+          (tr('Unable to load visit history.', 'विज़िट इतिहास लोड नहीं हो सका।'))
       );
     } finally {
       setLoading(false);
@@ -161,11 +159,9 @@ export default function MyVisitsScreen() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={isHindi ? "मेरी विज़िट" : "My Visits"}
+        title={tr('My Visits', 'मेरी विज़िट')}
         subtitle={
-          isHindi
-            ? "आपकी स्वास्थ्य मुलाकातों का इतिहास"
-            : "Your healthcare encounter history"
+          tr('Your healthcare encounter history', 'आपकी स्वास्थ्य मुलाकातों का इतिहास')
         }
       />
 
@@ -175,7 +171,7 @@ export default function MyVisitsScreen() {
             active={visitFilter === "ALL"}
             onClick={() => setVisitFilter("ALL")}
           >
-            {isHindi ? "सभी" : "All"}
+            {tr('All', 'सभी')}
           </FilterButton>
 
           <FilterButton
@@ -184,14 +180,14 @@ export default function MyVisitsScreen() {
               setVisitFilter("UPCOMING")
             }
           >
-            {isHindi ? "आने वाली" : "Upcoming"}
+            {tr('Upcoming', 'आने वाली')}
           </FilterButton>
 
           <FilterButton
             active={visitFilter === "PAST"}
             onClick={() => setVisitFilter("PAST")}
           >
-            {isHindi ? "पिछली" : "Past"}
+            {tr('Past', 'पिछली')}
           </FilterButton>
         </div>
 
@@ -250,19 +246,19 @@ function VisitCard({ visit, isHindi, onClick }) {
     visit?.doctor ||
     visit?.doctorName ||
     visit?.physician ||
-    (isHindi ? "चिकित्सक" : "Doctor");
+    (tr('Doctor', 'चिकित्सक'));
 
   const department =
     visit?.department ||
     visit?.specialty ||
     visit?.departmentName ||
-    (isHindi ? "सामान्य चिकित्सा" : "General Medicine");
+    (tr('General Medicine', 'सामान्य चिकित्सा'));
 
   const facility =
     visit?.facility ||
     visit?.hospital ||
     visit?.hospitalName ||
-    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+    (tr('Healthcare facility', 'स्वास्थ्य केंद्र'));
 
   const date = formatDate(
     getDateValue(visit),
@@ -272,12 +268,8 @@ function VisitCard({ visit, isHindi, onClick }) {
   const status =
     visit?.status ||
     (isPastVisit(visit)
-      ? isHindi
-        ? "पूर्ण"
-        : "Completed"
-      : isHindi
-        ? "आने वाली"
-        : "Upcoming");
+      ? tr('Completed', 'पूर्ण')
+      : tr('Upcoming', 'आने वाली'));
 
   const summary =
     visit?.summary ||
@@ -390,9 +382,7 @@ function LoadingState({ isHindi }) {
       />
 
       <p className="mt-4 text-sm font-semibold text-slate-700">
-        {isHindi
-          ? "विज़िट लोड हो रही हैं..."
-          : "Loading visits..."}
+        {tr('Loading visits...', 'विज़िट लोड हो रही हैं...')}
       </p>
     </div>
   );
@@ -411,7 +401,7 @@ function ErrorState({ message, isHindi, onRetry }) {
         className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white active:scale-95"
       >
         <RefreshCw size={14} />
-        {isHindi ? "फिर प्रयास करें" : "Try again"}
+        {tr('Try again', 'फिर प्रयास करें')}
       </button>
     </div>
   );
@@ -420,16 +410,10 @@ function ErrorState({ message, isHindi, onRetry }) {
 function EmptyState({ filter, isHindi }) {
   const message =
     filter === "UPCOMING"
-      ? isHindi
-        ? "कोई आने वाली विज़िट नहीं है।"
-        : "No upcoming visits."
+      ? tr('No upcoming visits.', 'कोई आने वाली विज़िट नहीं है।')
       : filter === "PAST"
-        ? isHindi
-          ? "कोई पिछली विज़िट नहीं मिली।"
-          : "No past visits found."
-        : isHindi
-          ? "अभी कोई विज़िट नहीं मिली।"
-          : "No visits found.";
+        ? tr('No past visits found.', 'कोई पिछली विज़िट नहीं मिली।')
+        : tr('No visits found.', 'अभी कोई विज़िट नहीं मिली।');
 
   return (
     <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center">

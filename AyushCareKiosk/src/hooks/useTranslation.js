@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useKioskStore } from '../store/useKioskStore';
 import { OFFICIAL_INDIAN_LANGUAGES } from '../constants/indianLanguages';
 import { CORE_LOCALES } from '../loc/22';
+import { remoteTranslationService } from '../services/remoteTranslationService';
 
 const base = {
   welcome: 'Welcome to AyushCare', subtitle: 'Complete your health intake before meeting your clinician.',
@@ -20,6 +22,14 @@ const base = {
   emergency: 'Urgent attention may be needed. Please alert the clinical staff.', selected: 'Selected', noDocuments: 'No documents added.', noSummary: 'Summary will appear after the interview.',
   speak: 'Speak', holdToSpeak: 'Hold to speak', releaseToSend: 'Release to send',
   selectInterviewLanguage: 'Select Interview Language', selectInterviewLanguageHelp: 'Choose the language for your AI health interview. Questions and voice will be in your selected language.',
+  selectDepartment: 'Select department', privacyConsent: 'Privacy & Clinical Consent', clinicalConsent: 'I consent to clinical intake and processing of the information I provide for my healthcare consultation.', required: 'Required', documentConsent: 'I consent to processing of medical documents that I choose to upload during this session.', startingSecureSession: 'Starting secure session…', privacyConsentShort: 'Privacy & consent', answersUsed: 'Your answers are used to prepare your clinical intake for the healthcare team.', clinicalConsentShort: 'I consent to clinical intake and processing of the information I provide.', beforeContinue: 'Before you continue', consentContinueHelp: 'You can skip document upload later if you do not have any records. Clinical intake consent is required to begin the health interview.', checkingConsent: 'Checking available consent scopes…',
+  kioskTitle: 'Digital Patient Care Kiosk', voiceSupported:'Voice supported', textInput:'Text input',
+  privateSecure: 'Private & secure',  printToken: 'Print Token',  mobileUploadShort: 'Mobile document upload', qrHelp: 'Scan this QR with your phone to open your AyushCare account and upload prescriptions or reports.', generating: 'Generating…', qrExpires: 'QR access expires automatically after 80 seconds.', securePatientAccess: 'Secure patient-account access', generateNewQr: 'Generate new QR', refreshSummary: 'Refresh Summary', consentRecorded: 'Consent recorded', consentRecordedHelp: 'Your clinical-intake consent was recorded before the AI health interview started.', documentProcessingEnabled: 'Medical document processing is also enabled for this session.', generateAiSummary: 'Generate AI Summary', retrySummary: 'Retry Summary', vitalsHelp: 'Review the basic information needed for safe triage. You may leave readings blank if the kiosk has no connected sensor.', systolic: 'Systolic BP', diastolic: 'Diastolic BP', pulse: 'Pulse', temperature: 'Temperature', enterReading: 'Enter reading', vitalsNote: 'Only enter readings you know. Connected sensor integration can be enabled later.',
+ date: 'Date',
+ languages22: '22 Indian languages', voiceTouch: 'Voice + touch',
+ healthierIndia: 'Healthier India', strongerTomorrow: 'Stronger Tomorrow', muteAudio: 'Mute audio', enableAudio: 'Enable audio', stepOf: 'Step {current} of {total}', selectAllOptions: 'Select all options that apply.', tapToSpeak: 'Tap to speak', tapToStop: 'Tap to stop', tapToSpeakHint: 'Tap once to speak; tap again to send', tapToStopHint: 'Tap again to stop and send',
+  patientTypeTitle: 'Are you a new or existing patient?', newPatient: 'New Patient', newPatientHelp: 'Register your basic details for a new visit.', existingPatient: 'Existing Patient', existingPatientHelp: 'Find your record using your ABHA number or registered mobile number.',
+  selectLanguage: 'Select language', findPatient: 'Find patient', patientDetails: 'Patient details', optional: 'optional', abhaPlaceholder: '14 digit ABHA number', mobilePlaceholder: '10 digit mobile number', lookupHelp: 'Enter an ABHA number or registered mobile number. If several records match the mobile number, choose the correct ABHA record.', multiplePatients: 'Multiple patient records found', patient: 'Patient', age: 'Age', years: 'years', addressUnavailable: 'Address unavailable', fullNamePlaceholder: 'Full name', selectGender: 'Select gender', male: 'Male', female: 'Female', other: 'Other', address: 'Address', addressPlaceholder: 'House / street / locality', abhaRequiredNote: 'Your ABHA number is the canonical patient identifier used to connect your health records across participating healthcare services.', noPatientFound: 'No patient record was found. Please check the ABHA number or mobile number.',
 };
 
 const translations = {
@@ -29,11 +39,25 @@ const translations = {
   pa: { ...base, welcome:'ਆਯੁਸ਼ਕੇਅਰ ਵਿੱਚ ਤੁਹਾਡਾ ਸਵਾਗਤ ਹੈ', language:'ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ', continue:'ਜਾਰੀ ਰੱਖੋ', back:'ਵਾਪਸ', verify:'ਤਸਦੀਕ ਕਰੋ', name:'ਪੂਰਾ ਨਾਮ', mobile:'ਮੋਬਾਈਲ ਨੰਬਰ', consent:'ਮੈਂ ਕਲੀਨਿਕਲ ਜਾਣਕਾਰੀ ਲੈਣ ਅਤੇ ਮੇਰੇ ਵੱਲੋਂ ਦਿੱਤੀ ਜਾਣਕਾਰੀ ਦੀ ਪ੍ਰਕਿਰਿਆ ਲਈ ਸਹਿਮਤ ਹਾਂ।', pathway:'ਆਪਣੀ ਇਲਾਜ ਪ੍ਰਣਾਲੀ ਚੁਣੋ', ayurveda:'ਆਯੁਰਵੇਦ', allopathy:'ਐਲੋਪੈਥੀ', interview:'ਸਿਹਤ ਇੰਟਰਵਿਊ', submit:'ਜਵਾਬ ਭੇਜੋ', documents:'ਮੈਡੀਕਲ ਦਸਤਾਵੇਜ਼', review:'ਸਮੀਖਿਆ ਅਤੇ ਸਹਿਮਤੀ', confirm:'ਪੁਸ਼ਟੀ ਕਰੋ ਅਤੇ ਟੋਕਨ ਲਵੋ', token:'ਤੁਹਾਡਾ OPD ਟੋਕਨ', done:'ਮੁਕੰਮਲ', restart:'ਨਵਾਂ ਪਰਾਮਰਸ਼ ਸ਼ੁਰੂ ਕਰੋ' },
 };
 
+
+
 const native = Object.fromEntries(OFFICIAL_INDIAN_LANGUAGES.map((l) => [l.code, l.native]));
+
 export const useTranslation = () => {
   const language = useKioskStore((s) => s.language);
-  const dict = { ...base, ...(CORE_LOCALES[language] || {}), ...(translations[language] || {}) };
-  const t = (key, fallback) => dict[key] || base[key] || fallback || key;
-  return { t, language, languages: OFFICIAL_INDIAN_LANGUAGES, native };
+  const [, refresh] = useState(0);
+  useEffect(() => remoteTranslationService.subscribeTranslations(() => refresh((v) => v + 1)), []);
+  const local = CORE_LOCALES[language] || {};
+  const dict = { ...base, ...local, ...(translations[language] || {}) };
+  const t = (key, fallback) => {
+    const value = dict[key] || fallback || base[key] || key;
+    if (language === 'en' || !value) return value;
+    const cached = remoteTranslationService.getCachedTranslation(value, language);
+    if (cached) return cached;
+    // Fire-and-cache the Bhashini translation without blocking the React render.
+    void remoteTranslationService.ensureTranslation(value, language);
+    return value;
+  };
+  return { t, language, isHindi: language === 'hi', languages: OFFICIAL_INDIAN_LANGUAGES, native };
 };
 export default useTranslation;

@@ -50,3 +50,14 @@ export function normalizePortalDocument(doc) {
     extractedInformation: doc?.extracted_data || {},
   };
 }
+
+export async function getPortalPrivacyContext() {
+  return unwrapApiResponse(await apiRequest('/mobile/portal/privacy-context'));
+}
+
+export async function updatePortalPrivacyRule(payload) {
+  return unwrapApiResponse(await apiRequest('/mobile/portal/privacy-rules', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  }));
+}

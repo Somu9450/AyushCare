@@ -17,7 +17,7 @@ export const EditItemModal = () => {
     updateRecordDetail,
     updateDiagnosis,
   } = useMobileStore();
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [name, setName] = useState("");
   const [dosage, setDosage] = useState("");
@@ -96,15 +96,15 @@ export const EditItemModal = () => {
   const getModalTitle = () => {
     switch (editingEntity.type) {
       case "investigation":
-        return isHindi ? "जांच परिणाम संपादित करें" : "Edit Lab Investigation";
+        return tr('Edit Lab Investigation', 'जांच परिणाम संपादित करें');
       case "procedure":
-        return isHindi ? "प्रक्रिया विवरण संपादित करें" : "Edit Procedure Detail";
+        return tr('Edit Procedure Detail', 'प्रक्रिया विवरण संपादित करें');
       case "recordDetail":
-        return isHindi ? "दस्तावेज़ विवरण संपादित करें" : "Edit Record Detail";
+        return tr('Edit Record Detail', 'दस्तावेज़ विवरण संपादित करें');
       case "diagnosis":
-        return isHindi ? "निदान संपादित करें" : "Edit Diagnosis";
+        return tr('Edit Diagnosis', 'निदान संपादित करें');
       default:
-        return isHindi ? "दवा संपादित करें" : "Edit Medication";
+        return tr('Edit Medication', 'दवा संपादित करें');
     }
   };
 
@@ -127,7 +127,7 @@ export const EditItemModal = () => {
                 {getModalTitle()}
               </h3>
               <p className="text-[11px] text-slate-500">
-                {isHindi ? "ओसीआर पठन सुधारें" : "Correct OCR reading"}
+                {tr('Correct OCR reading', 'ओसीआर पठन सुधारें')}
               </p>
             </div>
           </div>
@@ -145,7 +145,7 @@ export const EditItemModal = () => {
             <>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "फ़ील्ड का नाम" : "Field Name / Label"}
+                  {tr('Field Name / Label', 'फ़ील्ड का नाम')}
                 </label>
                 <input
                   type="text"
@@ -157,7 +157,7 @@ export const EditItemModal = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "मान / विवरण" : "Extracted Value"}
+                  {tr('Extracted Value', 'मान / विवरण')}
                 </label>
                 <input
                   type="text"
@@ -172,12 +172,12 @@ export const EditItemModal = () => {
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 {editingEntity.type === "investigation"
-                  ? (isHindi ? "जांच का नाम" : "Test / Investigation Name")
+                  ? (tr('Test / Investigation Name', 'जांच का नाम'))
                   : editingEntity.type === "procedure"
-                  ? (isHindi ? "प्रक्रिया का नाम" : "Procedure Name")
+                  ? (tr('Procedure Name', 'प्रक्रिया का नाम'))
                   : editingEntity.type === "medicine"
-                  ? (isHindi ? "दवा का नाम" : "Medicine Name")
-                  : (isHindi ? "निदान शीर्षक" : "Diagnosis Title")}
+                  ? (tr('Medicine Name', 'दवा का नाम'))
+                  : (tr('Diagnosis Title', 'निदान शीर्षक'))}
               </label>
               <input
                 type="text"
@@ -194,7 +194,7 @@ export const EditItemModal = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "खुराक" : "Dosage"}
+                  {tr('Dosage', 'खुराक')}
                 </label>
                 <input
                   type="text"
@@ -206,7 +206,7 @@ export const EditItemModal = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "समय / अनुसूची" : "Schedule / Timing"}
+                  {tr('Schedule / Timing', 'समय / अनुसूची')}
                 </label>
                 <input
                   type="text"
@@ -223,7 +223,7 @@ export const EditItemModal = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "परिणाम मान" : "Observed Value"}
+                  {tr('Observed Value', 'परिणाम मान')}
                 </label>
                 <input
                   type="text"
@@ -235,7 +235,7 @@ export const EditItemModal = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {isHindi ? "इकाई" : "Unit"}
+                  {tr('Unit', 'इकाई')}
                 </label>
                 <input
                   type="text"
@@ -251,7 +251,7 @@ export const EditItemModal = () => {
           {editingEntity.type === "procedure" && (
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                {isHindi ? "नोट्स / विवरण" : "Procedure Notes"}
+                {tr('Procedure Notes', 'नोट्स / विवरण')}
               </label>
               <input
                 type="text"
@@ -269,14 +269,14 @@ export const EditItemModal = () => {
               onClick={() => setEditingEntity(null)}
               className="flex-1 min-h-[48px] rounded-xl border border-slate-300 font-bold text-sm text-slate-700 hover:bg-slate-50 transition cursor-pointer"
             >
-              {isHindi ? "रद्द करें" : "Cancel"}
+              {tr('Cancel', 'रद्द करें')}
             </button>
             <button
               type="submit"
               className="flex-1 min-h-[48px] rounded-xl bg-[#006666] hover:bg-[#005454] active:bg-[#004747] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              {isHindi ? "सुधार सहेजें" : "Save Correction"}
+              {tr('Save Correction', 'सुधार सहेजें')}
             </button>
           </div>
         </form>

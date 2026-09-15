@@ -94,6 +94,7 @@ export const M1_MobileHome =
 
     const {
       t,
+      tr,
       isHindi,
     } = useLanguage();
 
@@ -291,9 +292,7 @@ export const M1_MobileHome =
 
           <section
             aria-label={
-              isHindi
-                ? "रोगी जानकारी"
-                : "Patient information"
+              tr('Patient information', 'रोगी जानकारी')
             }
             className="
               flex
@@ -339,21 +338,12 @@ export const M1_MobileHome =
                   inline-block
                 "
               >
-                {isHindi
-                  ? "आभा:"
-                  : "ABHA:"}{" "}
+                {tr('ABHA:', 'आभा:')}{" "}
                 {resolvedPatient.abhaNumber ||
                   (
-                    isHindi
-                      ? "उपलब्ध नहीं"
-                      : "Not Linked"
+                    tr('Not Linked', 'उपलब्ध नहीं')
                   )}
               </span>
-              {(resolvedPatient.patient_code || resolvedPatient.patientId || resolvedPatient.patient_id) && (
-                <span className="mt-1 inline-block text-[11px] font-bold text-slate-600 bg-white px-2.5 py-1 rounded-full border border-slate-200">
-                  {isHindi ? "रोगी ID:" : "Patient ID:"} {resolvedPatient.patient_code || resolvedPatient.patientId || resolvedPatient.patient_id}
-                </span>
-              )}
             </div>
           </section>
           {/* ================================================================ */}
@@ -363,9 +353,7 @@ export const M1_MobileHome =
           {todayAppointment && (
             <section
               aria-label={
-                isHindi
-                  ? "आज की अपॉइंटमेंट"
-                  : "Today's appointment"
+                tr("Today's appointment", 'आज की अपॉइंटमेंट')
               }
               className="
                 p-4
@@ -522,9 +510,7 @@ export const M1_MobileHome =
 
           <section
             aria-label={
-              isHindi
-                ? "हाल की मुलाकात"
-                : "Recent visit"
+              tr('Recent visit', 'हाल की मुलाकात')
             }
             className="
               p-4
@@ -650,9 +636,7 @@ export const M1_MobileHome =
                   font-medium
                 "
               >
-                {isHindi
-                  ? "अपनी पिछली मुलाकातें देखें"
-                  : "View your previous visits"}
+                {tr('View your previous visits', 'अपनी पिछली मुलाकातें देखें')}
               </button>
             )}
           </section>
@@ -663,9 +647,7 @@ export const M1_MobileHome =
 
           <section
             aria-label={
-              isHindi
-                ? "हालिया रिकॉर्ड"
-                : "Recent medical record"
+              tr('Recent medical record', 'हालिया रिकॉर्ड')
             }
             className="
               p-4
@@ -692,9 +674,7 @@ export const M1_MobileHome =
                 <FileText className="w-4 h-4 text-teal-800" />
 
                 <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  {isHindi
-                    ? "हालिया दस्तावेज़"
-                    : "Recent Document"}
+                  {tr('Recent Document', 'हालिया दस्तावेज़')}
                 </h2>
               </div>
 
@@ -705,9 +685,7 @@ export const M1_MobileHome =
                 }
                 className="text-xs font-bold text-teal-800 hover:text-teal-950"
               >
-                {isHindi
-                  ? "सभी रिकॉर्ड्स →"
-                  : "All Records →"}
+                {tr('All Records →', 'सभी रिकॉर्ड्स →')}
               </button>
             </div>
 
@@ -787,9 +765,7 @@ export const M1_MobileHome =
                   font-medium
                 "
               >
-                {isHindi
-                  ? "अपने मेडिकल रिकॉर्ड देखें"
-                  : "View your medical records"}
+                {tr('View your medical records', 'अपने मेडिकल रिकॉर्ड देखें')}
               </button>
             )}
           </section>
@@ -800,9 +776,7 @@ export const M1_MobileHome =
 
           <section
             aria-label={
-              isHindi
-                ? "त्वरित कार्य"
-                : "Quick actions"
+              tr('Quick actions', 'त्वरित कार्य')
             }
             className="space-y-3"
           >
@@ -820,9 +794,7 @@ export const M1_MobileHome =
                 }
                 className="text-xs font-bold text-teal-800 hover:text-teal-950"
               >
-                {isHindi
-                  ? "अपॉइंटमेंट →"
-                  : "Appointments →"}
+                {tr('Appointments →', 'अपॉइंटमेंट →')}
               </button>
             </div>
 
@@ -961,9 +933,7 @@ export const M1_MobileHome =
             <ShieldCheck className="w-4 h-4 text-teal-800 shrink-0 mt-0.5" />
 
             <p className="leading-snug">
-              {isHindi
-                ? "आपके दस्तावेज़ और स्वास्थ्य जानकारी आपके नियंत्रण में हैं। साझा करने से पहले अपनी गोपनीयता सेटिंग जांचें।"
-                : "Your documents and health information remain under your control. Check your privacy settings before sharing."}
+              {tr('Your documents and health information remain under your control. Check your privacy settings before sharing.', 'आपके दस्तावेज़ और स्वास्थ्य जानकारी आपके नियंत्रण में हैं। साझा करने से पहले अपनी गोपनीयता सेटिंग जांचें।')}
             </p>
           </div>
         </main>

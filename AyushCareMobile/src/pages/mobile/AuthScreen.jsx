@@ -20,33 +20,8 @@ import {
 import { useLanguage } from "../../i18n/translations";
 
 const AUTH_METHODS = [
-  {
-    id: "MOBILE",
-    label: "Mobile Number",
-    hindi: "मोबाइल नंबर",
-    placeholder: "Enter 10-digit mobile number",
-    hindiPlaceholder: "10 अंकों का मोबाइल नंबर दर्ज करें",
-    maxLength: 10,
-    isDemo: false,
-  },
-  {
-    id: "AADHAAR",
-    label: "Aadhaar",
-    hindi: "आधार",
-    placeholder: "Enter 12-digit Aadhaar number",
-    hindiPlaceholder: "12 अंकों का आधार नंबर दर्ज करें",
-    maxLength: 12,
-    isDemo: false,
-  },
-  {
-    id: "ABHA",
-    label: "ABHA",
-    hindi: "आभा",
-    placeholder: "Enter 14-digit ABHA number",
-    hindiPlaceholder: "14 अंकों का आभा नंबर दर्ज करें",
-    maxLength: 14,
-    isDemo: false,
-  },
+  { id: "ABHA", label: "ABHA Number", hindi: "आभा नंबर", placeholder: "Enter 14-digit ABHA number", hindiPlaceholder: "14 अंकों का आभा नंबर दर्ज करें", maxLength: 14, isDemo: false },
+  { id: "MOBILE", label: "Mobile Number", hindi: "मोबाइल नंबर", placeholder: "Enter 10-digit mobile number", hindiPlaceholder: "10 अंकों का मोबाइल नंबर दर्ज करें", maxLength: 10, isDemo: false },
 ];
 
 function maskIdentifierValue(identifier, method) {
@@ -77,9 +52,9 @@ export default function AuthScreen() {
     loadPortalData,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
-  const [method, setMethod] = useState("MOBILE");
+  const [method, setMethod] = useState("ABHA");
   const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState("identifier"); // "identifier" | "otp" | "select_patient"
@@ -119,16 +94,26 @@ export default function AuthScreen() {
 
     if (!cleanIdentifier) {
       setError(
-        isHindi
-          ? "कृपया अपना विवरण दर्ज करें।"
-          : "Please enter your details."
+        tr('Please enter your details.', 'कृपया अपना विवरण दर्ज करें।')
       );
+      return;
+    }
+
+    if (method === "ABHA") {
+      if (cleanIdentifier.length !== 14) { setError(tr("Enter a valid 14-digit ABHA number.", "14 अंकों का वैध आभा नंबर दर्ज करें।")); return; }
+      setLoading(true); setError("");
+      try {
+        const result = await requestOtp({ authType: "ABHA", identifier: cleanIdentifier });
+        if (!result?.success) throw new Error(result?.message || "Unable to verify ABHA number.");
+        setMaskedIdentifier(result?.maskedIdentifier || "registered mobile");
+        setStep("otp");
+      } catch (e) { setError(e?.message || "Unable to send OTP."); } finally { setLoading(false); }
       return;
     }
 
     if (method === "MOBILE") {
       if (cleanIdentifier.length !== 10) {
-        setError(isHindi ? "10 अंकों का वैध मोबाइल नंबर दर्ज करें।" : "Enter a valid 10-digit mobile number.");
+        setError(tr('Enter a valid 10-digit mobile number.', '10 अंकों का वैध मोबाइल नंबर दर्ज करें।'));
         return;
       }
 
@@ -160,9 +145,7 @@ export default function AuthScreen() {
       } catch (requestError) {
         setError(
           requestError?.message ||
-            (isHindi
-              ? "सत्यापन अनुरोध पूरा नहीं हो सका।"
-              : "Verification request failed.")
+            (tr('Verification request failed.', 'सत्यापन अनुरोध पूरा नहीं हो सका।'))
         );
       } finally {
         setLoading(false);
@@ -172,7 +155,7 @@ export default function AuthScreen() {
 
     if (method === "AADHAAR") {
       if (cleanIdentifier.length !== 12) {
-        setError(isHindi ? "12 अंकों का आधार नंबर दर्ज करें।" : "Enter a valid 12-digit Aadhaar number.");
+        setError(tr('Enter a valid 12-digit Aadhaar number.', '12 अंकों का आधार नंबर दर्ज करें।'));
         return;
       }
 
@@ -188,7 +171,7 @@ export default function AuthScreen() {
 
     if (method === "ABHA") {
       if (cleanIdentifier.length !== 14) {
-        setError(isHindi ? "14 अंकों का आभा नंबर दर्ज करें।" : "Enter a valid 14-digit ABHA number.");
+        setError(tr('Enter a valid 14-digit ABHA number.', '14 अंकों का आभा नंबर दर्ज करें।'));
         return;
       }
 
@@ -206,7 +189,7 @@ export default function AuthScreen() {
   const handleVerifyOtp = async () => {
     const cleanOtp = otp.trim();
     if (!/^\d{6}$/.test(cleanOtp)) {
-      setError(isHindi ? "6 अंकों का OTP दर्ज करें।" : "Enter the 6-digit OTP.");
+      setError(tr('Enter the 6-digit OTP.', '6 अंकों का OTP दर्ज करें।'));
       return;
     }
 
@@ -217,8 +200,8 @@ export default function AuthScreen() {
       setTimeout(() => {
         const demoPatient = {
           id: `demo-${identifier.slice(-4)}`,
-          patientId: `DEMO-${identifier.slice(-4)}`,
-          patient_code: `DEMO-${identifier.slice(-4)}`,
+          patientId: `1234567890${identifier.slice(-4)}`.slice(0,14),
+          abhaNumber: `1234567890${identifier.slice(-4)}`.slice(0,14),
           full_name: method === "AADHAAR" ? "Aadhaar Demo Patient" : "ABHA Demo Patient",
           name: method === "AADHAAR" ? "Aadhaar Demo Patient" : "ABHA Demo Patient",
           gender: "Male",
@@ -233,7 +216,7 @@ export default function AuthScreen() {
           verifiedAt: new Date().toISOString(),
         };
         setAvailablePatients([demoPatient]);
-        setSelectedPatientId(demoPatient.id);
+        setSelectedPatientId(demoPatient.abhaNumber);
         setStep("select_patient");
         setLoading(false);
       }, 350);
@@ -258,14 +241,12 @@ export default function AuthScreen() {
         : [result?.patient || {}];
 
       setAvailablePatients(patients);
-      setSelectedPatientId(patients[0]?.id || "");
+      setSelectedPatientId(patients[0]?.abha_number || patients[0]?.abhaNumber || "");
       setStep("select_patient");
     } catch (verifyError) {
       setError(
         verifyError?.message ||
-          (isHindi
-            ? "OTP सत्यापन विफल हुआ।"
-            : "OTP verification failed.")
+          (tr('OTP verification failed.', 'OTP सत्यापन विफल हुआ।'))
       );
     } finally {
       setLoading(false);
@@ -273,7 +254,7 @@ export default function AuthScreen() {
   };
 
   const handleConfirmPatient = async () => {
-    const chosen = availablePatients.find((p) => p.id === selectedPatientId) || availablePatients[0];
+    const chosen = availablePatients.find((p) => (p.abha_number || p.abhaNumber) === selectedPatientId) || availablePatients[0];
     if (!chosen) return;
 
     setLoading(true);
@@ -284,15 +265,15 @@ export default function AuthScreen() {
       let activeToken = chosen.accessToken;
 
       if (!chosen.isDemo) {
-        const response = await selectPatientAccount(chosen.id);
+        const response = await selectPatientAccount(chosen.abha_number || chosen.abhaNumber);
         activePatient = response.patient || chosen;
         activeToken = response.accessToken;
       }
 
       const normalized = {
         id: activePatient.id,
-        patientId: activePatient.patient_code || activePatient.patientId || activePatient.id,
-        patient_code: activePatient.patient_code,
+        patientId: activePatient.abha_number || activePatient.abhaNumber || activePatient.patientId,
+        abhaNumber: activePatient.abha_number || activePatient.abhaNumber,
         name: activePatient.full_name || activePatient.name || "Patient",
         full_name: activePatient.full_name || activePatient.name || "Patient",
         gender: activePatient.gender,
@@ -309,7 +290,7 @@ export default function AuthScreen() {
       await loadPortalData?.();
       setScreen(SCREENS.M1);
     } catch (err) {
-      setError(err?.message || (isHindi ? "प्रोफ़ाइल सक्रिय करने में विफल।" : "Failed to activate profile."));
+      setError(err?.message || (tr('Failed to activate profile.', 'प्रोफ़ाइल सक्रिय करने में विफल।')));
     } finally {
       setLoading(false);
     }
@@ -353,25 +334,21 @@ export default function AuthScreen() {
             className="mb-4 flex w-fit items-center gap-2 rounded-xl px-2 py-2 text-sm font-medium text-slate-600 transition active:scale-[0.98]"
           >
             <ArrowLeft size={18} />
-            {isHindi ? "वापस" : "Back"}
+            {tr('Back', 'वापस')}
           </button>
         )}
 
         <div className="mb-6 mt-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {step === "select_patient"
-              ? isHindi ? "मरीज़ प्रोफ़ाइल चुनें" : "Select Patient Account"
-              : isHindi ? "आयुषकेयर में प्रवेश करें" : "Sign In to AyushCare"}
+              ? tr('Select Patient Account', 'मरीज़ प्रोफ़ाइल चुनें')
+              : tr('Sign In to AyushCare', 'आयुषकेयर में प्रवेश करें')}
           </h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-600 max-w-xs mx-auto">
             {step === "select_patient"
-              ? isHindi
-                ? "इस मोबाइल नंबर से जुड़े खाते नीचे दिए गए हैं। जिस प्रोफ़ाइल को आप खोलना चाहते हैं उसे चुनें।"
-                : "Choose the patient profile registered with this number that you want to access."
-              : isHindi
-                ? "अपनी पहचान सत्यापित करके अपने स्वास्थ्य रिकॉर्ड और विज़िट देखें।"
-                : "Verify your identity to access your visits and health records."}
+              ? tr('Choose the patient profile registered with this number that you want to access.', 'इस मोबाइल नंबर से जुड़े खाते नीचे दिए गए हैं। जिस प्रोफ़ाइल को आप खोलना चाहते हैं उसे चुनें।')
+              : tr('Verify your identity to access your visits and health records.', 'अपनी पहचान सत्यापित करके अपने स्वास्थ्य रिकॉर्ड और विज़िट देखें।')}
           </p>
         </div>
 
@@ -403,9 +380,7 @@ export default function AuthScreen() {
 
         {selectedMethod.isDemo && step === "identifier" && (
           <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 p-2.5 text-center text-xs text-amber-800">
-            {isHindi
-              ? `डेमो मोड: ${selectedMethod.label} के लिए कोई भी ${selectedMethod.maxLength} अंक और 6-अंकीय OTP दर्ज करें।`
-              : `Demo mode: Enter any ${selectedMethod.maxLength} digits for ${selectedMethod.label} and any 6-digit OTP to preview.`}
+            {tr('Demo mode: Enter any ${selectedMethod.maxLength} digits for ${selectedMethod.label} and any 6-digit OTP to preview.', 'डेमो मोड: ${selectedMethod.label} के लिए कोई भी ${selectedMethod.maxLength} अंक और 6-अंकीय OTP दर्ज करें।')}
           </div>
         )}
 
@@ -413,7 +388,7 @@ export default function AuthScreen() {
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
-                {isHindi ? "उपलब्ध खाते" : "Registered Profiles"} ({availablePatients.length})
+                {tr('Registered Profiles', 'उपलब्ध खाते')} ({availablePatients.length})
               </span>
               <span className="text-xs text-slate-500">
                 {identifier.slice(0, 10)}
@@ -422,14 +397,14 @@ export default function AuthScreen() {
 
             <div className="space-y-3">
               {availablePatients.map((patient) => {
-                const isSelected = patient.id === selectedPatientId;
+                const isSelected = (patient.abha_number || patient.abhaNumber) === selectedPatientId;
 
                 return (
                   <div
                     key={patient.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedPatientId(patient.id)}
+                    onClick={() => setSelectedPatientId(patient.abha_number || patient.abhaNumber)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -467,7 +442,7 @@ export default function AuthScreen() {
 
                       <div className="flex items-center gap-2">
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold font-mono text-slate-700">
-                          {patient.patient_code || patient.patientId || patient.id.slice(0, 8)}
+                          {patient.abha_number || patient.abhaNumber || patient.patientId}
                         </span>
                         <div
                           className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition ${
@@ -486,7 +461,7 @@ export default function AuthScreen() {
                       <div className="flex items-center gap-2 text-slate-700">
                         <CalendarDays size={15} className="text-slate-400 shrink-0" />
                         <span className="truncate">
-                          <strong className="font-semibold text-slate-800">{isHindi ? "अंतिम विज़िट: " : "Last: "}</strong>
+                          <strong className="font-semibold text-slate-800">{tr('Last: ', 'अंतिम विज़िट: ')}</strong>
                           {patient.last_visit || "None"}
                         </span>
                       </div>
@@ -526,12 +501,12 @@ export default function AuthScreen() {
                 {loading ? (
                   <>
                     <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    {isHindi ? "प्रोफ़ाइल खुल रही है..." : "Opening profile..."}
+                    {tr('Opening profile...', 'प्रोफ़ाइल खुल रही है...')}
                   </>
                 ) : (
                   <>
                     <UserCheck size={20} />
-                    {isHindi ? "प्रोफ़ाइल खोलें (आगे बढ़ें)" : "Go to Profile"}
+                    {tr('Go to Profile', 'प्रोफ़ाइल खोलें (आगे बढ़ें)')}
                     <ArrowRight size={18} />
                   </>
                 )}
@@ -546,7 +521,7 @@ export default function AuthScreen() {
                 }}
                 className="flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
-                {isHindi ? "दूसरा नंबर उपयोग करें" : "Use a different number"}
+                {tr('Use a different number', 'दूसरा नंबर उपयोग करें')}
               </button>
             </div>
           </div>
@@ -588,12 +563,8 @@ export default function AuthScreen() {
                   className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading
-                    ? isHindi
-                      ? "जाँच हो रही है..."
-                      : "Checking..."
-                    : isHindi
-                      ? "OTP भेजें"
-                      : "Send OTP"}
+                    ? tr('Checking...', 'जाँच हो रही है...')
+                    : tr('Send OTP', 'OTP भेजें')}
                 </button>
               </>
             ) : (
@@ -607,9 +578,7 @@ export default function AuthScreen() {
 
                     <div>
                       <p className="text-sm font-semibold text-emerald-900">
-                        {isHindi
-                          ? "OTP भेज दिया गया है"
-                          : "OTP sent"}
+                        {tr('OTP sent', 'OTP भेज दिया गया है')}
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-emerald-800">
@@ -624,7 +593,7 @@ export default function AuthScreen() {
                 </div>
 
                 <label className="mb-2 block text-sm font-semibold text-slate-800">
-                  {isHindi ? "OTP दर्ज करें" : "Enter OTP"}
+                  {tr('Enter OTP', 'OTP दर्ज करें')}
                 </label>
 
                 <input
@@ -639,9 +608,7 @@ export default function AuthScreen() {
                     setError("");
                   }}
                   placeholder={
-                    isHindi
-                      ? "6 अंकों का OTP"
-                      : "6-digit OTP"
+                    tr('6-digit OTP', '6 अंकों का OTP')
                   }
                   inputMode="numeric"
                   maxLength={6}
@@ -672,12 +639,8 @@ export default function AuthScreen() {
                   className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 px-5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading
-                    ? isHindi
-                      ? "सत्यापन हो रहा है..."
-                      : "Verifying..."
-                    : isHindi
-                      ? "सत्यापित करें"
-                      : "Verify & Continue"}
+                    ? tr('Verifying...', 'सत्यापन हो रहा है...')
+                    : tr('Verify & Continue', 'सत्यापित करें')}
                 </button>
 
                 <button
@@ -689,7 +652,7 @@ export default function AuthScreen() {
                   }}
                   className="mt-3 flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
-                  {isHindi ? "विवरण बदलें" : "Change details"}
+                  {tr('Change details', 'विवरण बदलें')}
                 </button>
               </>
             )}
@@ -704,9 +667,7 @@ export default function AuthScreen() {
             />
 
             <p className="text-xs leading-5 text-slate-600">
-              {isHindi
-                ? "सुरक्षित सत्र 8 घंटे तक सक्रिय रहता है। आपके स्वास्थ्य डेटा की पूर्ण गोपनीयता सुनिश्चित की जाती है।"
-                : "Secure 8-hour sessions keep you logged in. Your health records are protected with digital privacy controls."}
+              {tr('Secure 8-hour sessions keep you logged in. Your health records are protected with digital privacy controls.', 'सुरक्षित सत्र 8 घंटे तक सक्रिय रहता है। आपके स्वास्थ्य डेटा की पूर्ण गोपनीयता सुनिश्चित की जाती है।')}
             </p>
           </div>
         </div>

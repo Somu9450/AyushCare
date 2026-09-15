@@ -30,9 +30,10 @@ export async function connectKioskSession(sessionReference) {
       kioskName: payload.kiosk_id,
       terminalId: payload.kiosk_id,
       consultationId: payload.consultation_id,
-      patient: payload.patient_code ? {
+      patient: payload.abha_number ? {
         id: payload.patient_id || null,
-        patient_code: payload.patient_code,
+        abha_number: payload.abha_number,
+        patientId: payload.abha_number,
         full_name: payload.full_name || "",
         gender: payload.gender || "",
         date_of_birth: payload.date_of_birth || null,

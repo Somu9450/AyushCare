@@ -109,8 +109,9 @@ function KioskConnectScreen() {
             null,
 
           patientId:
+            store.patient?.abhaNumber ||
+            store.patient?.abha_number ||
             store.patient?.patientId ||
-            store.patient?.id ||
             null,
 
           name:
@@ -119,10 +120,11 @@ function KioskConnectScreen() {
             store.patient?.name ||
             null,
 
-          patientCode:
-            result.session?.patient?.patient_code ||
-            result.kiosk?.patient_code ||
-            store.patient?.patient_code ||
+          abhaNumber:
+            result.session?.patient?.abha_number ||
+            result.kiosk?.abha_number ||
+            store.patient?.abha_number ||
+            store.patient?.abhaNumber ||
             null,
         }
       );
