@@ -5,6 +5,8 @@ import useMobileStore, { SCREENS } from "./store/useMobileStore";
 import LanguageSwitcher from "./components/mobile/LanguageSwitcher";
 import BottomNavBar from "./components/mobile/BottomNavBar";
 import { exchangePatientQrToken } from "./services/authService";
+import useDomTranslation from "./hooks/useDomTranslation";
+import useDomTranslation from "./hooks/useDomTranslation";
 
 const AuthScreen = lazy(() => import("./pages/mobile/AuthScreen"));
 const M1MobileHome = lazy(() => import("./pages/mobile/M1_MobileHome"));
@@ -46,6 +48,8 @@ const HEADER_SCREENS = new Set([
 import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function App() {
+  useDomTranslation();
+  useDomTranslation();
   const {
     currentScreen,
     isAuthenticated,

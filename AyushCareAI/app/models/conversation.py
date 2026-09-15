@@ -50,6 +50,10 @@ class AIQuestion(BaseModel):
     options: Optional[list[Choice]] = None
     selection_mode: Optional[str] = None
     is_follow_up: bool = False
+    audio_base64: Optional[str] = None
+    audio_encoding: Optional[str] = None
+    audio_mime_type: Optional[str] = None
+    tts_duration_estimate_sec: Optional[float] = None
     clinical_context: Optional[str] = Field(
         default=None,
         description="Brief clinical rationale for this question (for audit)",

@@ -20,10 +20,10 @@ export const PrivacyConfirmModal = ({
   variant = "warning", // "warning" | "danger" | "primary"
   icon: CustomIcon,
 }) => {
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
   if (!isOpen) return null;
 
-  const defaultCancel = cancelText || (isHindi ? "रद्द करें" : "Cancel");
+  const defaultCancel = cancelText || (tr('Cancel', 'रद्द करें'));
 
   const getVariantStyles = () => {
     switch (variant) {
@@ -99,9 +99,7 @@ export const PrivacyConfirmModal = ({
         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500 leading-snug flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
           <span>
-            {isHindi
-              ? "यह सेटिंग आपके किसी भी सहेजे गए रिकॉर्ड को नष्ट या डिलीट नहीं करती है।"
-              : "This product setting does not delete any of your saved records."}
+            {tr('This product setting does not delete any of your saved records.', 'यह सेटिंग आपके किसी भी सहेजे गए रिकॉर्ड को नष्ट या डिलीट नहीं करती है।')}
           </span>
         </div>
 

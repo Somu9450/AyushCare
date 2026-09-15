@@ -52,8 +52,8 @@ export function validateDocumentForAnalysis(payload) {
   return pages.length ? { valid: true, reason: "", pages } : { valid: false, reason: "No document pages were provided.", pages: [] };
 }
 
-const ALLOWED = new Set(["image/jpeg", "image/png", "image/jpg", "image/webp"]);
-const MAX_BYTES = 15 * 1024 * 1024;
+const ALLOWED = new Set(["image/jpeg", "image/png", "image/jpg", "image/webp", "application/pdf"]);
+const MAX_BYTES = 20 * 1024 * 1024;
 
 async function toBlob(page) {
   if (page?.file instanceof Blob) return page.file;
@@ -67,7 +67,7 @@ async function toBlob(page) {
 async function uploadBlob(consultationId, page, documentType) {
   const blob = await toBlob(page);
   const type = String(blob.type || page.mimeType || "image/jpeg").split(";")[0].toLowerCase();
-  if (!ALLOWED.has(type)) throw new Error("Only JPEG, PNG, and WebP images can be analyzed.");
+  if (!ALLOWED.has(type)) throw new Error("Only JPEG, PNG, WebP images, or PDF documents can be analyzed.");
   if (blob.size > MAX_BYTES) throw new Error("Each image must be 15 MB or smaller.");
 
   const fileName = page.fileName || `document-${page.pageNumber || 1}.jpg`;

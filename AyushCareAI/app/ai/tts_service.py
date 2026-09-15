@@ -1,15 +1,18 @@
 """TTS (Text-to-Speech) service for reading questions aloud to patients.
 
-Powered by Microsoft Edge Neural TTS (100% Free, zero billing, natural Indian language voices).
+Primary: Bhashini IITM TTS (24 Indian languages, government-backed).
+Fallback: Microsoft Edge Neural TTS (free, no keys needed).
 """
 
 from __future__ import annotations
 
 import base64
+from typing import Any, Optional
 
 import structlog
 
 from app.config import Settings
+from app.domain.languages import get_bhashini_code
 
 logger = structlog.get_logger(__name__)
 
@@ -34,13 +37,22 @@ _EDGE_VOICE_MAP: dict[str, str] = {
 
 
 class TTSService:
-    """Text-to-Speech service for patient-facing audio output."""
+    """Text-to-Speech service with Bhashini TTS + Edge TTS fallback."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        bhashini_client: Any = None,
+    ) -> None:
         self._settings = settings
+        self._bhashini_client = bhashini_client
+        self._cache: dict[tuple[str, str], dict] = {}
+        self._cache_limit = 128
 
     @property
     def is_available(self) -> bool:
+        if self._bhashini_client is not None:
+            return True
         try:
             import edge_tts
             return True
@@ -55,7 +67,9 @@ class TTSService:
         speaking_rate: float = 0.9,
         audio_encoding: str = "MP3",
     ) -> dict:
-        """Convert text to speech audio using free Edge Neural TTS.
+        """Convert text to speech audio.
+
+        Priority: Bhashini IITM TTS (primary) → Edge Neural TTS (fallback).
 
         Args:
             text: Text to synthesize.
@@ -66,6 +80,64 @@ class TTSService:
         Returns:
             dict with keys: 'audio_base64', 'encoding', 'duration_estimate_sec'
         """
+        # Small in-process cache avoids re-synthesizing repeated UI/interview questions.
+        cache_key = (language, text.strip())
+        cached = self._cache.get(cache_key)
+        if cached:
+            return dict(cached)
+
+        # Primary: Bhashini TTS
+        if self._bhashini_client and self._settings.tts_provider == "bhashini":
+            try:
+                result = await self._synthesize_bhashini(text, language)
+                self._cache[cache_key] = dict(result)
+                if len(self._cache) > self._cache_limit:
+                    self._cache.pop(next(iter(self._cache)))
+                return result
+            except Exception as e:
+                logger.warning("bhashini_tts_failed_trying_edge", error=str(e))
+
+        # Fallback: Edge TTS
+        return await self._synthesize_edge(text, language, speaking_rate, audio_encoding)
+
+    async def _synthesize_bhashini(
+        self,
+        text: str,
+        language: str = "en",
+        gender: str = "female",
+    ) -> dict:
+        """Synthesize speech using Bhashini IITM TTS."""
+        bhashini_lang = get_bhashini_code(language) or language
+
+        result = await self._bhashini_client.tts(
+            text=text,
+            target_lang=bhashini_lang,
+            gender=gender,
+            service_id=self._settings.bhashini_tts_model,
+        )
+
+        duration_estimate = (len(text) / 5) / (150 * 0.9) * 60
+
+        logger.info(
+            "bhashini_tts_synthesis_complete",
+            language=bhashini_lang,
+            text_length=len(text),
+        )
+
+        return {
+            "audio_base64": result.get("audio_base64", ""),
+            "encoding": "WAV",
+            "duration_estimate_sec": round(duration_estimate, 1),
+        }
+
+    async def _synthesize_edge(
+        self,
+        text: str,
+        language: str = "en",
+        speaking_rate: float = 0.9,
+        audio_encoding: str = "MP3",
+    ) -> dict:
+        """Synthesize speech using Edge Neural TTS (fallback)."""
         try:
             import edge_tts
 

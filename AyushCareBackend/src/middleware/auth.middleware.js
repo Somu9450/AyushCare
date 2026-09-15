@@ -50,7 +50,7 @@ export const verifyPatientJWT = asyncHandler(async (req, res, next) => {
         }
 
         const patientQuery = await pool.query(
-            'SELECT id, full_name, mobile_number, consent_granted FROM patients WHERE id = $1',
+            'SELECT id, abha_number, full_name, mobile_number, consent_granted FROM patients WHERE id = $1',
             [decodedToken.id]
         );
 

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     log_level: str = "INFO"
+    enable_docs: bool = False
 
     # ── Server ───────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
@@ -44,31 +45,52 @@ class Settings(BaseSettings):
         default=["http://localhost:3000", "http://localhost:5173"],
     )
 
-    # ── LLM — Google Gemini (primary) ────────────────────────────────────
-    gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-3.6-flash"
-    gemini_model_advanced: str = "gemini-3.6-flash"
-    gemini_max_tokens: int = 8192
-    gemini_temperature: float = 0.2
-
-    # ── LLM — Groq (fast, free fallback) ─────────────────────────────────
+    # ── LLM — Groq (sole LLM provider) ───────────────────────────────────
     groq_api_key: Optional[str] = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_max_tokens: int = 8192
     groq_temperature: float = 0.2
-    groq_vision_model: str = "qwen/qwen3-vl-32b-instruct"
+    groq_vision_model: str = "qwen/qwen3.6-27b"
     llm_request_timeout_seconds: float = 10.0
 
+    # ── Bhashini API (Government AI Platform) ────────────────────────────
+    bhashini_udyat_key: Optional[str] = None
+    bhashini_user_id: str = "medikiosk"
+    bhashini_inference_key: Optional[str] = None
+    bhashini_pipeline_url: str = "https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline"
+    bhashini_asr_model: str = "bhashini/ai4bharat/conformer-multilingual-asr"
+    bhashini_asr_en_model: str = "ai4bharat/whisper-medium-en--gpu--t4"
+    bhashini_tts_model: str = "Bhashini/IITM/TTS"
+    bhashini_nmt_model: str = "ai4bharat/indictrans-v2-all-gpu--t4"
+    bhashini_ocr_printed_model: str = "bhashini/iiith-bhasha-ocr"
+    bhashini_ocr_handwritten_model: str = "bhashini/iiith/ocr-hw-bhaasha"
+    bhashini_tld_model: str = "bhashini/indic-lang-detection-all"
+    bhashini_ald_model: str = "bhashini/iitmandi/audio-lang-detection/gpu"
+
     # ── OCR ──────────────────────────────────────────────────────────────
-    ocr_provider: str = "gemini_vision"  # "gemini_vision" | "groq_vision" | "tesseract"
+    # Azure Document Intelligence is the primary production OCR provider.
+    # Bhashini/Groq Vision/Tesseract remain available as explicit providers.
+    ocr_provider: str = "azure"  # "azure" | "bhashini" | "groq_vision" | "tesseract"
+    azure_document_intelligence_endpoint: Optional[str] = None
+    azure_document_intelligence_key: Optional[str] = None
+    azure_document_intelligence_api_version: str = "2024-11-30"
     tesseract_cmd: Optional[str] = None
 
+    # ── Medical NLP ─────────────────────────────────────────────────────
+    # Azure Text Analytics for Health provides a specialist medical entity/
+    # assertion extraction signal; the existing LLM remains available for
+    # contextual normalization and fields not covered by the health API.
+    medical_nlp_provider: str = "azure"
+    azure_language_endpoint: Optional[str] = None
+    azure_language_key: Optional[str] = None
+    azure_language_api_version: str = "2022-05-15-preview"
+
     # ── ASR — Speech-to-Text ─────────────────────────────────────────────
-    asr_provider: str = "groq_whisper"  # "groq_whisper" (free with Groq key)
+    asr_provider: str = "bhashini"  # "bhashini" | "groq_whisper"
     whisper_model: str = "whisper-large-v3-turbo"
 
     # ── TTS — Text-to-Speech ─────────────────────────────────────────────
-    tts_provider: str = "edge_tts"  # "edge_tts" (100% free neural voices)
+    tts_provider: str = "bhashini"  # "bhashini" | "edge_tts"
 
     # ── Database ─────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./medikiosk_dev.db"
@@ -107,10 +129,6 @@ class Settings(BaseSettings):
 
     @property
     def primary_llm_available(self) -> bool:
-        return self.gemini_api_key is not None
-
-    @property
-    def fallback_llm_available(self) -> bool:
         return self.groq_api_key is not None
 
 

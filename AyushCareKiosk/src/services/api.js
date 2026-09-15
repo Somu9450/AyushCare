@@ -11,8 +11,10 @@ const request = async (config) => unwrap(await api(config));
 
 export const kioskApi = {
   verifyPatient: (payload) => request({ method: 'POST', url: '/intake/auth/abha', data: payload }),
-  lookupPatients: ({ patientId, mobileNumber }) => request({ method: 'GET', url: '/intake/patients/lookup', params: { ...(patientId ? { patient_id: patientId } : {}), ...(mobileNumber ? { mobile_number: mobileNumber } : {}) } }),
+  lookupPatients: ({ abhaNumber, mobileNumber }) => request({ method: 'GET', url: '/intake/patients/lookup', params: { ...(abhaNumber ? { abha_number: abhaNumber } : {}), ...(mobileNumber ? { mobile_number: mobileNumber } : {}) } }),
   systemHealth: () => request({ method: 'GET', url: '/intake/system/health', timeout: 10000 }),
+  languages: () => request({ method: 'GET', url: '/language/languages', timeout: 15000 }),
+  translate: (text, sourceLanguage, targetLanguage) => request({ method: 'POST', url: '/language/translate', data: { text, source_language: sourceLanguage, target_language: targetLanguage }, timeout: 20000 }),
   getSession: (sessionId) => request({ method: 'GET', url: `/intake/session/${sessionId}` }),
   routing: (sessionId, payload) => request({ method: 'PUT', url: `/intake/session/${sessionId}/routing`, data: payload }),
   updateLanguage: (sessionId, language) => request({ method: 'PUT', url: `/intake/session/${sessionId}/language`, data: { language } }),

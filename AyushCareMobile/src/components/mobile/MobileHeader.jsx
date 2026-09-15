@@ -107,9 +107,9 @@ function MobileHeader({
 
           <LanguageSwitcher />
 
-          {patient?.patient_code ? (
+          {(patient?.abha_number || patient?.abhaNumber || patient?.patientId) ? (
             <span className="hidden rounded-full bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 sm:inline">
-              ID {patient.patient_code}
+              ABHA {patient.abha_number || patient.abhaNumber || patient.patientId}
             </span>
           ) : null}
 

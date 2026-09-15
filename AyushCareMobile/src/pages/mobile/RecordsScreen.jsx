@@ -61,26 +61,16 @@ const STATUS_META = {
 
 function getTypeLabel(record, isHindi) {
   const labels = {
-    prescription: isHindi
-      ? "पर्चा"
-      : "Prescription",
-    lab_report: isHindi
-      ? "लैब रिपोर्ट"
-      : "Lab Report",
-    discharge_summary: isHindi
-      ? "डिस्चार्ज सारांश"
-      : "Discharge Summary",
-    other: isHindi
-      ? "अन्य रिकॉर्ड"
-      : "Other Record",
+    prescription: tr('Prescription', 'पर्चा'),
+    lab_report: tr('Lab Report', 'लैब रिपोर्ट'),
+    discharge_summary: tr('Discharge Summary', 'डिस्चार्ज सारांश'),
+    other: tr('Other Record', 'अन्य रिकॉर्ड'),
   };
 
   return (
     record?.typeLabel ||
     labels[record?.type] ||
-    (isHindi
-      ? "चिकित्सीय रिकॉर्ड"
-      : "Medical Record")
+    (tr('Medical Record', 'चिकित्सीय रिकॉर्ड'))
   );
 }
 
@@ -96,9 +86,7 @@ function getRecordDate(record) {
 
 function formatDate(value, isHindi) {
   if (!value) {
-    return isHindi
-      ? "तारीख उपलब्ध नहीं"
-      : "Date unavailable";
+    return isHindi ? 'तारीख उपलब्ध नहीं' : 'Date unavailable';
   }
 
   const parsed = new Date(value);
@@ -108,7 +96,7 @@ function formatDate(value, isHindi) {
   }
 
   return parsed.toLocaleDateString(
-    isHindi ? "hi-IN" : "en-IN",
+    isHindi ? 'hi-IN' : 'en-IN',
     {
       day: "numeric",
       month: "short",
@@ -123,37 +111,23 @@ function getRecordSource(record, isHindi) {
     record?.clinic ||
     record?.hospital ||
     record?.facility ||
-    (isHindi
-      ? "स्वास्थ्य केंद्र"
-      : "Healthcare facility")
+    (tr('Healthcare facility', 'स्वास्थ्य केंद्र'))
   );
 }
 
 function getStatusLabel(status, isHindi) {
   const labels = {
-    UPLOADED: isHindi
-      ? "अपलोड किया गया"
-      : "Uploaded",
-    CONFIRMED: isHindi
-      ? "पुष्ट"
-      : "Confirmed",
-    NEEDS_REVIEW: isHindi
-      ? "समीक्षा आवश्यक"
-      : "Needs review",
-    PROCESSING: isHindi
-      ? "प्रक्रिया जारी"
-      : "Processing",
-    PROCESSED: isHindi
-      ? "प्रसंस्कृत"
-      : "Processed",
-    FAILED: isHindi
-      ? "विफल"
-      : "Failed",
+    UPLOADED: tr('Uploaded', 'अपलोड किया गया'),
+    CONFIRMED: tr('Confirmed', 'पुष्ट'),
+    NEEDS_REVIEW: tr('Needs review', 'समीक्षा आवश्यक'),
+    PROCESSING: tr('Processing', 'प्रक्रिया जारी'),
+    PROCESSED: tr('Processed', 'प्रसंस्कृत'),
+    FAILED: tr('Failed', 'विफल'),
   };
 
   return (
     labels[status] ||
-    (isHindi ? "रिकॉर्ड" : "Record")
+    (tr('Record', 'रिकॉर्ड'))
   );
 }
 
@@ -210,7 +184,7 @@ export default function RecordsScreen() {
     isHealthHistoryLocked,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -250,33 +224,25 @@ export default function RecordsScreen() {
   const categories = [
     {
       id: "prescription",
-      title: isHindi
-        ? "पर्चे"
-        : "Prescriptions",
+      title: tr('Prescriptions', 'पर्चे'),
       count: categoryCounts.prescription,
       icon: CATEGORY_META.prescription.icon,
     },
     {
       id: "lab_report",
-      title: isHindi
-        ? "लैब रिपोर्ट"
-        : "Lab reports",
+      title: tr('Lab reports', 'लैब रिपोर्ट'),
       count: categoryCounts.lab_report,
       icon: CATEGORY_META.lab_report.icon,
     },
     {
       id: "discharge_summary",
-      title: isHindi
-        ? "डिस्चार्ज"
-        : "Discharge",
+      title: tr('Discharge', 'डिस्चार्ज'),
       count: categoryCounts.discharge_summary,
       icon: CATEGORY_META.discharge_summary.icon,
     },
     {
       id: "other",
-      title: isHindi
-        ? "अन्य"
-        : "Other",
+      title: tr('Other', 'अन्य'),
       count: categoryCounts.other,
       icon: CATEGORY_META.other.icon,
     },
@@ -358,16 +324,14 @@ export default function RecordsScreen() {
     filteredRecords.forEach((record) => {
       const date = getRecordDate(record);
 
-      let groupName = isHindi
-        ? "अन्य"
-        : "Other";
+      let groupName = tr('Other', 'अन्य');
 
       if (date) {
         const parsed = new Date(date);
 
         if (!Number.isNaN(parsed.getTime())) {
           groupName = parsed.toLocaleDateString(
-            isHindi ? "hi-IN" : "en-IN",
+            isHindi ? 'hi-IN' : 'en-IN',
             {
               month: "long",
               year: "numeric",
@@ -404,11 +368,9 @@ export default function RecordsScreen() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={isHindi ? "मेडिकल रिकॉर्ड्स" : "Medical Records"}
+        title={tr('Medical Records', 'मेडिकल रिकॉर्ड्स')}
         subtitle={
-          isHindi
-            ? "आपके पर्चे और चिकित्सीय दस्तावेज़"
-            : "Your prescriptions and medical documents"
+          tr('Your prescriptions and medical documents', 'आपके पर्चे और चिकित्सीय दस्तावेज़')
         }
       />
 
@@ -416,24 +378,18 @@ export default function RecordsScreen() {
         <section className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-black tracking-tight">
-              {isHindi
-                ? "आपके रिकॉर्ड"
-                : "Your records"}
+              {tr('Your records', 'आपके रिकॉर्ड')}
             </h1>
 
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              {isHindi
-                ? "अपलोड किए गए और संसाधित दस्तावेज़ यहां मिलेंगे।"
-                : "Uploaded and processed documents appear here."}
+              {tr('Uploaded and processed documents appear here.', 'अपलोड किए गए और संसाधित दस्तावेज़ यहां मिलेंगे।')}
             </p>
           </div>
 
           {isHealthHistoryLocked ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800">
               <Lock size={11} />
-              {isHindi
-                ? "प्रतिबंधित"
-                : "Restricted"}
+              {tr('Restricted', 'प्रतिबंधित')}
             </span>
           ) : null}
         </section>
@@ -442,21 +398,15 @@ export default function RecordsScreen() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <span className="inline-flex rounded-lg bg-teal-700/60 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-teal-100">
-                {isHindi
-                  ? "नया रिकॉर्ड"
-                  : "New record"}
+                {tr('New record', 'नया रिकॉर्ड')}
               </span>
 
               <h2 className="mt-2 text-base font-black">
-                {isHindi
-                  ? "चिकित्सीय दस्तावेज़ जोड़ें"
-                  : "Add a medical document"}
+                {tr('Add a medical document', 'चिकित्सीय दस्तावेज़ जोड़ें')}
               </h2>
 
               <p className="mt-1 text-xs leading-5 text-teal-100/90">
-                {isHindi
-                  ? "पर्चा या रिपोर्ट स्कैन करके रिकॉर्ड में जोड़ें।"
-                  : "Scan a prescription or report to add it to your records."}
+                {tr('Scan a prescription or report to add it to your records.', 'पर्चा या रिपोर्ट स्कैन करके रिकॉर्ड में जोड़ें।')}
               </p>
             </div>
 
@@ -466,7 +416,7 @@ export default function RecordsScreen() {
               className="flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-white px-4 text-xs font-bold text-teal-950 active:scale-95"
             >
               <UploadCloud size={16} />
-              {isHindi ? "अपलोड" : "Upload"}
+              {tr('Upload', 'अपलोड')}
             </button>
           </div>
         </section>
@@ -485,9 +435,7 @@ export default function RecordsScreen() {
                 setSearchQuery(event.target.value)
               }
               placeholder={
-                isHindi
-                  ? "रिकॉर्ड खोजें..."
-                  : "Search records..."
+                tr('Search records...', 'रिकॉर्ड खोजें...')
               }
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-10 text-sm font-medium outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             />
@@ -498,9 +446,7 @@ export default function RecordsScreen() {
                 onClick={() => setSearchQuery("")}
                 className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100"
                 aria-label={
-                  isHindi
-                    ? "खोज साफ करें"
-                    : "Clear search"
+                  tr('Clear search', 'खोज साफ करें')
                 }
               >
                 <X size={16} />
@@ -512,9 +458,7 @@ export default function RecordsScreen() {
         <section className="mt-5">
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
-              {isHindi
-                ? "श्रेणियां"
-                : "Categories"}
+              {tr('Categories', 'श्रेणियां')}
             </h2>
 
             {selectedRecordCategory !==
@@ -527,7 +471,7 @@ export default function RecordsScreen() {
                 className="inline-flex items-center gap-1 text-xs font-bold text-teal-800"
               >
                 <RotateCcw size={12} />
-                {isHindi ? "सभी" : "Show all"}
+                {tr('Show all', 'सभी')}
               </button>
             ) : null}
           </div>
@@ -556,17 +500,13 @@ export default function RecordsScreen() {
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
                 {selectedRecordCategory ===
                 "ALL"
-                  ? isHindi
-                    ? "सभी रिकॉर्ड"
-                    : "All records"
+                  ? tr('All records', 'सभी रिकॉर्ड')
                   : categories.find(
                         (item) =>
                           item.id ===
                           selectedRecordCategory
                       )?.title ||
-                    (isHindi
-                      ? "रिकॉर्ड"
-                      : "Records")}
+                    (tr('Records', 'रिकॉर्ड'))}
               </h2>
 
               <p className="mt-0.5 text-[11px] text-slate-400">
@@ -587,9 +527,7 @@ export default function RecordsScreen() {
               className="inline-flex items-center gap-1 text-xs font-bold text-teal-800"
             >
               <Clock3 size={14} />
-              {isHindi
-                ? "समयरेखा"
-                : "Timeline"}
+              {tr('Timeline', 'समयरेखा')}
               <ChevronRight size={14} />
             </button>
           </div>
@@ -776,7 +714,7 @@ function RecordCard({
             {pages > 1 ? (
               <span className="rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">
                 {pages}{" "}
-                {isHindi ? "पृष्ठ" : "pages"}
+                {tr('pages', 'पृष्ठ')}
               </span>
             ) : null}
           </div>
@@ -784,9 +722,7 @@ function RecordCard({
           <h3 className="mt-2 text-sm font-black leading-5 text-slate-900">
             {record?.title ||
               record?.fileName ||
-              (isHindi
-                ? "चिकित्सीय रिकॉर्ड"
-                : "Medical record")}
+              (tr('Medical record', 'चिकित्सीय रिकॉर्ड'))}
           </h3>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
@@ -817,9 +753,7 @@ function RecordCard({
           {entityCount > 0 ? (
             <div className="mt-3 inline-flex rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-500">
               {entityCount}{" "}
-              {isHindi
-                ? "निकाली गई जानकारी"
-                : "extracted items"}
+              {tr('extracted items', 'निकाली गई जानकारी')}
             </div>
           ) : null}
         </div>
@@ -837,9 +771,7 @@ function RecordCard({
         />
 
         <span className="text-[10px] font-bold text-teal-800">
-          {isHindi
-            ? "विवरण देखें"
-            : "View details"}
+          {tr('View details', 'विवरण देखें')}
         </span>
       </div>
     </button>
@@ -863,22 +795,14 @@ function EmptyRecords({
 
       <h3 className="mt-4 text-base font-black text-slate-800">
         {searching
-          ? isHindi
-            ? "कोई रिकॉर्ड नहीं मिला"
-            : "No matching records"
-          : isHindi
-            ? "अभी कोई रिकॉर्ड नहीं है"
-            : "No medical records yet"}
+          ? tr('No matching records', 'कोई रिकॉर्ड नहीं मिला')
+          : tr('No medical records yet', 'अभी कोई रिकॉर्ड नहीं है')}
       </h3>
 
       <p className="mx-auto mt-1.5 max-w-xs text-xs leading-5 text-slate-500">
         {searching
-          ? isHindi
-            ? "खोज शब्द बदलकर फिर प्रयास करें।"
-            : "Try a different search term."
-          : isHindi
-            ? "आपके अपलोड किए गए दस्तावेज़ यहां दिखाई देंगे।"
-            : "Your uploaded documents will appear here."}
+          ? tr('Try a different search term.', 'खोज शब्द बदलकर फिर प्रयास करें।')
+          : tr('Your uploaded documents will appear here.', 'आपके अपलोड किए गए दस्तावेज़ यहां दिखाई देंगे।')}
       </p>
 
       {!searching ? (
@@ -888,9 +812,7 @@ function EmptyRecords({
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-800 px-4 py-2.5 text-xs font-bold text-white active:scale-95"
         >
           <UploadCloud size={14} />
-          {isHindi
-            ? "दस्तावेज़ अपलोड करें"
-            : "Upload document"}
+          {tr('Upload document', 'दस्तावेज़ अपलोड करें')}
         </button>
       ) : null}
     </div>

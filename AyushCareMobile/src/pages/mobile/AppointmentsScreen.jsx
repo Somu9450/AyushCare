@@ -75,7 +75,7 @@ function getTimeValue(appointment) {
 
 function formatDate(value, isHindi) {
   if (!value) {
-    return isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable";
+    return isHindi ? 'तारीख उपलब्ध नहीं' : 'Date unavailable';
   }
 
   const parsed = new Date(value);
@@ -85,7 +85,7 @@ function formatDate(value, isHindi) {
   }
 
   return parsed.toLocaleDateString(
-    isHindi ? "hi-IN" : "en-IN",
+    isHindi ? 'hi-IN' : 'en-IN',
     {
       day: "numeric",
       month: "short",
@@ -102,7 +102,7 @@ export default function AppointmentsScreen() {
     loadPortalData,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [today, setToday] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
@@ -138,9 +138,7 @@ export default function AppointmentsScreen() {
     } catch (loadError) {
       setError(
         loadError?.message ||
-          (isHindi
-            ? "अपॉइंटमेंट लोड नहीं हो सके।"
-            : "Unable to load appointments.")
+          (tr('Unable to load appointments.', 'अपॉइंटमेंट लोड नहीं हो सके।'))
       );
     } finally {
       setLoading(false);
@@ -155,19 +153,19 @@ export default function AppointmentsScreen() {
     () => [
       {
         id: "today",
-        title: isHindi ? "आज" : "Today",
+        title: tr('Today', 'आज'),
         items: today ? [today] : [],
         highlighted: true,
       },
       {
         id: "upcoming",
-        title: isHindi ? "आने वाले अपॉइंटमेंट" : "Upcoming",
+        title: tr('Upcoming', 'आने वाले अपॉइंटमेंट'),
         items: upcoming,
         highlighted: false,
       },
       {
         id: "past",
-        title: isHindi ? "पिछले अपॉइंटमेंट" : "Previous appointments",
+        title: tr('Previous appointments', 'पिछले अपॉइंटमेंट'),
         items: past,
         highlighted: false,
       },
@@ -193,11 +191,9 @@ export default function AppointmentsScreen() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={isHindi ? "अपॉइंटमेंट" : "Appointments"}
+        title={tr('Appointments', 'अपॉइंटमेंट')}
         subtitle={
-          isHindi
-            ? "अपनी निर्धारित मुलाकातें देखें"
-            : "View your scheduled consultations"
+          tr('View your scheduled consultations', 'अपनी निर्धारित मुलाकातें देखें')
         }
       />
 
@@ -266,20 +262,20 @@ function AppointmentCard({
     appointment?.doctor ||
     appointment?.doctorName ||
     appointment?.physician ||
-    (isHindi ? "चिकित्सक" : "Doctor");
+    (tr('Doctor', 'चिकित्सक'));
 
   const specialty =
     appointment?.specialty ||
     appointment?.department ||
     appointment?.departmentName ||
-    (isHindi ? "सामान्य चिकित्सा" : "General Medicine");
+    (tr('General Medicine', 'सामान्य चिकित्सा'));
 
   const facility =
     appointment?.facility ||
     appointment?.hospital ||
     appointment?.hospitalName ||
     appointment?.location ||
-    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+    (tr('Healthcare facility', 'स्वास्थ्य केंद्र'));
 
   const date = formatDate(
     getDateValue(appointment),
@@ -288,7 +284,7 @@ function AppointmentCard({
 
   const time =
     getTimeValue(appointment) ||
-    (isHindi ? "समय उपलब्ध नहीं" : "Time unavailable");
+    (tr('Time unavailable', 'समय उपलब्ध नहीं'));
 
   const token =
     appointment?.tokenNumber ||
@@ -297,7 +293,7 @@ function AppointmentCard({
 
   const status =
     appointment?.status ||
-    (isHindi ? "निर्धारित" : "Scheduled");
+    (tr('Scheduled', 'निर्धारित'));
 
   return (
     <button
@@ -311,7 +307,7 @@ function AppointmentCard({
     >
       {highlighted && (
         <span className="mb-4 inline-flex rounded-full bg-teal-50 px-3 py-1 text-[11px] font-bold text-teal-800">
-          {isHindi ? "आज की मुलाकात" : "Today's appointment"}
+          {tr("Today's appointment", 'आज की मुलाकात')}
         </span>
       )}
 
@@ -339,13 +335,13 @@ function AppointmentCard({
       <div className="mt-5 grid grid-cols-2 gap-2.5">
         <InfoTile
           icon={CalendarDays}
-          label={isHindi ? "तारीख" : "Date"}
+          label={tr('Date', 'तारीख')}
           value={date}
         />
 
         <InfoTile
           icon={Clock3}
-          label={isHindi ? "समय" : "Time"}
+          label={tr('Time', 'समय')}
           value={time}
         />
       </div>
@@ -358,12 +354,12 @@ function AppointmentCard({
       <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
         <span className="text-[11px] font-semibold text-slate-500">
           {token
-            ? `${isHindi ? "टोकन" : "Token"} #${token}`
+            ? `${tr('Token', 'टोकन')} #${token}`
             : status}
         </span>
 
         <span className="text-[11px] font-bold text-teal-800">
-          {isHindi ? "विवरण देखें" : "View details"}
+          {tr('View details', 'विवरण देखें')}
         </span>
       </div>
     </button>
@@ -396,9 +392,7 @@ function LoadingState({ isHindi }) {
       />
 
       <p className="mt-4 text-sm font-semibold text-slate-700">
-        {isHindi
-          ? "अपॉइंटमेंट लोड हो रहे हैं..."
-          : "Loading appointments..."}
+        {tr('Loading appointments...', 'अपॉइंटमेंट लोड हो रहे हैं...')}
       </p>
     </div>
   );
@@ -417,7 +411,7 @@ function ErrorState({ message, isHindi, onRetry }) {
         className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white active:scale-95"
       >
         <RefreshCw size={14} />
-        {isHindi ? "फिर प्रयास करें" : "Try again"}
+        {tr('Try again', 'फिर प्रयास करें')}
       </button>
     </div>
   );
@@ -433,12 +427,8 @@ function EmptyState({ isHindi, today }) {
 
       <p className="mt-3 text-sm font-semibold text-slate-600">
         {today
-          ? isHindi
-            ? "आज कोई अपॉइंटमेंट नहीं है।"
-            : "No appointment scheduled for today."
-          : isHindi
-            ? "कोई अपॉइंटमेंट नहीं मिला।"
-            : "No appointments found."}
+          ? tr('No appointment scheduled for today.', 'आज कोई अपॉइंटमेंट नहीं है।')
+          : tr('No appointments found.', 'कोई अपॉइंटमेंट नहीं मिला।')}
       </p>
     </div>
   );

@@ -33,7 +33,7 @@ export const DocumentTypeCard = ({
   isSelected,
   onSelect,
 }) => {
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
   const IconComponent = ICON_MAP[type.iconName] || FileText;
 
   const displayTitle = isHindi ? (type.hi || type.title) : type.title;

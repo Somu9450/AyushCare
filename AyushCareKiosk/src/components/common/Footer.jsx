@@ -26,7 +26,7 @@ export default function Footer({ showContinue = false }) {
               <span key={index} className={index + 1 <= currentScreen ? 'active' : ''} />
             ))}
           </div>
-          <span>Step {currentScreen} of 10</span>
+          <span>{t('stepOf','Step {current} of {total}').replace('{current}', String(currentScreen)).replace('{total}', '10')}</span>
         </div>
 
         <div className="footer-spacer" />

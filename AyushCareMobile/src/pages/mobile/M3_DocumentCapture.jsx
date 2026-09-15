@@ -11,8 +11,8 @@ export default function M3_DocumentCapture() {
   const pages = Array.isArray(capturedDocuments) && capturedDocuments.length ? capturedDocuments : capturedDocument?.pages || [];
 
   const saveFiles = async (fileList) => {
-    const files = Array.from(fileList || []).filter((file) => /^(image\/(jpeg|png|webp))$/i.test(file.type) && file.size <= 15 * 1024 * 1024);
-    if (!files.length) { setError("Choose a JPEG, PNG or WebP image up to 15 MB."); return; }
+    const files = Array.from(fileList || []).filter((file) => /^(image\/(jpeg|png|webp)|application\/pdf)$/i.test(file.type) && file.size <= 20 * 1024 * 1024);
+    if (!files.length) { setError("Choose a JPEG, PNG, WebP image, or PDF up to 20 MB."); return; }
     try {
       const next = [];
       for (const file of files) {
@@ -51,10 +51,10 @@ export default function M3_DocumentCapture() {
           </div>
           {pages.length > 0 && <div className="mt-5 rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold">{pages.length} image{pages.length === 1 ? "" : "s"} selected</p><p className="mt-1 text-xs text-slate-500">You can add more images before analysis.</p></div>}
           {error && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-          <p className="mt-6 text-center text-xs leading-5 text-slate-500">JPEG, PNG and WebP • maximum 15 MB per image</p>
+          <p className="mt-6 text-center text-xs leading-5 text-slate-500">JPEG, PNG, WebP or PDF • maximum 20 MB per file</p>
         </section>
       </main>
-      <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(e) => { void saveFiles(e.target.files); e.target.value = ""; }}/>
+      <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"  className="hidden" onChange={(e) => { void saveFiles(e.target.files); e.target.value = ""; }}/>
     </div>
   );
 }

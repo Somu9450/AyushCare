@@ -2,20 +2,33 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Languages, ChevronDown, Check } from 'lucide-react';
 import { useKioskStore } from '../../store/useKioskStore';
-import { OFFICIAL_INDIAN_LANGUAGES } from '../../constants/indianLanguages';
-import { kioskApi } from '../../services/api';
+import { kioskApi, getErrorMessage } from '../../services/api';
+import { languageService } from '../../services/languageService';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export default function LanguageToggle() {
   const { language, setLanguage, sessionData } = useKioskStore();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
+  const [languages, setLanguages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const selectorRef = useRef(null);
   const buttonRef = useRef(null);
   const menuRef = useRef(null);
 
-  const selected =
-    OFFICIAL_INDIAN_LANGUAGES.find((l) => l.code === language) ||
-    OFFICIAL_INDIAN_LANGUAGES.find((l) => l.code === 'en');
+  useEffect(() => {
+    let active = true;
+    languageService.list().then((items) => {
+      if (active) setLanguages(items);
+    }).catch(() => {
+      if (active) setLanguages([]);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const selected = languageService.find(languages, language) || { code: language, native: language, name: language };
 
   const updateMenuPosition = () => {
     if (!buttonRef.current) return;
@@ -87,14 +100,18 @@ export default function LanguageToggle() {
   }, [open]);
 
   const handleLanguageChange = async (code) => {
-    setLanguage(code);
-    setOpen(false);
-    if (sessionData?.consultationId) {
-      try {
+    setError('');
+    setLoading(true);
+    try {
+      if (sessionData?.consultationId) {
         await kioskApi.updateLanguage(sessionData.consultationId, code);
-      } catch (error) {
-        console.warn('Kiosk language sync failed:', error?.message || error);
       }
+      setLanguage(code);
+      setOpen(false);
+    } catch (error) {
+      setError(getErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,7 +122,7 @@ export default function LanguageToggle() {
             ref={menuRef}
             className="language-menu language-menu-portal"
             role="listbox"
-            aria-label="Select language"
+            aria-label={t('selectLanguage','Select language')}
             style={{
               top: menuPosition.top,
               left: menuPosition.left,
@@ -114,11 +131,13 @@ export default function LanguageToggle() {
             }}
           >
             <div className="language-menu-header">
-              <span>Select language</span>
+              <span>{t('selectLanguage','Select language')}</span>
+              {loading && <span aria-live="polite">{t('loading')}</span>}
             </div>
+            {error && <div className="error-box">{error}</div>}
 
             <div className="language-menu-list">
-              {OFFICIAL_INDIAN_LANGUAGES.map((l) => {
+              {languages.map((l) => {
                 const isSelected = l.code === language;
 
                 return (

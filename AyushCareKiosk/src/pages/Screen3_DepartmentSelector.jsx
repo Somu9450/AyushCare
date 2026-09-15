@@ -59,9 +59,9 @@ export default function Screen3_DepartmentSelector() {
       // explicitly selected the required clinical-intake consent.
       const d = await kioskApi.verifyPatient({
         registrationType: sessionData.registrationType || 'new',
-        patientId: sessionData.patientId || profile.patientId || undefined,
+        abhaNumber: undefined,
         mobileNumber: String(profile.mobileNumber || '').replace(/\D/g, ''),
-        aadhaar: String(profile.aadhaar || '').replace(/\D/g, ''),
+        aadhaarNumber: String(profile.aadhaar || '').replace(/\D/g, ''),
         abhaNumber: String(profile.abha || '').replace(/\D/g, ''),
         fullName: profile.full_name || profile.name || '',
         age: Number(profile.age) || undefined,
@@ -81,7 +81,8 @@ export default function Screen3_DepartmentSelector() {
       if (!consultationId) throw new Error('The backend did not return a consultation session ID.');
 
       const patient = { ...profile, ...(d?.patient || {}) };
-      const patientId = patient.patient_code || patient.patient_id || patient.patientId || sessionData.patientId || '';
+      const abhaNumber = patient.abha_number || patient.abhaNumber || patient.patientId || sessionData.abhaNumber || '';
+      patient.abhaNumber = abhaNumber;
       const consent = {
         clinical_intake: true,
         document_processing: documentProcessing,
@@ -102,7 +103,7 @@ export default function Screen3_DepartmentSelector() {
 
       updateSession({
         patientProfile: patient,
-        patientId,
+        abhaNumber,
         consultationId,
         aiSessionId: d?.ai_session_id,
         pairingSession: d?.pairing_session,
@@ -126,7 +127,7 @@ export default function Screen3_DepartmentSelector() {
     <section className="screen-card">
       <p className="eyebrow">03 • {t('department')}</p>
       <h2>{t('department')}</h2>
-      <p>{pathway === 'ayurveda' ? t('ayurveda') : t('allopathy')} pathway is selected. Choose where you would like to be routed.</p>
+      
 
       <div className="pathway-banner">
         {pathway === 'ayurveda' ? <Leaf /> : <Stethoscope />}
@@ -138,7 +139,7 @@ export default function Screen3_DepartmentSelector() {
         <label>
           <span>{t('department')}</span>
           <select value={dept} onChange={(e) => setDept(e.target.value)} disabled={loading}>
-            <option value="">{loading ? 'Loading…' : 'Select department'}</option>
+            <option value="">{loading ? t('loading') : t('selectDepartment','Select department')}</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </label>
@@ -155,25 +156,24 @@ export default function Screen3_DepartmentSelector() {
         <div className="consent-card-heading">
           <ShieldCheck size={26} />
           <div>
-            <h3>Privacy & Clinical Consent</h3>
-            <p>Please provide consent before we create your clinical intake session and start the AI-assisted health interview.</p>
+            <h3>{t('privacyConsent','Privacy & Clinical Consent')}</h3>
           </div>
         </div>
 
         <label className="consent-line">
           <input type="checkbox" checked={clinicalIntake} onChange={(e) => { setClinicalIntake(e.target.checked); if (e.target.checked) setError(''); }} />
-          <span>I consent to clinical intake and processing of the information I provide for my healthcare consultation. <strong>Required</strong></span>
+          <span>{t('clinicalConsent','I consent to clinical intake and processing of the information I provide for my healthcare consultation.')} <strong>{t('required','Required')}</strong></span>
         </label>
 
         <label className="consent-line">
           <input type="checkbox" checked={documentProcessing} onChange={(e) => setDocumentProcessing(e.target.checked)} />
-          <span>I consent to processing of medical documents that I choose to upload during this session.</span>
+          <span>{t('documentConsent','I consent to processing of medical documents that I choose to upload during this session.')}</span>
         </label>
       </div>
 
       {error && <div className="error-box">{error}</div>}
       <button className="primary-btn wide" disabled={!dept || !clinicalIntake || loading || saving} onClick={startSession}>
-        {saving ? <><Loader2 className="spin" /> Starting secure session…</> : t('continue')}
+        {saving ? <><Loader2 className="spin" /> {t('startingSecureSession','Starting secure session…')}</> : t('continue')}
       </button>
     </section>
   );

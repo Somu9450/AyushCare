@@ -13,10 +13,7 @@ import {
 import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
-import {
-  fetchVisitDetails,
-  getDocumentsForVisit,
-} from "../../services/visitService";
+import { fetchVisitDetails } from "../../services/visitService";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import { useLanguage } from "../../i18n/translations";
 
@@ -31,7 +28,7 @@ function getVisitId(visit) {
 
 function formatDate(value, isHindi) {
   if (!value) {
-    return isHindi ? "तारीख उपलब्ध नहीं" : "Date unavailable";
+    return isHindi ? 'तारीख उपलब्ध नहीं' : 'Date unavailable';
   }
 
   const parsed = new Date(value);
@@ -41,7 +38,7 @@ function formatDate(value, isHindi) {
   }
 
   return parsed.toLocaleDateString(
-    isHindi ? "hi-IN" : "en-IN",
+    isHindi ? 'hi-IN' : 'en-IN',
     {
       day: "numeric",
       month: "long",
@@ -76,13 +73,14 @@ export default function VisitDetailsScreen() {
     setScreen,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [visitDetails, setVisitDetails] =
     useState(selectedVisit || null);
 
-  const [linkedDocuments, setLinkedDocuments] =
-    useState([]);
+  const [linkedDocuments, setLinkedDocuments] = useState([]);
+  const [visitSummary, setVisitSummary] = useState(null);
+  const [visitVitals, setVisitVitals] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [documentsLoading, setDocumentsLoading] =
@@ -107,11 +105,7 @@ export default function VisitDetailsScreen() {
       setError("");
 
       try {
-        const [detailsResult, documentsResult] =
-          await Promise.all([
-            fetchVisitDetails(visitId),
-            getDocumentsForVisit(visitId),
-          ]);
+        const detailsResult = await fetchVisitDetails(visitId);
 
         if (cancelled) return;
 
@@ -122,17 +116,15 @@ export default function VisitDetailsScreen() {
             selectedVisit
         );
 
-        setLinkedDocuments(
-          normalizeDocuments(documentsResult)
-        );
+        setLinkedDocuments(normalizeDocuments(detailsResult?.documents));
+        setVisitSummary(detailsResult?.summary || null);
+        setVisitVitals(detailsResult?.vitals || null);
       } catch (loadError) {
         if (cancelled) return;
 
         setError(
           loadError?.message ||
-            (isHindi
-              ? "विज़िट विवरण लोड नहीं हो सका।"
-              : "Unable to load visit details.")
+            (tr('Unable to load visit details.', 'विज़िट विवरण लोड नहीं हो सका।'))
         );
 
         setVisitDetails(selectedVisit || null);
@@ -181,19 +173,19 @@ export default function VisitDetailsScreen() {
     visit?.doctor ||
     visit?.doctorName ||
     visit?.physician ||
-    (isHindi ? "चिकित्सक" : "Doctor");
+    (tr('Doctor', 'चिकित्सक'));
 
   const department =
     visit?.department ||
     visit?.specialty ||
     visit?.departmentName ||
-    (isHindi ? "सामान्य चिकित्सा" : "General Medicine");
+    (tr('General Medicine', 'सामान्य चिकित्सा'));
 
   const facility =
     visit?.facility ||
     visit?.hospital ||
     visit?.hospitalName ||
-    (isHindi ? "स्वास्थ्य केंद्र" : "Healthcare facility");
+    (tr('Healthcare facility', 'स्वास्थ्य केंद्र'));
 
   const location =
     visit?.location ||
@@ -206,12 +198,10 @@ export default function VisitDetailsScreen() {
     visit?.appointmentDate ||
     "";
 
-  const summary =
-    visit?.summary ||
-    visit?.reason ||
-    visit?.chiefComplaint ||
-    visit?.notes ||
-    "";
+  const summary = visitSummary || visit?.summary || visit?.reason || visit?.chiefComplaint || visit?.notes || '';
+  const summaryText = typeof summary === 'string' ? summary : (summary?.chief_complaint || summary?.history_of_present_illness || summary?.summary || '');
+  let aiInsights = [];
+  try { const payload = typeof summary?.ai_payload === 'string' ? JSON.parse(summary.ai_payload) : summary?.ai_payload; aiInsights = Array.isArray(payload?.insights) ? payload.insights : Array.isArray(payload?.health_insights) ? payload.health_insights : []; } catch {}
 
   const diagnosis =
     visit?.diagnosis ||
@@ -229,7 +219,7 @@ export default function VisitDetailsScreen() {
     return (
       <div className="min-h-screen bg-slate-50">
         <MobileHeader
-          title={isHindi ? "विज़िट विवरण" : "Visit Details"}
+          title={tr('Visit Details', 'विज़िट विवरण')}
         />
 
         <main className="mx-auto max-w-md px-5 py-10">
@@ -240,9 +230,7 @@ export default function VisitDetailsScreen() {
             />
 
             <h2 className="mt-4 text-base font-bold text-slate-800">
-              {isHindi
-                ? "विज़िट उपलब्ध नहीं है"
-                : "Visit not selected"}
+              {tr('Visit not selected', 'विज़िट उपलब्ध नहीं है')}
             </h2>
 
             <button
@@ -250,7 +238,7 @@ export default function VisitDetailsScreen() {
               onClick={() => setScreen(SCREENS.VISITS)}
               className="mt-5 rounded-xl bg-teal-700 px-4 py-2.5 text-xs font-bold text-white"
             >
-              {isHindi ? "विज़िट देखें" : "View visits"}
+              {tr('View visits', 'विज़िट देखें')}
             </button>
           </div>
         </main>
@@ -261,11 +249,9 @@ export default function VisitDetailsScreen() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
-        title={isHindi ? "विज़िट विवरण" : "Visit Details"}
+        title={tr('Visit Details', 'विज़िट विवरण')}
         subtitle={
-          isHindi
-            ? "स्वास्थ्य मुलाकात"
-            : "Healthcare encounter"
+          tr('Healthcare encounter', 'स्वास्थ्य मुलाकात')
         }
       />
 
@@ -301,13 +287,13 @@ export default function VisitDetailsScreen() {
           <div className="mt-5 grid grid-cols-2 gap-3">
             <InfoTile
               icon={CalendarDays}
-              label={isHindi ? "तारीख" : "Date"}
+              label={tr('Date', 'तारीख')}
               value={formatDate(date, isHindi)}
             />
 
             <InfoTile
               icon={Hospital}
-              label={isHindi ? "केंद्र" : "Facility"}
+              label={tr('Facility', 'केंद्र')}
               value={facility}
             />
           </div>
@@ -334,31 +320,27 @@ export default function VisitDetailsScreen() {
             />
 
             <p className="mt-3 text-xs font-semibold text-slate-500">
-              {isHindi
-                ? "विवरण लोड हो रहा है..."
-                : "Loading details..."}
+              {tr('Loading details...', 'विवरण लोड हो रहा है...')}
             </p>
           </div>
         ) : (
           <>
-            {summary || diagnosis ? (
+            {summaryText || diagnosis || aiInsights.length ? (
               <section className="mt-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
                 <h2 className="text-sm font-black text-slate-800">
-                  {isHindi
-                    ? "मुलाकात का सार"
-                    : "Visit summary"}
+                  {tr('Visit summary', 'मुलाकात का सार')}
                 </h2>
 
-                {summary ? (
+                {summaryText ? (
                   <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {summary}
+                    {summaryText}
                   </p>
                 ) : null}
 
                 {diagnosis ? (
                   <div className="mt-4 rounded-2xl bg-slate-50 p-3.5">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                      {isHindi ? "निदान" : "Diagnosis"}
+                      {tr('Diagnosis', 'निदान')}
                     </p>
 
                     <p className="mt-1 text-sm font-medium text-slate-700">
@@ -370,6 +352,12 @@ export default function VisitDetailsScreen() {
                     </p>
                   </div>
                 ) : null}
+                {aiInsights.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-teal-100 bg-teal-50 p-3.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-teal-700">{tr('Health insights', 'स्वास्थ्य जानकारी')}</p>
+                    <ul className="mt-2 space-y-1 text-sm text-teal-950">{aiInsights.slice(0,8).map((item,i)=><li key={i}>• {typeof item === 'string' ? item : item?.text || item?.insight || item?.title || JSON.stringify(item)}</li>)}</ul>
+                  </div>
+                )}
               </section>
             ) : null}
 
@@ -377,9 +365,7 @@ export default function VisitDetailsScreen() {
               <div className="mb-3 flex items-center justify-between px-1">
                 <div>
                   <h2 className="text-sm font-black text-slate-800">
-                    {isHindi
-                      ? "इस विज़िट के दस्तावेज़"
-                      : "Documents from this visit"}
+                    {tr('Documents from this visit', 'इस विज़िट के दस्तावेज़')}
                   </h2>
 
                   <p className="mt-0.5 text-[11px] text-slate-400">
@@ -393,7 +379,16 @@ export default function VisitDetailsScreen() {
                 </div>
               </div>
 
-              {documentsLoading ? (
+              {visitVitals && (
+          <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="font-bold">{tr('Vitals', 'महत्वपूर्ण संकेत')}</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              {Object.entries(visitVitals).filter(([k,v]) => v != null && !['id','consultation_id','recorded_at','source'].includes(k)).map(([k,v]) => <div key={k} className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] uppercase text-slate-500">{k.replace(/_/g,' ')}</span><strong>{String(v)}</strong></div>)}
+            </div>
+          </section>
+        )}
+
+        {documentsLoading ? (
                 <div className="rounded-3xl bg-white p-7 text-center ring-1 ring-slate-200">
                   <Loader2
                     size={23}
@@ -408,9 +403,7 @@ export default function VisitDetailsScreen() {
                   />
 
                   <p className="mt-3 text-xs font-medium text-slate-500">
-                    {isHindi
-                      ? "इस विज़िट से कोई दस्तावेज़ जुड़ा नहीं है।"
-                      : "No documents are linked to this visit."}
+                    {tr('No documents are linked to this visit.', 'इस विज़िट से कोई दस्तावेज़ जुड़ा नहीं है।')}
                   </p>
                 </div>
               ) : (
@@ -436,17 +429,13 @@ export default function VisitDetailsScreen() {
                         <p className="truncate text-sm font-bold text-slate-800">
                           {record?.title ||
                             record?.fileName ||
-                            (isHindi
-                              ? "चिकित्सीय दस्तावेज़"
-                              : "Medical document")}
+                            (tr('Medical document', 'चिकित्सीय दस्तावेज़'))}
                         </p>
 
                         <p className="mt-1 truncate text-[11px] text-slate-500">
                           {record?.typeLabel ||
                             record?.type ||
-                            (isHindi
-                              ? "दस्तावेज़"
-                              : "Document")}
+                            (tr('Document', 'दस्तावेज़'))}
                         </p>
                       </div>
 

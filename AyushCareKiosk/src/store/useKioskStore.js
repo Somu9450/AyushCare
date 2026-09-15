@@ -6,7 +6,7 @@ const freshSession = () => ({
   identifier: '',
   isVerified: false,
   patientProfile: null,
-  patientId: null,
+  abhaNumber: null,
   consultationId: null,
   aiSessionId: null,
   pairingSession: null,

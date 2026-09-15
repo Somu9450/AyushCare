@@ -4,13 +4,13 @@ const normalizeAiPathway = (value) => String(value || 'general').toLowerCase() =
 
 const baseUrl = () => {
     const configured = String(process.env.MEDIKIOSK_AI_BASE_URL || '').replace(/\/$/, '');
-    if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+    if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || '').replace(/\/$/, '');
     try {
         const parsed = new URL(configured);
         const backendPort = String(process.env.PORT || '8001');
         const sameBackend = ['localhost', '127.0.0.1'].includes(parsed.hostname) && (parsed.port || '80') === backendPort;
         if (sameBackend) {
-            return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+            return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || '').replace(/\/$/, '');
         }
     } catch {}
     return configured;
@@ -63,6 +63,14 @@ const AiServiceGateway = {
     getSession: (sessionId) => request(`/api/v1/sessions/${sessionId}`),
     deleteSession: (sessionId) => request(`/api/v1/sessions/${sessionId}`, { method: 'DELETE' }),
     updateLanguage: (sessionId, language) => json(`/api/v1/sessions/${sessionId}/language`, { language }, 'PUT'),
+    getSupportedLanguages: () => request('/api/v1/languages'),
+    translate: (text, sourceLanguage, targetLanguage) =>
+        json('/api/v1/translate', {
+            text,
+            source_language: sourceLanguage,
+            target_language: targetLanguage
+        }),
+
     startConversation: (sessionId, intakePathway) => json(`/api/v1/sessions/${sessionId}/conversation/start`, { intake_pathway: normalizeAiPathway(intakePathway) }),
     getConversationState: (sessionId) => request(`/api/v1/sessions/${sessionId}/conversation/state`),
     submitConversationAnswer: (sessionId, questionId, answer, inputMode = 'text', confidence = 1) =>

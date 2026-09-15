@@ -3,6 +3,10 @@ import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
 import { useKioskStore } from './store/useKioskStore';
 import './App.css';
+import { useEffect } from 'react';
+import audioService from './services/audioService';
+import useAutoNarration from './hooks/useAutoNarration';
+import useDomTranslation from './hooks/useDomTranslation';
 
 const Screen1_Welcome = lazy(() => import('./pages/Screen1_Welcome'));
 const Screen2_PatientType = lazy(() => import('./pages/Screen2_PatientType'));
@@ -21,7 +25,10 @@ function ScreenLoader() {
 }
 
 export default function App() {
-  const { currentScreen, highContrast } = useKioskStore();
+  const { currentScreen, highContrast, audioEnabled } = useKioskStore();
+  useAutoNarration();
+  useDomTranslation();
+  useEffect(() => { if (!audioEnabled) audioService.stop(); }, [audioEnabled]);
   const screen = {
     1: <Screen1_Welcome />,
     2: <Screen2_PatientType />,

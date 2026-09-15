@@ -12,6 +12,7 @@ import { sendSMS } from '../utilities/smsHelper.js';
 import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
 import AiServiceGateway from '../services/aiService.js';
+import { assertSupportedLanguage } from '../services/languageService.js';
 import { hashQrToken, signPatientToken } from '../services/patientQrService.js';
 
 const s3Client = new S3Client({
@@ -64,9 +65,9 @@ const executeOcrStreamingPipeline = async (consultationId, documentId, fileKey, 
         if (!buffer.length) throw new Error(`Uploaded image is empty for key ${fileKey}`);
 
         const extension = String(fileKey.split('.').pop() || '').toLowerCase();
-        const extensionMime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+        const extensionMime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
         const mimeType = extensionMime[extension] || s3Object.ContentType || 'application/octet-stream';
-        const supported = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg']);
+        const supported = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf']);
         if (!supported.has(mimeType)) throw new Error(`Unsupported stored image type: ${mimeType}`);
 
         const fileName = fileKey.split('/').pop() || `document-${documentId}.jpg`;
@@ -159,7 +160,7 @@ const normalizeMobileForLookup = (value) => {
 const resolvePatientConsultation = async (patientId, requestedConsultationId = null) => {
     if (requestedConsultationId) {
         const result = await pool.query(
-            `SELECT c.*, p.patient_code, p.full_name
+            `SELECT c.*, p.abha_number, p.full_name
              FROM consultations c JOIN patients p ON p.id=c.patient_id
              WHERE c.id=$1 AND c.patient_id=$2 LIMIT 1`,
             [requestedConsultationId, patientId]
@@ -178,7 +179,7 @@ const resolvePatientConsultation = async (patientId, requestedConsultationId = n
     }
 
     const result = await pool.query(
-        `SELECT c.*, p.patient_code, p.full_name
+        `SELECT c.*, p.abha_number, p.full_name
          FROM consultations c JOIN patients p ON p.id=c.patient_id
          WHERE c.patient_id=$1
          ORDER BY c.created_at DESC LIMIT 1`,
@@ -215,7 +216,7 @@ export const pairKioskSession = asyncHandler(async (req, res) => {
     const session = await pool.query(
         `SELECT ks.*, c.patient_id, c.department_id, c.language,
                 d.name AS department_name,
-                p.patient_code, p.full_name, p.gender, p.date_of_birth,
+                p.abha_number, p.full_name, p.gender, p.date_of_birth,
                 p.mobile_number, p.address
          FROM kiosk_sessions ks
          JOIN consultations c ON c.id=ks.consultation_id
@@ -234,9 +235,9 @@ export const getUploadUrl = asyncHandler(async (req, res) => {
     const { file_name, content_type, consultation_id, document_processing_consent } = req.body || {};
     if (!file_name || !content_type) throw new ApiError(400, 'file_name and content_type are required fields');
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
     if (!allowedTypes.includes(String(content_type).toLowerCase())) {
-        throw new ApiError(415, 'Unsupported image type. Only JPEG, JPG, PNG, and WebP are allowed.');
+        throw new ApiError(415, 'Unsupported document type. Use PDF, JPEG, JPG, PNG, or WebP.');
     }
 
     let folder;
@@ -307,17 +308,19 @@ export const registerDocument = asyncHandler(async (req, res) => {
     if (!String(file_key).startsWith(expectedPrefix)) {
         throw new ApiError(400, 'file_key does not belong to this kiosk session');
     }
-    if (!/\.(jpe?g|png|webp)$/i.test(String(file_key))) {
-        throw new ApiError(415, 'Only image files can be analyzed');
+    if (!/\.(jpe?g|png|webp|pdf)$/i.test(String(file_key))) {
+        throw new ApiError(415, 'Only PDF, JPEG, PNG, and WebP files can be analyzed');
     }
     const consultation = await pool.query('SELECT ai_session_id FROM consultations WHERE id=$1', [consultationId]);
     if (!consultation.rowCount) throw new ApiError(404, 'Consultation not found');
 
-    const sourceMimeType = /\.webp$/i.test(file_key)
-        ? 'image/webp'
-        : /\.png$/i.test(file_key)
-            ? 'image/png'
-            : 'image/jpeg';
+    const sourceMimeType = /\.pdf$/i.test(file_key)
+        ? 'application/pdf'
+        : /\.webp$/i.test(file_key)
+            ? 'image/webp'
+            : /\.png$/i.test(file_key)
+                ? 'image/png'
+                : 'image/jpeg';
     const document = await pool.query(
         "INSERT INTO uploaded_documents (consultation_id, file_path_hash, document_type, source_mime_type, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id, file_path_hash, document_type, source_mime_type, status",
         [consultationId, file_key, document_type, sourceMimeType]
@@ -385,7 +388,7 @@ export const getKioskDocuments = asyncHandler(async (req,res)=>{
 
 export const updateKioskSessionLanguage = asyncHandler(async (req, res) => {
     const { language } = req.body || {};
-    if (!language) throw new ApiError(400, 'language is required');
+    const selectedLanguage = await assertSupportedLanguage(language);
     const session = await pool.query(
         `SELECT ks.id, ks.consultation_id, c.ai_session_id
          FROM kiosk_sessions ks
@@ -397,13 +400,13 @@ export const updateKioskSessionLanguage = asyncHandler(async (req, res) => {
     if (!session.rowCount) throw new ApiError(410, 'Kiosk pairing session expired or invalid');
     const row = session.rows[0];
     const ai = row.ai_session_id
-        ? await AiServiceGateway.updateLanguage(row.ai_session_id, language)
+        ? await AiServiceGateway.updateLanguage(row.ai_session_id, selectedLanguage.code)
         : null;
     const updated = await pool.query(
         'UPDATE consultations SET language=$1,updated_at=NOW() WHERE id=$2 RETURNING id,language',
-        [language, row.consultation_id]
+        [selectedLanguage.code, row.consultation_id]
     );
-    return res.json(new ApiResponse(200, { consultation: updated.rows[0], ai }, 'Kiosk language synchronized'));
+    return res.json(new ApiResponse(200, { consultation: updated.rows[0], ai, language: selectedLanguage }, 'Kiosk language synchronized'));
 });
 
 export const syncKioskUpload = asyncHandler(async (req, res) => {
@@ -417,7 +420,7 @@ export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
     if (!rawToken) throw new ApiError(400, 'QR token is required');
     const result = await pool.query(
         `SELECT q.id, q.patient_id, q.consultation_id, q.expires_at,
-                p.id AS pid, p.patient_code, p.full_name, p.gender, p.date_of_birth, p.mobile_number, p.address,
+                p.id AS pid, p.abha_number, p.full_name, p.gender, p.date_of_birth, p.mobile_number, p.address,
                 EXISTS(SELECT 1 FROM consent_records cr WHERE cr.consultation_id=q.consultation_id AND cr.scope_id='document_processing' AND cr.status='granted' AND cr.withdrawn_at IS NULL) AS document_processing_consent
          FROM patient_qr_tokens q JOIN patients p ON p.id=q.patient_id
          WHERE q.token_hash=$1 AND q.used_at IS NULL AND q.expires_at>NOW()
@@ -428,7 +431,7 @@ export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
     const row = result.rows[0];
     await pool.query('UPDATE patient_qr_tokens SET used_at=NOW() WHERE id=$1 AND used_at IS NULL', [row.id]);
     const patient = {
-        id: row.pid, patient_code: row.patient_code, full_name: row.full_name,
+        id: row.pid, abha_number: row.abha_number, full_name: row.full_name,
         gender: row.gender, date_of_birth: row.date_of_birth, mobile_number: row.mobile_number, address: row.address,
     };
     const accessToken = signPatientToken(patient);
@@ -460,7 +463,7 @@ export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
 export const registerPortalDocument = asyncHandler(async (req, res) => {
     const { file_key, document_type, consultation_id } = req.body || {};
     if (!file_key || !document_type) throw new ApiError(400, 'file_key and document_type are required');
-    if (!/\.(jpe?g|png|webp)$/i.test(String(file_key))) throw new ApiError(415, 'Only JPEG, PNG and WebP images can be analyzed');
+    if (!/\.(jpe?g|png|webp|pdf)$/i.test(String(file_key))) throw new ApiError(415, 'Only PDF, JPEG, PNG and WebP files can be analyzed');
     if (!String(file_key).startsWith(`vault/${req.user.id}/`)) throw new ApiError(403, 'Document storage key does not belong to this patient');
 
     const consultation = await resolvePatientConsultation(req.user.id, consultation_id || null);
@@ -476,7 +479,7 @@ export const registerPortalDocument = asyncHandler(async (req, res) => {
         );
     }
 
-    const sourceMimeType = /\.webp$/i.test(file_key) ? 'image/webp' : /\.png$/i.test(file_key) ? 'image/png' : 'image/jpeg';
+    const sourceMimeType = /\.pdf$/i.test(file_key) ? 'application/pdf' : /\.webp$/i.test(file_key) ? 'image/webp' : /\.png$/i.test(file_key) ? 'image/png' : 'image/jpeg';
     const document = await pool.query(
         `INSERT INTO uploaded_documents (consultation_id,file_path_hash,document_type,source_mime_type,status)
          VALUES($1,$2,$3,$4,'pending') RETURNING *`,
@@ -503,23 +506,26 @@ export const getPortalDocument = asyncHandler(async (req, res) => {
 // ==========================================
 
 export const sendPortalOtp = asyncHandler(async (req, res) => {
-    const { mobileNumber } = req.body;
-
-    if (!mobileNumber) {
-        throw new ApiError(400, "Mobile number is required");
+    const { mobileNumber, abhaNumber } = req.body || {};
+    let formattedNumber = '';
+    if (abhaNumber) {
+        const abha = String(abhaNumber).replace(/\D/g, '');
+        if (abha.length !== 14) throw new ApiError(400, 'ABHA number must contain exactly 14 digits');
+        const patient = await pool.query('SELECT mobile_number FROM patients WHERE abha_number=$1 LIMIT 1', [abha]);
+        if (!patient.rowCount || !patient.rows[0].mobile_number) throw new ApiError(404, 'No registered mobile number is linked to this ABHA number');
+        const local = normalizeMobileForLookup(patient.rows[0].mobile_number);
+        formattedNumber = `+91${local}`;
+    } else if (mobileNumber) {
+        const raw = String(mobileNumber).trim();
+        formattedNumber = raw.startsWith('+') ? raw : `+91${raw}`;
+    } else {
+        throw new ApiError(400, 'ABHA number or mobile number is required');
     }
-
-    const formattedNumber = mobileNumber.startsWith('+') ? mobileNumber : `+91${mobileNumber}`;
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    saveOTP(formattedNumber, generatedOtp, 300); // 5 mins expiry
-
+    saveOTP(formattedNumber, generatedOtp, 300);
     const message = `Your AyushCare Patient Portal verification OTP is: ${generatedOtp}. Valid for 5 minutes.`;
     await sendSMS(formattedNumber, message);
-
-    return res.status(200).json(
-        new ApiResponse(200, { mobile: formattedNumber }, "Verification OTP sent successfully")
-    );
+    return res.status(200).json(new ApiResponse(200, { mobile: formattedNumber, delivery: 'registered-mobile' }, 'Verification OTP sent successfully'));
 });
 
 function calculatePatientAge(dob) {
@@ -534,8 +540,8 @@ function formatPatientForClient(row) {
     const age = calculatePatientAge(row.date_of_birth);
     return {
         id: row.id,
-        patientId: row.patient_code || (row.id ? row.id.slice(0, 8) : 'P-REG'),
-        patient_code: row.patient_code,
+        patientId: row.abha_number || '',
+        abhaNumber: row.abha_number || '',
         name: row.full_name,
         full_name: row.full_name,
         gender: row.gender,
@@ -554,13 +560,14 @@ function formatPatientForClient(row) {
 }
 
 export const verifyPortalOtp = asyncHandler(async (req, res) => {
-    const { mobileNumber, otp, patientId } = req.body;
-
-    if (!mobileNumber || !otp) {
-        throw new ApiError(400, "Mobile number and OTP are required");
+    const { mobileNumber, otp, abhaNumber } = req.body;
+    if (!otp || (!mobileNumber && !abhaNumber)) throw new ApiError(400, 'ABHA number or mobile number and OTP are required');
+    let rawNumber = String(mobileNumber || '').trim();
+    if (abhaNumber && !rawNumber) {
+        const linked = await pool.query('SELECT mobile_number FROM patients WHERE abha_number=$1 LIMIT 1', [String(abhaNumber).replace(/\D/g,'')]);
+        if (!linked.rowCount) throw new ApiError(404, 'ABHA number is not registered');
+        rawNumber = String(linked.rows[0].mobile_number || '').trim();
     }
-
-    const rawNumber = String(mobileNumber).trim();
 
     const formattedNumber = rawNumber.startsWith('+')
         ? rawNumber
@@ -581,7 +588,6 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
             p.gender,
             p.date_of_birth,
             p.mobile_number,
-            p.patient_code,
             p.abha_number,
             p.created_at,
             c.id as last_consultation_id,
@@ -600,10 +606,10 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
          LEFT JOIN departments d ON d.id = c.department_id
          LEFT JOIN users u ON u.id = c.assigned_doctor_id
          LEFT JOIN hospitals h ON h.id = c.hospital_id
-         WHERE p.mobile_number = $1
-            OR p.mobile_number = $2
+         WHERE (p.mobile_number = $1 OR p.mobile_number = $2)
+           AND ($3::text IS NULL OR p.abha_number = $3)
          ORDER BY p.created_at DESC`,
-        [localNumber, formattedNumber]
+        [localNumber, formattedNumber, abhaNumber ? String(abhaNumber).replace(/\D/g,'') : null]
     );
 
     if (patientQuery.rowCount === 0) {
@@ -615,13 +621,14 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
 
     const patients = patientQuery.rows.map(formatPatientForClient);
 
-    const activePatient = patientId
-        ? patients.find(p => p.id === patientId) || patients[0]
+    const activePatient = abhaNumber
+        ? patients.find(p => p.abha_number === abhaNumber || p.abhaNumber === abhaNumber || p.patientId === abhaNumber) || patients[0]
         : patients[0];
 
     const token = jwt.sign(
         {
             id: activePatient.id,
+            abha_number: activePatient.abha_number,
             email: activePatient.mobile_number,
             role: "patient"
         },
@@ -649,9 +656,10 @@ export const verifyPortalOtp = asyncHandler(async (req, res) => {
 });
 
 export const selectPortalPatient = asyncHandler(async (req, res) => {
-    const { patientId } = req.body;
-    if (!patientId) {
-        throw new ApiError(400, "Patient ID is required");
+    const { abhaNumber, patientId } = req.body;
+    const canonicalAbha = abhaNumber || patientId;
+    if (!canonicalAbha) {
+        throw new ApiError(400, "ABHA number is required");
     }
 
     const patientQuery = await pool.query(
@@ -661,7 +669,6 @@ export const selectPortalPatient = asyncHandler(async (req, res) => {
             p.gender,
             p.date_of_birth,
             p.mobile_number,
-            p.patient_code,
             p.abha_number,
             p.created_at,
             c.id as last_consultation_id,
@@ -680,8 +687,8 @@ export const selectPortalPatient = asyncHandler(async (req, res) => {
          LEFT JOIN departments d ON d.id = c.department_id
          LEFT JOIN users u ON u.id = c.assigned_doctor_id
          LEFT JOIN hospitals h ON h.id = c.hospital_id
-         WHERE p.id = $1`,
-        [patientId]
+         WHERE p.abha_number = $1`,
+        [canonicalAbha]
     );
 
     const row = patientQuery.rows[0];
@@ -694,6 +701,7 @@ export const selectPortalPatient = asyncHandler(async (req, res) => {
     const token = jwt.sign(
         {
             id: patient.id,
+            abha_number: patient.abha_number,
             email: patient.mobile_number,
             role: "patient"
         },
@@ -738,7 +746,7 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
 
     const summaryQuery = await pool.query(`SELECT cs.* FROM clinical_summaries cs JOIN consultations c ON c.id=cs.consultation_id WHERE c.patient_id=$1 ORDER BY cs.generated_at DESC LIMIT 1`, [patientId]);
     const patientResult = await pool.query(
-        `SELECT id, patient_code, full_name, gender, date_of_birth, mobile_number
+        `SELECT id, abha_number, full_name, gender, date_of_birth, mobile_number
          FROM patients WHERE id=$1 LIMIT 1`,
         [patientId]
     );
@@ -774,12 +782,12 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
     const dashboardData = {
         patient,
         patient_name: patient?.full_name || null,
-        patient_id: patient?.patient_code || null,
+        patient_id: patient?.abha_number || null,
         appointment: {
             token: appointment.token_number,
             status: appointment.status,
             hospital: appointment.hospital_name,
-            department: privacy.share_previous_departments === false ? null : (departmentQuery.rows[0]?.name || "AyushCare OPD")
+            department: departmentQuery.rows[0]?.name || "AyushCare OPD"
         },
         ai_summary: summaryQuery.rows[0] || null,
         vitals: vitalsQuery.rows[0] || null,
@@ -790,23 +798,47 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
 });
 
 export const getPortalVisits = asyncHandler(async (req, res) => {
-    const privacyQuery = await pool.query('SELECT share_previous_departments, share_previous_appointments FROM privacy_settings WHERE patient_id=$1', [req.user.id]);
-    const privacy = privacyQuery.rows[0] || { share_previous_departments: true, share_previous_appointments: true };
-    const appointmentFilter = privacy.share_previous_appointments === false ? "AND c.status NOT IN ('complete','cancelled')" : '';
     const result = await pool.query(
         `SELECT c.id, c.token_number, c.status, c.risk_level, c.intake_pathway,
-                c.language, c.created_at, c.updated_at, h.name AS hospital_name,
-                ${privacy.share_previous_departments === false ? 'NULL' : 'd.name'} AS department_name,
-                u.name AS doctor_name
+                c.language, c.created_at, c.updated_at, c.hospital_id, h.name AS hospital_name,
+                d.id AS department_id, d.name AS department_name,
+                u.id AS doctor_id, u.name AS doctor_name
          FROM consultations c
          LEFT JOIN hospitals h ON h.id=c.hospital_id
          LEFT JOIN departments d ON d.id=c.department_id
          LEFT JOIN users u ON u.id=c.assigned_doctor_id
-         WHERE c.patient_id=$1 ${appointmentFilter}
-         ORDER BY c.created_at DESC LIMIT 50`,
-        [req.user.id]
+         WHERE c.patient_id=$1
+         ORDER BY c.created_at DESC LIMIT 100`, [req.user.id]
     );
     return res.json(new ApiResponse(200, result.rows, 'Patient visits loaded'));
+});
+
+export const getPortalVisitDetails = asyncHandler(async (req, res) => {
+    const patientId = req.user.id;
+    const visit = await pool.query(
+        `SELECT c.*, p.abha_number, h.name AS hospital_name, h.state_code,
+                d.name AS department_name, d.pathway, u.name AS doctor_name, u.specialization
+         FROM consultations c JOIN patients p ON p.id=c.patient_id
+         LEFT JOIN hospitals h ON h.id=c.hospital_id
+         LEFT JOIN departments d ON d.id=c.department_id
+         LEFT JOIN users u ON u.id=c.assigned_doctor_id
+         WHERE c.id=$1 AND c.patient_id=$2 LIMIT 1`, [req.params.visit_id, patientId]
+    );
+    if (!visit.rowCount) throw new ApiError(404, 'Visit not found');
+    const row = visit.rows[0];
+    const [summary, vitals, documents] = await Promise.all([
+        pool.query('SELECT * FROM clinical_summaries WHERE consultation_id=$1 LIMIT 1', [row.id]),
+        pool.query('SELECT * FROM vitals WHERE consultation_id=$1 LIMIT 1', [row.id]),
+        pool.query('SELECT * FROM uploaded_documents WHERE consultation_id=$1 ORDER BY created_at DESC', [row.id]),
+    ]);
+    const hydrated = await Promise.all(documents.rows.map(signedDocument));
+    return res.json(new ApiResponse(200, {
+        visit: row,
+        summary: summary.rows[0] || null,
+        vitals: vitals.rows[0] || null,
+        documents: hydrated,
+        abha_number: row.abha_number,
+    }, 'Visit details loaded'));
 });
 
 export const getAudioSummary = asyncHandler(async (req, res) => {
@@ -819,17 +851,53 @@ export const getAudioSummary = asyncHandler(async (req, res) => {
 });
 
 export const getPortalDocuments = asyncHandler(async (req, res) => {
-    const privacyQuery = await pool.query('SELECT share_previous_reports FROM privacy_settings WHERE patient_id=$1', [req.user.id]);
-    if (privacyQuery.rows[0]?.share_previous_reports === false) {
-        return res.status(200).json(new ApiResponse(200, [], 'Previous reports are hidden by your privacy setting'));
-    }
     const documents = await pool.query(
-        `SELECT d.* FROM uploaded_documents d JOIN consultations c ON d.consultation_id=c.id
+        `SELECT d.*, c.hospital_id, h.name AS hospital_name, c.created_at AS visit_created_at, c.status AS visit_status,
+         FROM uploaded_documents d JOIN consultations c ON d.consultation_id=c.id
+         LEFT JOIN hospitals h ON h.id=c.hospital_id
+         LEFT JOIN departments dpt ON dpt.id=c.department_id
          WHERE c.patient_id=$1 ORDER BY d.created_at DESC`,
         [req.user.id]
     );
     const hydrated = await Promise.all(documents.rows.map(signedDocument));
     return res.status(200).json(new ApiResponse(200, hydrated, 'Patient Document Vault loaded'));
+});
+
+export const getPortalPrivacyContext = asyncHandler(async (req, res) => {
+    const patientId = req.user.id;
+    const hospitals = await pool.query(
+        `SELECT DISTINCT h.id, h.name, h.state_code
+         FROM consultations c JOIN hospitals h ON h.id=c.hospital_id
+         WHERE c.patient_id=$1 ORDER BY h.name`, [patientId]
+    );
+    const visits = await pool.query(
+        `SELECT c.id, c.created_at, c.status, c.intake_pathway, h.id AS hospital_id, h.name AS hospital_name,
+                d.name AS department_name, u.name AS doctor_name
+         FROM consultations c LEFT JOIN hospitals h ON h.id=c.hospital_id
+         LEFT JOIN departments d ON d.id=c.department_id LEFT JOIN users u ON u.id=c.assigned_doctor_id
+         WHERE c.patient_id=$1 ORDER BY c.created_at DESC LIMIT 100`, [patientId]
+    );
+    const documents = await pool.query(
+        `SELECT d.id, d.consultation_id, d.document_type, d.status, d.created_at,
+                h.id AS hospital_id, h.name AS hospital_name
+         FROM uploaded_documents d JOIN consultations c ON c.id=d.consultation_id
+         LEFT JOIN hospitals h ON h.id=c.hospital_id
+         WHERE c.patient_id=$1 ORDER BY d.created_at DESC LIMIT 200`, [patientId]
+    );
+    const rules = await pool.query(`SELECT * FROM patient_privacy_rules WHERE patient_id=$1 ORDER BY updated_at DESC`, [patientId]);
+    return res.json(new ApiResponse(200, { hospitals: hospitals.rows, visits: visits.rows, documents: documents.rows, rules: rules.rows }, 'Granular privacy context loaded'));
+});
+
+export const updatePortalPrivacyRule = asyncHandler(async (req, res) => {
+    const patientId = req.user.id;
+    const { scope_type, hospital_id, consultation_id, document_id, allow_doctor_access, reason } = req.body || {};
+    const { upsertPrivacyRule } = await import('../services/privacyService.js');
+    const rule = await upsertPrivacyRule({
+        patientId, scopeType: scope_type, hospitalId: hospital_id || null,
+        consultationId: consultation_id || null, documentId: document_id || null,
+        allowDoctorAccess: allow_doctor_access, reason: reason || null,
+    });
+    return res.json(new ApiResponse(200, rule, 'Privacy rule saved'));
 });
 
 export const getPortalPrivacy = asyncHandler(async (req, res) => {

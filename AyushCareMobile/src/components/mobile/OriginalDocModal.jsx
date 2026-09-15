@@ -49,7 +49,7 @@ export const OriginalDocModal = () => {
     capturedDocument,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [currentPageIndex, setCurrentPageIndex] =
     React.useState(0);
@@ -82,9 +82,7 @@ export const OriginalDocModal = () => {
             id: "page-1",
             fileName:
               capturedDocument?.fileName ||
-              (isHindi
-                ? "मूल दस्तावेज़"
-                : "Original Document"),
+              (tr('Original Document', 'मूल दस्तावेज़')),
             image:
               capturedDocument?.image ||
               capturedDocument?.dataUrl ||
@@ -113,9 +111,7 @@ export const OriginalDocModal = () => {
   const documentName =
     activePage?.fileName ||
     capturedDocument?.fileName ||
-    (isHindi
-      ? "मूल चिकित्सीय दस्तावेज़"
-      : "Original Medical Document");
+    (tr('Original Medical Document', 'मूल चिकित्सीय दस्तावेज़'));
 
   const goToPreviousPage = () => {
     setCurrentPageIndex((index) =>
@@ -137,9 +133,7 @@ export const OriginalDocModal = () => {
       role="dialog"
       aria-modal="true"
       aria-label={
-        isHindi
-          ? "मूल दस्तावेज़"
-          : "Original Document"
+        tr('Original Document', 'मूल दस्तावेज़')
       }
       onClick={() => setOriginalDocModalOpen(false)}
     >
@@ -161,12 +155,8 @@ export const OriginalDocModal = () => {
 
               <p className="text-[10px] text-slate-400 mt-0.5">
                 {totalPages > 1
-                  ? isHindi
-                    ? `पृष्ठ ${safePageIndex + 1} / ${totalPages}`
-                    : `Page ${safePageIndex + 1} of ${totalPages}`
-                  : isHindi
-                  ? "मूल दस्तावेज़"
-                  : "Original source document"}
+                  ? tr('Page ${safePageIndex + 1} of ${totalPages}', 'पृष्ठ ${safePageIndex + 1} / ${totalPages}')
+                  : tr('Original source document', 'मूल दस्तावेज़')}
               </p>
             </div>
           </div>
@@ -176,7 +166,7 @@ export const OriginalDocModal = () => {
             onClick={() => setOriginalDocModalOpen(false)}
             className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer active:scale-95 transition"
             aria-label={
-              isHindi ? "बंद करें" : "Close"
+              tr('Close', 'बंद करें')
             }
           >
             <X className="w-5 h-5" />
@@ -201,9 +191,7 @@ export const OriginalDocModal = () => {
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {isHindi
-                    ? `पृष्ठ ${index + 1}`
-                    : `Page ${index + 1}`}
+                  {tr('Page ${index + 1}', 'पृष्ठ ${index + 1}')}
                 </button>
               ))}
             </div>
@@ -241,15 +229,11 @@ export const OriginalDocModal = () => {
                 </div>
 
                 <h3 className="mt-4 text-sm font-black text-slate-900">
-                  {isHindi
-                    ? "मूल छवि उपलब्ध नहीं है"
-                    : "Original image unavailable"}
+                  {tr('Original image unavailable', 'मूल छवि उपलब्ध नहीं है')}
                 </h3>
 
                 <p className="mt-1.5 text-xs text-slate-500 max-w-xs leading-relaxed">
-                  {isHindi
-                    ? "इस प्रोटोटाइप रिकॉर्ड में दस्तावेज़ की छवि संग्रहीत नहीं है। नीचे उपलब्ध रिकॉर्ड जानकारी देखें।"
-                    : "The source image is not stored for this prototype record. Available record information is shown below."}
+                  {tr('The source image is not stored for this prototype record. Available record information is shown below.', 'इस प्रोटोटाइप रिकॉर्ड में दस्तावेज़ की छवि संग्रहीत नहीं है। नीचे उपलब्ध रिकॉर्ड जानकारी देखें।')}
                 </p>
               </div>
             )}
@@ -262,15 +246,11 @@ export const OriginalDocModal = () => {
 
               <div>
                 <p className="text-xs font-bold text-slate-200">
-                  {isHindi
-                    ? "दस्तावेज़ से निकाली गई जानकारी"
-                    : "Information read from document"}
+                  {tr('Information read from document', 'दस्तावेज़ से निकाली गई जानकारी')}
                 </p>
 
                 <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                  {isHindi
-                    ? "दिखाई गई जानकारी दस्तावेज़ से पढ़ी गई सामग्री पर आधारित है। महत्वपूर्ण जानकारी को मूल दस्तावेज़ से सत्यापित करें।"
-                    : "The displayed information is based on content read from the document. Verify important information against the original document."}
+                  {tr('The displayed information is based on content read from the document. Verify important information against the original document.', 'दिखाई गई जानकारी दस्तावेज़ से पढ़ी गई सामग्री पर आधारित है। महत्वपूर्ण जानकारी को मूल दस्तावेज़ से सत्यापित करें।')}
                 </p>
               </div>
             </div>
@@ -287,7 +267,7 @@ export const OriginalDocModal = () => {
               className="h-10 px-3 rounded-xl bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
-              {isHindi ? "पिछला" : "Previous"}
+              {tr('Previous', 'पिछला')}
             </button>
 
             <span className="text-[10px] font-bold text-slate-500">
@@ -300,7 +280,7 @@ export const OriginalDocModal = () => {
               disabled={safePageIndex === totalPages - 1}
               className="h-10 px-3 rounded-xl bg-slate-800 text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
-              {isHindi ? "अगला" : "Next"}
+              {tr('Next', 'अगला')}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -313,7 +293,7 @@ export const OriginalDocModal = () => {
             onClick={() => setOriginalDocModalOpen(false)}
             className="w-full min-h-[46px] rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-sm font-black cursor-pointer transition"
           >
-            {isHindi ? "समीक्षा पूरी करें" : "Done Viewing"}
+            {tr('Done Viewing', 'समीक्षा पूरी करें')}
           </button>
         </footer>
       </div>

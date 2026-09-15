@@ -40,7 +40,7 @@ const Feature = ({
 
 export const AboutScreen = () => {
   const { prevScreen } = useMobileStore();
-  const { t, isHindi } = useLanguage();
+  const { t, tr, isHindi } = useLanguage();
 
   return (
     <div className="min-h-full flex flex-col bg-slate-50 text-slate-900 select-none">

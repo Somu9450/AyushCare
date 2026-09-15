@@ -21,7 +21,7 @@ import { useLanguage } from "../../i18n/translations";
 
 function formatDate(value, isHindi) {
   if (!value) {
-    return isHindi ? "उपलब्ध नहीं" : "Unavailable";
+    return isHindi ? 'उपलब्ध नहीं' : 'Unavailable';
   }
 
   const parsed = new Date(value);
@@ -31,7 +31,7 @@ function formatDate(value, isHindi) {
   }
 
   return parsed.toLocaleDateString(
-    isHindi ? "hi-IN" : "en-IN",
+    isHindi ? 'hi-IN' : 'en-IN',
     {
       day: "numeric",
       month: "short",
@@ -51,7 +51,7 @@ export default function ConsentDetailsScreen() {
     toggleConsent,
   } = useMobileStore();
 
-  const { isHindi } = useLanguage();
+  const { isHindi, tr } = useLanguage();
 
   const [expandedConsent, setExpandedConsent] =
     useState(null);
@@ -114,14 +114,10 @@ export default function ConsentDetailsScreen() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <MobileHeader
         title={
-          isHindi
-            ? "सहमति विवरण"
-            : "Consent Details"
+          tr('Consent Details', 'सहमति विवरण')
         }
         subtitle={
-          isHindi
-            ? "डेटा उपयोग की अनुमतियां प्रबंधित करें"
-            : "Manage permissions for data use"
+          tr('Manage permissions for data use', 'डेटा उपयोग की अनुमतियां प्रबंधित करें')
         }
       />
 
@@ -134,15 +130,11 @@ export default function ConsentDetailsScreen() {
 
             <div>
               <h1 className="text-base font-black text-slate-900">
-                {isHindi
-                  ? "आपकी सहमति आपके नियंत्रण में है"
-                  : "Your consent stays under your control"}
+                {tr('Your consent stays under your control', 'आपकी सहमति आपके नियंत्रण में है')}
               </h1>
 
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                {isHindi
-                  ? "किसी अनुमति को वापस लेने पर संबंधित डेटा-साझाकरण सुविधा प्रतिबंधित हो सकती है।"
-                  : "Withdrawing a permission may restrict the related data-sharing feature."}
+                {tr('Withdrawing a permission may restrict the related data-sharing feature.', 'किसी अनुमति को वापस लेने पर संबंधित डेटा-साझाकरण सुविधा प्रतिबंधित हो सकती है।')}
               </p>
             </div>
           </div>
@@ -152,9 +144,7 @@ export default function ConsentDetailsScreen() {
           <SectionTitle
             icon={UserCheck}
             title={
-              isHindi
-                ? "सक्रिय सहमतियां"
-                : "Active consents"
+              tr('Active consents', 'सक्रिय सहमतियां')
             }
           />
 
@@ -162,9 +152,7 @@ export default function ConsentDetailsScreen() {
             <EmptyCard
               icon={UserCheck}
               text={
-                isHindi
-                  ? "कोई सक्रिय सहमति नहीं है।"
-                  : "There are no active consents."
+                tr('There are no active consents.', 'कोई सक्रिय सहमति नहीं है।')
               }
             />
           ) : (
@@ -216,9 +204,7 @@ export default function ConsentDetailsScreen() {
           <SectionTitle
             icon={History}
             title={
-              isHindi
-                ? "सहमति इतिहास"
-                : "Consent history"
+              tr('Consent history', 'सहमति इतिहास')
             }
           />
 
@@ -226,9 +212,7 @@ export default function ConsentDetailsScreen() {
             <EmptyCard
               icon={History}
               text={
-                isHindi
-                  ? "सहमति इतिहास उपलब्ध नहीं है।"
-                  : "No consent history available."
+                tr('No consent history available.', 'सहमति इतिहास उपलब्ध नहीं है।')
               }
             />
           ) : (
@@ -275,17 +259,13 @@ export default function ConsentDetailsScreen() {
                           {item?.purpose ||
                             item?.title ||
                             item?.scope ||
-                            (isHindi
-                              ? "डेटा अनुमति"
-                              : "Data permission")}
+                            (tr('Data permission', 'डेटा अनुमति'))}
                         </p>
 
                         <p className="mt-1 text-[11px] text-slate-500">
                           {item?.action ||
                             item?.status ||
-                            (isHindi
-                              ? "स्थिति उपलब्ध नहीं"
-                              : "Status unavailable")}
+                            (tr('Status unavailable', 'स्थिति उपलब्ध नहीं'))}
                         </p>
 
                         <p className="mt-1 text-[10px] text-slate-400">
@@ -310,9 +290,7 @@ export default function ConsentDetailsScreen() {
                         className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-teal-50 px-3 py-2 text-[10px] font-bold text-teal-800"
                       >
                         <RotateCcw size={13} />
-                        {isHindi
-                          ? "फिर अनुमति दें"
-                          : "Re-grant"}
+                        {tr('Re-grant', 'फिर अनुमति दें')}
                       </button>
                     ) : null}
                   </div>
@@ -326,9 +304,7 @@ export default function ConsentDetailsScreen() {
           <SectionTitle
             icon={Clock3}
             title={
-              isHindi
-                ? "डेटा एक्सेस इतिहास"
-                : "Data access history"
+              tr('Data access history', 'डेटा एक्सेस इतिहास')
             }
           />
 
@@ -336,9 +312,7 @@ export default function ConsentDetailsScreen() {
             <EmptyCard
               icon={Clock3}
               text={
-                isHindi
-                  ? "अभी कोई एक्सेस गतिविधि नहीं है।"
-                  : "No access activity available."
+                tr('No access activity available.', 'अभी कोई एक्सेस गतिविधि नहीं है।')
               }
             />
           ) : (
@@ -367,17 +341,13 @@ export default function ConsentDetailsScreen() {
                         {item?.actor ||
                           item?.service ||
                           item?.accessedBy ||
-                          (isHindi
-                            ? "सेवा"
-                            : "Service")}
+                          (tr('Service', 'सेवा'))}
                       </p>
 
                       <p className="mt-1 text-xs text-slate-500">
                         {item?.purpose ||
                           item?.action ||
-                          (isHindi
-                            ? "डेटा एक्सेस"
-                            : "Data access")}
+                          (tr('Data access', 'डेटा एक्सेस'))}
                       </p>
 
                       <p className="mt-1 text-[10px] text-slate-400">
@@ -403,9 +373,7 @@ export default function ConsentDetailsScreen() {
           }
           className="mt-6 flex h-12 w-full items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white"
         >
-          {isHindi
-            ? "गोपनीयता पर वापस जाएं"
-            : "Back to privacy"}
+          {tr('Back to privacy', 'गोपनीयता पर वापस जाएं')}
         </button>
       </main>
     </div>
@@ -452,14 +420,12 @@ function ConsentCard({
             {consent?.title ||
               consent?.purpose ||
               consent?.scope ||
-              (isHindi
-                ? "डेटा उपयोग की अनुमति"
-                : "Data-use permission")}
+              (tr('Data-use permission', 'डेटा उपयोग की अनुमति'))}
           </p>
 
           <p className="mt-1 text-[11px] text-slate-500">
             {consent?.status ||
-              (isHindi ? "सक्रिय" : "Active")}
+              (tr('Active', 'सक्रिय'))}
           </p>
         </div>
 
@@ -488,9 +454,7 @@ function ConsentCard({
               <p className="text-xs leading-5 text-slate-600">
                 {consent?.description ||
                   consent?.details ||
-                  (isHindi
-                    ? "यह अनुमति स्वास्थ्य जानकारी के निर्धारित उपयोग की अनुमति देती है।"
-                    : "This permission allows the stated use of your health information.")}
+                  (tr('This permission allows the stated use of your health information.', 'यह अनुमति स्वास्थ्य जानकारी के निर्धारित उपयोग की अनुमति देती है।'))}
               </p>
             </div>
           </div>
@@ -502,9 +466,7 @@ function ConsentCard({
               className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-50 text-xs font-bold text-teal-800"
             >
               <RotateCcw size={15} />
-              {isHindi
-                ? "फिर अनुमति दें"
-                : "Re-grant consent"}
+              {tr('Re-grant consent', 'फिर अनुमति दें')}
             </button>
           ) : (
             <button
@@ -513,9 +475,7 @@ function ConsentCard({
               className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-xs font-bold text-rose-700"
             >
               <XCircle size={15} />
-              {isHindi
-                ? "सहमति वापस लें"
-                : "Withdraw consent"}
+              {tr('Withdraw consent', 'सहमति वापस लें')}
             </button>
           )}
         </div>
