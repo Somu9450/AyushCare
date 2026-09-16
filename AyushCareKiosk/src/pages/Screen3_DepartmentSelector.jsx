@@ -59,10 +59,10 @@ export default function Screen3_DepartmentSelector() {
       // explicitly selected the required clinical-intake consent.
       const d = await kioskApi.verifyPatient({
         registrationType: sessionData.registrationType || 'new',
-        abhaNumber: undefined,
+        patientId: profile.id || profile.patient_uuid || profile.patientId || undefined,
         mobileNumber: String(profile.mobileNumber || '').replace(/\D/g, ''),
         aadhaarNumber: String(profile.aadhaar || '').replace(/\D/g, ''),
-        abhaNumber: String(profile.abha || '').replace(/\D/g, ''),
+        abhaNumber: String(profile.abha || profile.abhaNumber || '').replace(/\D/g, '') || undefined,
         fullName: profile.full_name || profile.name || '',
         age: Number(profile.age) || undefined,
         address: profile.address || '',

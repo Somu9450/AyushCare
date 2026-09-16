@@ -22,13 +22,14 @@ class TranslationError(Exception):
 class TranslationService:
     """Bhashini NMT-powered translation service."""
 
-    def __init__(self, bhashini_client: Any, settings: Settings) -> None:
+    def __init__(self, bhashini_client: Any, settings: Settings, llm_service: Optional[Any] = None) -> None:
         self._bhashini = bhashini_client
         self._settings = settings
+        self._llm = llm_service
 
     @property
     def is_available(self) -> bool:
-        return self._bhashini is not None
+        return self._bhashini is not None or (self._llm is not None and self._llm.is_available)
 
     async def translate(
         self,
@@ -36,7 +37,7 @@ class TranslationService:
         source_lang: str,
         target_lang: str,
     ) -> str:
-        """Translate text between languages using Bhashini NMT.
+        """Translate text between languages using Bhashini NMT with LLM fallback.
 
         If source == target, returns text as-is.
 
@@ -54,37 +55,71 @@ class TranslationService:
         if source_lang == target_lang:
             return text
 
-        if self._bhashini is None:
-            raise TranslationError("Bhashini client not available for translation.")
+        # 1. Primary: Bhashini NMT
+        if self._bhashini is not None:
+            try:
+                result = await self._bhashini.translate(
+                    text=text,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    service_id=self._settings.bhashini_nmt_model,
+                )
 
-        try:
-            result = await self._bhashini.translate(
-                text=text,
-                source_lang=source_lang,
-                target_lang=target_lang,
-                service_id=self._settings.bhashini_nmt_model,
-            )
+                translated = result.get("translated_text", "")
+                if translated and translated.strip():
+                    logger.info(
+                        "translation_complete",
+                        provider="bhashini",
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        input_len=len(text),
+                        output_len=len(translated),
+                    )
+                    return translated.strip()
 
-            translated = result.get("translated_text", "")
+            except Exception as e:
+                logger.warning(
+                    "bhashini_translation_failed_trying_llm",
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    error=str(e),
+                )
 
-            logger.info(
-                "translation_complete",
-                source_lang=source_lang,
-                target_lang=target_lang,
-                input_len=len(text),
-                output_len=len(translated),
-            )
+        # 2. Fallback: Fast LLM (Groq) translation
+        if self._llm is not None and self._llm.is_available:
+            try:
+                prompt = (
+                    f"Translate the following healthcare/kiosk text from {source_lang} to {target_lang}. "
+                    "Provide ONLY the direct translation without any explanation, quotes, or conversational preamble:\n\n"
+                    f"{text}"
+                )
+                translated = await self._llm.generate(
+                    system_prompt="You are a professional medical and multilingual translation assistant for healthcare kiosks.",
+                    user_prompt=prompt,
+                    temperature=0.1,
+                    max_tokens=1000,
+                )
+                cleaned = (translated or "").strip().strip('"').strip("'")
+                if cleaned:
+                    logger.info(
+                        "translation_complete",
+                        provider="llm_groq",
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        input_len=len(text),
+                        output_len=len(cleaned),
+                    )
+                    return cleaned
+            except Exception as e:
+                logger.warning(
+                    "llm_translation_failed",
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    error=str(e),
+                )
 
-            return translated
-
-        except Exception as e:
-            logger.error(
-                "translation_failed",
-                source_lang=source_lang,
-                target_lang=target_lang,
-                error=str(e),
-            )
-            raise TranslationError(f"Translation failed ({source_lang}→{target_lang}): {e}") from e
+        # 3. Graceful fallback: return original text
+        return text
 
     async def translate_to_english(self, text: str, source_lang: str) -> str:
         """Translate any language to English.

@@ -18,11 +18,16 @@ export interface DocumentFile {
   id: string;
   name: string;
   date: string;
-  type: 'pdf' | 'image';
+  type: 'pdf' | 'image' | 'other';
+  documentType?: string;
   size: string;
   url?: string;
+  downloadUrl?: string;
   filePath?: string;
   status?: string;
+  mimeType?: string;
+  extractedData?: Record<string, any>;
+  processingError?: string;
 }
 
 export interface ExtractedDrug {
@@ -58,21 +63,71 @@ export interface PrescriptionItem {
   instructions: string;
 }
 
+export interface PatientVitals {
+  systolic?: number;
+  diastolic?: number;
+  pulse?: number;
+  temperature?: number;
+  spo2?: number;
+  source?: string;
+  recordedAt?: string;
+}
+
+export interface DrugAllergy {
+  drug: string;
+  reaction?: string;
+  severity?: 'Mild' | 'Moderate' | 'Severe' | 'Critical' | string;
+}
+
+export interface AyushAttributes {
+  prakriti?: string;
+  doshaDominance?: string;
+  agni?: string;
+  kostha?: string;
+  pulseExamination?: string;
+  tongueExamination?: string;
+  recommendations?: string[];
+  [key: string]: any;
+}
+
+export interface SummarySection {
+  heading: string;
+  body: string;
+}
+
 export interface Patient {
   id: string;
   tokenNumber: string;
   name: string;
   initials: string;
   age: number;
-  gender: 'Male' | 'Female' | 'Other';
+  gender: 'Male' | 'Female' | 'Other' | string;
   uhid: string;
   department: string;
+  departmentPathway?: string;
+  intakePathway?: string;
+  language?: string;
+  mobileNumber?: string;
+  patientCode?: string;
+  aadhaarNumber?: string;
+  address?: string;
+  abhaNumber?: string;
+  abhaAddress?: string;
+  registrationType?: string;
+  consentGranted?: boolean;
   chiefComplaint: string;
+  historyOfPresentIllness?: string;
+  narrativeSummary?: string;
+  summarySections?: SummarySection[];
+  redFlags?: string[];
   complaintConfidence: 'High' | 'Verify' | 'Critical';
   priority: PriorityStatus;
   abhaLinked: boolean;
   alertMessage?: string;
   createdAt?: string;
+  vitals?: PatientVitals;
+  allergies?: DrugAllergy[];
+  ayushProfile?: AyushAttributes;
   socrates: {
     site: SocratesField;
     onset: SocratesField;

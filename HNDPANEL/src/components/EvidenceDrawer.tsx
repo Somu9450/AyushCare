@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Patient } from '../types/clinical';
+import { Patient, DocumentFile } from '../types/clinical';
+import { DocumentViewerModal } from './DocumentViewerModal';
 import {
   FileText,
   Clock,
@@ -14,10 +15,11 @@ import {
   Pause,
   ArrowRight,
   FileSpreadsheet,
-  ChevronRight,
   PanelRightClose,
   PanelRightOpen,
   X,
+  Eye,
+  Sparkles,
 } from 'lucide-react';
 
 interface EvidenceDrawerProps {
@@ -35,6 +37,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 }) => {
   const [activeDrawerTab, setActiveDrawerTab] = useState<'Docs' | 'Timeline' | 'Transcript'>('Docs');
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [selectedDocForViewer, setSelectedDocForViewer] = useState<DocumentFile | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const toggleAudio = (id: string, audioUrl?: string) => {
@@ -62,10 +65,8 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
     }
   };
 
-  const handleOpenDoc = (url?: string) => {
-    if (url && (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('/'))) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+  const handleOpenDoc = (doc: DocumentFile) => {
+    setSelectedDocForViewer(doc);
   };
 
   const getFileIcon = (fileName: string) => {
@@ -81,58 +82,67 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
   // If collapsed on desktop, render a compact vertical rail
   if (!isOpen) {
     return (
-      <aside className="hidden lg:flex w-12 border-l border-slate-200/90 bg-white flex-col items-center py-3 select-none shrink-0 transition-all duration-300">
-        <button
-          onClick={onToggle}
-          className="p-2 rounded-lg text-slate-500 hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer mb-4"
-          title="Expand Evidence Drawer"
-        >
-          <PanelRightOpen className="w-4 h-4" />
-        </button>
-
-        <div className="flex flex-col items-center space-y-4 text-slate-400">
+      <>
+        <aside className="hidden lg:flex w-12 border-l border-slate-200/90 bg-white flex-col items-center py-3 select-none shrink-0 transition-all duration-300">
           <button
-            onClick={() => {
-              setActiveDrawerTab('Docs');
-              onToggle();
-            }}
-            className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer relative"
-            title="Uploaded Documents & AI Extractions"
+            onClick={onToggle}
+            className="p-2 rounded-lg text-slate-500 hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer mb-4"
+            title="Expand Evidence Drawer"
           >
-            <FileText className="w-4 h-4" />
-            {patient.documents.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#054444] text-white rounded-full text-[9px] font-bold flex items-center justify-center">
-                {patient.documents.length}
-              </span>
-            )}
+            <PanelRightOpen className="w-4 h-4" />
           </button>
 
-          <button
-            onClick={() => {
-              setActiveDrawerTab('Timeline');
-              onToggle();
-            }}
-            className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer"
-            title="Clinical Timeline"
-          >
-            <Clock className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col items-center space-y-4 text-slate-400">
+            <button
+              onClick={() => {
+                setActiveDrawerTab('Docs');
+                onToggle();
+              }}
+              className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer relative"
+              title="Uploaded Documents & AI Extractions"
+            >
+              <FileText className="w-4 h-4" />
+              {patient.documents.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#054444] text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                  {patient.documents.length}
+                </span>
+              )}
+            </button>
 
-          <button
-            onClick={() => {
-              setActiveDrawerTab('Transcript');
-              onToggle();
-            }}
-            className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer relative"
-            title="Triage Dialogue Transcript"
-          >
-            <MessageSquareQuote className="w-4 h-4" />
-            {patient.transcripts.length > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-teal-500 rounded-full" />
-            )}
-          </button>
-        </div>
-      </aside>
+            <button
+              onClick={() => {
+                setActiveDrawerTab('Timeline');
+                onToggle();
+              }}
+              className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Clinical Timeline"
+            >
+              <Clock className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveDrawerTab('Transcript');
+                onToggle();
+              }}
+              className="p-2 rounded-lg hover:text-[#064e4b] hover:bg-slate-100 transition-colors cursor-pointer relative"
+              title="Triage Dialogue Transcript"
+            >
+              <MessageSquareQuote className="w-4 h-4" />
+              {patient.transcripts.length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-teal-500 rounded-full" />
+              )}
+            </button>
+          </div>
+        </aside>
+
+        {/* In-App Document Viewer Modal */}
+        <DocumentViewerModal
+          document={selectedDocForViewer}
+          isOpen={Boolean(selectedDocForViewer)}
+          onClose={() => setSelectedDocForViewer(null)}
+        />
+      </>
     );
   }
 
@@ -142,10 +152,10 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
       {/* Mobile/Tablet Backdrop Overlay */}
       <div
         onClick={onClose || onToggle}
-        className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden transition-opacity"
+        className="fixed inset-0 top-[54px] z-30 bg-slate-900/40 backdrop-blur-xs lg:hidden transition-opacity"
       />
 
-      <aside className="fixed inset-y-0 right-0 z-50 w-80 sm:w-88 max-w-[90vw] bg-white border-l border-slate-200/90 shadow-2xl lg:shadow-none lg:static lg:w-80 xl:w-88 flex flex-col shrink-0 h-full select-none transition-transform duration-300">
+      <aside className="fixed inset-y-0 top-[54px] lg:top-0 right-0 z-30 lg:z-auto w-80 sm:w-88 max-w-[90vw] bg-white border-l border-slate-200/90 shadow-2xl lg:shadow-none lg:static lg:w-80 xl:w-88 flex flex-col shrink-0 h-[calc(100vh-54px)] lg:h-full select-none transition-transform duration-300">
         {/* Header with Tabs and Collapse Toggle Button */}
         <div className="flex items-center justify-between border-b border-slate-200/90 bg-[#f8fafc] p-2 gap-1.5 shrink-0">
           <div className="flex items-center flex-1 gap-1">
@@ -213,11 +223,11 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {patient.documents.map((doc) => (
+                    {patient.documents.map((doc, idx) => (
                       <div
-                        key={doc.id}
-                        onClick={() => handleOpenDoc(doc.url || doc.filePath)}
-                        className="p-2.5 rounded-lg border border-slate-200/90 bg-[#f8fafc]/60 hover:bg-slate-50 transition-all flex items-center justify-between group cursor-pointer"
+                        key={`doc-${doc.id || idx}-${idx}`}
+                        onClick={() => handleOpenDoc(doc)}
+                        className="p-2.5 rounded-lg border border-slate-200/90 bg-[#f8fafc]/60 hover:bg-teal-50/40 hover:border-teal-300 transition-all flex items-center justify-between group cursor-pointer shadow-2xs"
                       >
                         <div className="flex items-center space-x-2.5 min-w-0">
                           {getFileIcon(doc.name)}
@@ -230,7 +240,10 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                             </p>
                           </div>
                         </div>
-                        <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#064e4b] shrink-0" />
+                        <div className="flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#064e4b] shrink-0" />
+                          <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#064e4b] shrink-0" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -239,9 +252,12 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
               {/* Section 2: AI Extraction - Prescription */}
               <div className="space-y-2.5 pt-2">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block">
-                  AI EXTRACTION - MEDICATIONS
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block">
+                    AI EXTRACTION - MEDICATIONS
+                  </span>
+                  <Sparkles className="w-3 h-3 text-teal-600" />
+                </div>
 
                 {patient.extractions.length === 0 ? (
                   <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-xs text-slate-400">
@@ -251,7 +267,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="space-y-2">
                     {patient.extractions.map((item, idx) => (
                       <div
-                        key={idx}
+                        key={`extraction-${item.drug || idx}-${idx}`}
                         className="p-3 rounded-xl border border-slate-200/90 bg-white shadow-2xs space-y-1"
                       >
                         <div className="flex items-center justify-between">
@@ -282,10 +298,10 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => handleOpenDoc(patient.documents[0].url || patient.documents[0].filePath)}
+                    onClick={() => handleOpenDoc(patient.documents[0])}
                     className="text-xs font-semibold text-[#064e4b] hover:underline inline-flex items-center space-x-1 cursor-pointer"
                   >
-                    <span>View Original Document</span>
+                    <span>View Primary Document in Fullscreen</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -307,7 +323,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="text-[10px] font-bold text-slate-400">
                     {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString().toUpperCase() : 'CURRENT VISIT'}
                   </div>
-                  <div className="text-xs font-bold text-slate-900 mt-0.5">Kiosk OPD Intake & Triage</div>
+                  <div className="text-xs font-bold text-slate-900 mt-0.5">MediKiosk OPD Intake & Triage</div>
                   <p className="text-[11px] text-slate-600 mt-1">
                     {patient.chiefComplaint || 'Chief complaint recorded. Triage transcript logged.'}
                   </p>
@@ -315,7 +331,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
                 {/* Event 2: Documents uploaded if any */}
                 {patient.documents.map((doc, idx) => (
-                  <div key={idx} className="relative">
+                  <div key={`timeline-doc-${doc.id || idx}-${idx}`} className="relative">
                     <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white" />
                     <div className="text-[10px] font-bold text-slate-400">{doc.date}</div>
                     <div className="text-xs font-bold text-slate-800 mt-0.5">Uploaded {doc.name}</div>
@@ -325,7 +341,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
 
                 {/* Event 3: Prior medical history */}
                 {patient.medicalHistory.slice(0, 3).map((item, idx) => (
-                  <div key={`hist-${idx}`} className="relative">
+                  <div key={`timeline-hist-${item.condition || idx}-${idx}`} className="relative">
                     <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-white" />
                     <div className="text-[10px] font-bold text-slate-400">{item.since}</div>
                     <div className="text-xs font-bold text-slate-800 mt-0.5">{item.condition}</div>
@@ -354,13 +370,13 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               ) : (
                 /* Chat Conversation Thread */
                 <div className="space-y-3">
-                  {patient.transcripts.map((item) => {
+                  {patient.transcripts.map((item, idx) => {
                     const isBot = item.speaker === 'bot';
                     const isPlaying = playingAudioId === item.id;
 
                     return (
                       <div
-                        key={item.id}
+                        key={`transcript-${item.id || idx}-${idx}`}
                         className={`flex items-start gap-2.5 ${isBot ? '' : 'flex-row-reverse'}`}
                       >
                         {/* Speaker Icon */}
@@ -418,6 +434,13 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
           )}
         </div>
       </aside>
+
+      {/* In-App Document Viewer Modal */}
+      <DocumentViewerModal
+        document={selectedDocForViewer}
+        isOpen={Boolean(selectedDocForViewer)}
+        onClose={() => setSelectedDocForViewer(null)}
+      />
     </>
   );
 };

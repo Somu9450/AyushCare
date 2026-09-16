@@ -10,7 +10,84 @@ import { TopNavbar } from '../../../components/TopNavbar';
 import { QueueSidebar } from '../../../components/QueueSidebar';
 import { ClinicalWorkspace } from '../../../components/ClinicalWorkspace';
 import { EvidenceDrawer } from '../../../components/EvidenceDrawer';
-import { Stethoscope, AlertCircle, RefreshCw } from 'lucide-react';
+import { Stethoscope, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+
+// Clinical Workspace Skeleton for immediate, zero-lag transitions on patient switch
+const ClinicalWorkspaceSkeleton = () => (
+  <div className="flex-1 flex flex-col bg-[#f8fafc] overflow-y-auto p-3 sm:p-4 md:p-5 space-y-3.5 select-none animate-pulse">
+    {/* 1. Header Card Skeleton */}
+    <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-11 h-11 rounded-full bg-slate-200 shrink-0" />
+          <div className="space-y-1.5">
+            <div className="flex items-center space-x-2">
+              <div className="h-4 bg-slate-200 rounded w-36" />
+              <div className="h-4 bg-slate-100 rounded w-16" />
+              <div className="h-4 bg-teal-100/60 rounded w-20" />
+            </div>
+            <div className="h-3 bg-slate-100 rounded w-48" />
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="h-7 bg-slate-100 rounded-lg w-28" />
+          <div className="h-7 bg-emerald-100/60 rounded-full w-24" />
+        </div>
+      </div>
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+        <div className="h-3 bg-slate-100 rounded w-64" />
+        <div className="h-3 bg-slate-100 rounded w-32" />
+      </div>
+    </div>
+
+    {/* 2. Vitals Ribbon Skeleton */}
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="p-3 rounded-xl border border-slate-200 bg-white space-y-2">
+          <div className="h-2.5 bg-slate-200 rounded w-20" />
+          <div className="h-5 bg-slate-100 rounded w-14" />
+        </div>
+      ))}
+    </div>
+
+    {/* 3. Sub-Navigation Tabs Skeleton */}
+    <div className="flex items-center space-x-4 border-b border-slate-200 pb-2">
+      <div className="h-4 bg-teal-800/30 rounded w-28" />
+      <div className="h-4 bg-slate-200 rounded w-24" />
+      <div className="h-4 bg-slate-200 rounded w-20" />
+      <div className="h-4 bg-slate-200 rounded w-28" />
+      <div className="h-4 bg-slate-200 rounded w-24" />
+    </div>
+
+    {/* 4. AI Clinical Summary & HPI Skeleton Card */}
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Sparkles className="w-3.5 h-3.5 text-teal-600 animate-spin" />
+          <div className="h-3.5 bg-slate-200 rounded w-64" />
+        </div>
+        <div className="h-6 bg-slate-100 rounded w-20" />
+      </div>
+      <div className="space-y-2 pt-1">
+        <div className="h-3 bg-slate-100 rounded w-full" />
+        <div className="h-3 bg-slate-100 rounded w-11/12" />
+        <div className="h-3 bg-slate-100 rounded w-4/5" />
+      </div>
+    </div>
+
+    {/* 5. Quick Rx Builder Skeleton Card */}
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+      <div className="h-3.5 bg-slate-200 rounded w-44" />
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
+        <div className="md:col-span-4 h-8 bg-slate-100 rounded-lg" />
+        <div className="md:col-span-2 h-8 bg-slate-100 rounded-lg" />
+        <div className="md:col-span-3 h-8 bg-slate-100 rounded-lg" />
+        <div className="md:col-span-2 h-8 bg-slate-100 rounded-lg" />
+        <div className="md:col-span-1 h-8 bg-teal-800/20 rounded-lg" />
+      </div>
+    </div>
+  </div>
+);
 
 export default function DoctorWorkspacePage() {
   const [rawQueue, setRawQueue] = useState<ConsultationQueueItem[]>([]);
@@ -72,17 +149,34 @@ export default function DoctorWorkspacePage() {
     return () => unsubscribe();
   }, [fetchQueue]);
 
+  // Synchronous, instant patient selection handler to eliminate stale state lag
+  const handleSelectPatient = useCallback(
+    (id: string) => {
+      if (id === selectedConsultationId) return;
+      // 1. Immediately purge stale active summary and reports
+      setActiveSummary(null);
+      setActiveReports([]);
+      // 2. Activate skeleton loader synchronously
+      setLoadingDetails(true);
+      // 3. Switch active ID
+      setSelectedConsultationId(id);
+    },
+    [selectedConsultationId]
+  );
+
   // 3. Load active patient clinical summary and reports whenever selected ID changes
   useEffect(() => {
     if (!selectedConsultationId) {
       setActiveSummary(null);
       setActiveReports([]);
+      setLoadingDetails(false);
       return;
     }
 
     let isMounted = true;
+    setLoadingDetails(true);
+
     const loadDetails = async () => {
-      setLoadingDetails(true);
       try {
         const [summary, reports] = await Promise.all([
           doctorService.getPatientSummary(selectedConsultationId).catch(() => null),
@@ -99,7 +193,9 @@ export default function DoctorWorkspacePage() {
           setActiveReports([]);
         }
       } finally {
-        if (isMounted) setLoadingDetails(false);
+        if (isMounted) {
+          setLoadingDetails(false);
+        }
       }
     };
 
@@ -129,6 +225,19 @@ export default function DoctorWorkspacePage() {
     if (!selectedConsultationId || patients.length === 0) return null;
     return patients.find((p) => p.id === selectedConsultationId) || patients[0] || null;
   }, [patients, selectedConsultationId]);
+
+  // Auto-collapse right evidence drawer if there are zero documents and zero transcripts to maximize central workspace
+  useEffect(() => {
+    if (selectedPatient) {
+      const hasDocs = selectedPatient.documents && selectedPatient.documents.length > 0;
+      const hasTranscripts = selectedPatient.transcripts && selectedPatient.transcripts.length > 0;
+      if (!hasDocs && !hasTranscripts) {
+        setIsEvidenceDrawerOpen(false);
+      } else {
+        setIsEvidenceDrawerOpen(true);
+      }
+    }
+  }, [selectedPatient?.id, selectedPatient?.documents?.length, selectedPatient?.transcripts?.length]);
 
   // Update patient status & clinical notes in backend
   const handleUpdatePatient = async (updated: Patient) => {
@@ -160,7 +269,7 @@ export default function DoctorWorkspacePage() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#f8fafc] flex flex-col font-sans text-slate-900 antialiased select-none">
-      {/* 1. Top Navbar with Responsive Drawer Toggles */}
+      {/* 1. Top Navbar with Responsive Drawer Toggles & Doctor Profile Dropdown */}
       <TopNavbar
         onToggleQueue={() => setIsQueueSidebarOpen((prev) => !prev)}
         onToggleEvidence={() => setIsEvidenceDrawerOpen((prev) => !prev)}
@@ -192,20 +301,18 @@ export default function DoctorWorkspacePage() {
         <QueueSidebar
           patients={patients}
           selectedPatientId={selectedConsultationId || ''}
-          onSelectPatient={setSelectedConsultationId}
+          onSelectPatient={handleSelectPatient}
           isLoading={loadingQueue}
           isOpenMobile={isQueueSidebarOpen}
           onCloseMobile={() => setIsQueueSidebarOpen(false)}
         />
 
-        {/* Middle Column: Clinical Workspace */}
+        {/* Middle Column: Clinical Workspace with Immediate Skeleton on Switch */}
         {loadingDetails ? (
-          <div className="flex-1 bg-[#f8fafc] flex flex-col items-center justify-center text-xs text-slate-400 gap-3">
-            <span className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#054444] border-t-transparent" />
-            <span>Loading patient clinical summary & EHR records...</span>
-          </div>
+          <ClinicalWorkspaceSkeleton />
         ) : selectedPatient ? (
           <ClinicalWorkspace
+            key={`workspace-${selectedPatient.id}`}
             patient={selectedPatient}
             onUpdatePatient={handleUpdatePatient}
             onConfirmContinue={handleConfirmContinue}
@@ -224,9 +331,10 @@ export default function DoctorWorkspacePage() {
           </div>
         )}
 
-        {/* Right Column: Collapsible Evidence Drawer (Docked rail/drawer on lg, slide-out drawer on tablet/mobile) */}
+        {/* Right Column: Collapsible Evidence Drawer */}
         {selectedPatient && (
           <EvidenceDrawer
+            key={`drawer-${selectedPatient.id}`}
             patient={selectedPatient}
             isOpen={isEvidenceDrawerOpen}
             onToggle={() => setIsEvidenceDrawerOpen((prev) => !prev)}

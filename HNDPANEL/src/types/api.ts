@@ -43,9 +43,34 @@ export interface ConsultationQueueItem {
   status: ConsultationStatus;
   risk_level: RiskLevel;
   full_name: string;
+  gender?: 'Male' | 'Female' | 'Other' | string;
+  date_of_birth?: string;
+  age?: number;
+  mobile_number?: string;
+  patient_code?: string;
+  aadhaar_number?: string;
+  address?: string;
+  abha_number?: string;
+  abha_address?: string;
+  registration_type?: string;
+  consent_granted?: boolean;
   department_id?: string;
+  department?: string;
+  department_pathway?: string;
+  intake_pathway?: string;
+  language?: string;
   assigned_doctor_id?: string;
   created_at?: string;
+  updated_at?: string;
+  remarks?: string;
+  systolic?: number;
+  diastolic?: number;
+  pulse?: number;
+  temperature?: number;
+  spo2?: number;
+  vitals_source?: string;
+  vitals_recorded_at?: string;
+  chief_complaint?: string;
 }
 
 export interface ClinicalSummary {
@@ -76,6 +101,35 @@ export interface ClinicalSummary {
   socrates?: Record<string, any>;
   generated_at?: string;
   updated_at?: string;
+
+  // Joined fields
+  full_name?: string;
+  gender?: string;
+  age?: number;
+  date_of_birth?: string;
+  mobile_number?: string;
+  patient_code?: string;
+  aadhaar_number?: string;
+  address?: string;
+  abha_number?: string;
+  abha_address?: string;
+  registration_type?: string;
+  department?: string;
+  department_pathway?: string;
+  intake_pathway?: string;
+  language?: string;
+  token_number?: string;
+  consultation_status?: ConsultationStatus;
+  risk_level?: RiskLevel;
+  consultation_created_at?: string;
+  consultation_remarks?: string;
+  systolic?: number;
+  diastolic?: number;
+  pulse?: number;
+  temperature?: number;
+  spo2?: number;
+  vitals_source?: string;
+  vitals_recorded_at?: string;
 }
 
 export interface UploadedDocument {
@@ -83,10 +137,13 @@ export interface UploadedDocument {
   consultation_id: string;
   file_path_hash: string;
   document_type: string;
+  source_mime_type?: string;
   page_number?: number;
   total_pages?: number;
   extracted_data?: Record<string, any>;
   status: DocumentStatus;
+  download_url?: string;
+  url?: string;
   created_at: string;
   updated_at?: string;
 }

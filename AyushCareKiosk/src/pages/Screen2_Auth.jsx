@@ -76,8 +76,19 @@ export default function Screen2_Auth() {
   };
 
   const continueOld = () => {
-    if (!selected?.abha) return;
-    updateSession({ registrationType: 'old', authType: 'Mobile', identifier: cleanDigits(selected.mobileNumber), isVerified: true, patientProfile: selected, abhaNumber: selected.abha, pathway: selected.pathway || 'allopathy', consultationId: null, aiSessionId: null, pairingSession: null });
+    if (!selected) return;
+    updateSession({
+      registrationType: 'old',
+      authType: 'Mobile',
+      identifier: cleanDigits(selected.mobileNumber) || selected.abha || String(selected.id || ''),
+      isVerified: true,
+      patientProfile: selected,
+      abhaNumber: selected.abha || selected.abhaNumber || '',
+      pathway: selected.pathway || sessionData.pathway || 'allopathy',
+      consultationId: null,
+      aiSessionId: null,
+      pairingSession: null,
+    });
     setScreen(4);
   };
 

@@ -33,7 +33,8 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
     const matchesSearch =
       patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       patient.tokenNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.chiefComplaint.toLowerCase().includes(searchQuery.toLowerCase());
+      patient.chiefComplaint.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (patient.patientCode && patient.patientCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
@@ -72,6 +73,40 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
     }
   };
 
+  // Dynamic clean snippet for queue card
+  const getQueueSnippet = (patient: Patient) => {
+    const cc = patient.chiefComplaint?.trim();
+    const isGenericIntake =
+      !cc ||
+      cc.toLowerCase() === 'intake recorded at kiosk' ||
+      cc.toLowerCase() === 'intake recorded' ||
+      cc.toLowerCase() === 'not recorded';
+
+    if (!isGenericIntake) {
+      const onset = patient.socrates?.onset?.value;
+      const hasValidOnset =
+        onset &&
+        !onset.toLowerCase().includes('not recorded') &&
+        !onset.toLowerCase().includes('not provided');
+
+      return hasValidOnset ? `${cc} • ${onset}` : cc;
+    }
+
+    if (patient.alertMessage) {
+      return patient.alertMessage;
+    }
+
+    if (patient.ayushProfile?.prakriti) {
+      return `${patient.department || 'AYUSH'} • ${patient.ayushProfile.prakriti}`;
+    }
+
+    if (patient.department) {
+      return `${patient.department} • Triage Ready`;
+    }
+
+    return 'General OPD • Triage Ready';
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-white select-none">
       {/* Header with Queue Metrics */}
@@ -108,12 +143,12 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
 
         {/* Search Input */}
         <div className="relative mb-3">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-slate-400" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search token / name..."
+            placeholder="Search token / patient name..."
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#f8fafc] border border-slate-200/90 rounded-md focus:outline-none focus:border-[#064e4b] focus:bg-white transition-all placeholder:text-slate-400 text-slate-800"
           />
         </div>
@@ -136,12 +171,12 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
         </div>
       </div>
 
-      {/* Scrollable Token List */}
-      <div className="flex-1 overflow-y-auto space-y-2 p-3 bg-white">
+      {/* Scrollable Token List with Refined Vertical Spacing */}
+      <div className="flex-1 overflow-y-auto space-y-2.5 p-3.5 bg-slate-50/50">
         {isLoading ? (
-          <div className="space-y-3 p-2">
+          <div className="space-y-3 p-1">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="p-3 rounded-lg border border-slate-100 bg-slate-50/70 animate-pulse">
+              <div key={i} className="p-3 rounded-xl border border-slate-100 bg-white animate-pulse">
                 <div className="flex items-center justify-between mb-2">
                   <div className="h-3.5 bg-slate-200 rounded w-24" />
                   <div className="h-3.5 bg-slate-200 rounded w-12" />
@@ -162,25 +197,30 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
         ) : (
           filteredPatients.map((patient) => {
             const isSelected = patient.id === selectedPatientId;
+            const snippet = getQueueSnippet(patient);
+            const isUrgent = patient.priority === 'Urgent';
+
             return (
               <div
                 key={patient.id}
                 onClick={() => handlePatientClick(patient.id)}
-                className={`p-3 rounded-lg border transition-all cursor-pointer relative ${
+                className={`p-3 rounded-xl border transition-all cursor-pointer relative shadow-2xs ${
                   isSelected
-                    ? 'bg-[#f0fdfa] border-teal-500/80 shadow-2xs'
-                    : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/60'
+                    ? 'bg-[#f0fdfa] border-teal-500/80 ring-1 ring-teal-500/40'
+                    : isUrgent
+                    ? 'bg-red-50/40 border-red-200/80 hover:bg-red-50/70'
+                    : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/80'
                 }`}
               >
                 {/* Top Row: Dot + Token + Name & Badge */}
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center space-x-1.5 min-w-0">
+                <div className="flex items-center justify-between gap-1.5 mb-1.5 min-w-0">
+                  <div className="flex items-center space-x-1.5 min-w-0 flex-1">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${getDotStyle(
                         patient.priority
                       )}`}
                     />
-                    <span className="font-bold text-xs text-slate-900">
+                    <span className="font-bold text-xs text-slate-900 shrink-0">
                       {patient.tokenNumber}
                     </span>
                     <span className="font-semibold text-xs text-slate-900 truncate">
@@ -197,9 +237,26 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
                   </span>
                 </div>
 
-                {/* Sub row: Demographics & Chief Complaint */}
-                <div className="text-xs text-slate-500 font-medium pl-3.5 truncate">
-                  {patient.age ? `${patient.age}y · ` : ''}{patient.gender !== 'Other' ? `${patient.gender.charAt(0)} · ` : ''}{patient.chiefComplaint}
+                {/* Sub row: Demographics & Truncated Clean Complaint Line */}
+                <div className="text-xs text-slate-500 font-medium pl-3.5 flex items-center justify-between gap-2 min-w-0">
+                  <div className="truncate flex-1 min-w-0">
+                    <span className="text-slate-400">
+                      {patient.age ? `${patient.age}y · ` : ''}
+                      {patient.gender !== 'Other' ? `${patient.gender.charAt(0)} · ` : ''}
+                    </span>
+                    <span className="text-slate-700 font-medium truncate" title={snippet}>
+                      {snippet}
+                    </span>
+                  </div>
+
+                  {patient.allergies && patient.allergies.length > 0 && (
+                    <span
+                      className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.2 rounded border border-red-200 shrink-0"
+                      title={`Allergies: ${patient.allergies.map((a) => a.drug).join(', ')}`}
+                    >
+                      ⚠️ Allg
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -221,9 +278,9 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
         <>
           <div
             onClick={onCloseMobile}
-            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden transition-opacity"
+            className="fixed inset-0 top-[54px] z-30 bg-slate-900/40 backdrop-blur-xs lg:hidden transition-opacity"
           />
-          <aside className="fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-white shadow-2xl border-r border-slate-200 flex flex-col h-full lg:hidden animate-in slide-in-from-left duration-200">
+          <aside className="fixed inset-y-0 top-[54px] lg:top-0 left-0 z-30 lg:z-auto w-80 max-w-[85vw] bg-white shadow-2xl border-r border-slate-200 flex flex-col h-[calc(100vh-54px)] lg:h-full lg:hidden animate-in slide-in-from-left duration-200">
             {sidebarContent}
           </aside>
         </>

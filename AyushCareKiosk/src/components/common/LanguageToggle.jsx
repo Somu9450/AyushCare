@@ -29,6 +29,7 @@ export default function LanguageToggle() {
   }, []);
 
   const selected = languageService.find(languages, language) || { code: language, native: language, name: language };
+  const selectedLabel = selected?.native || selected?.name_native || selected?.name || selected?.name_en || 'English';
 
   const updateMenuPosition = () => {
     if (!buttonRef.current) return;
@@ -152,8 +153,8 @@ export default function LanguageToggle() {
                     onClick={() => handleLanguageChange(l.code)}
                   >
                     <span className="language-option-text">
-                      <span className="language-native">{l.native}</span>
-                      <span className="language-name">{l.name}</span>
+                      <span className="language-native">{l.native || l.name_native || l.name || l.name_en || l.code}</span>
+                      <span className="language-name">{l.name || l.name_en || l.name_native || l.code}</span>
                     </span>
 
                     {isSelected && (
@@ -185,7 +186,7 @@ export default function LanguageToggle() {
         <Languages size={19} aria-hidden="true" />
 
         <span className="selected-language">
-          {selected?.native || 'English'}
+          {selectedLabel}
         </span>
 
         <ChevronDown
