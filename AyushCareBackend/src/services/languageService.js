@@ -33,7 +33,7 @@ const COMPATIBILITY_LANGUAGES = [
     ['sd','Sindhi','سنڌી','planned',false,false],
     ['ur','Urdu','اردو','planned',false,false]
 ].map(([code,name,native,status,voice_capture,tts_available]) => ({
-    code, name, name_en:name, name_native:native, bcp47:`${code}-IN`,
+    code, name, native, name_en:name, name_native:native, bcp47:`${code}-IN`,
     status, voice_capture, tts_available
 }));
 

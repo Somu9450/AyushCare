@@ -67,7 +67,7 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
     if (type === 'new' && (!fullName || !gender || !resolvedDob || !mobile)) {
         throw new ApiError(400, 'New registration requires fullName, gender, age/dob and a 10-digit mobile number');
     }
-    if (type === 'old' && !abha && !mobile) {
+    if (type === 'old' && !patientId && !abha && !mobile) {
         throw new ApiError(400, 'Existing patient lookup requires ABHA number or mobile number');
     }
     if (type === 'new' && !abha) {
@@ -89,14 +89,19 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
         if (type === 'old') {
             const conditions = [];
             const params = [];
-            if (abha) { params.push(String(abha).trim()); conditions.push(`abha_number=$${params.length}`); }
-            if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
+            if (patientId) {
+                params.push(patientId);
+                conditions.push(`id=$${params.length}`);
+            } else {
+                if (abha) { params.push(String(abha).trim()); conditions.push(`abha_number=$${params.length}`); }
+                if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
+            }
             const existing = await client.query(
                 `SELECT * FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`,
                 params
             );
-            if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied ABHA number or mobile number');
-            if (existing.rowCount > 1 && !abha) {
+            if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied patient details');
+            if (existing.rowCount > 1 && !abha && !patientId) {
                 await client.query('ROLLBACK');
                 return res.status(200).json(new ApiResponse(200, {
                     multiple: true,

@@ -2,22 +2,58 @@ import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
-  process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, '') ||
   'http://localhost:8000';
 
 let socket: Socket | null = null;
+let hasLoggedConnectWarning = false;
 
 export const getSocket = (): Socket => {
-  if (!socket) {
-    socket = io(SOCKET_URL, {
-      autoConnect: true,
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-    });
+  if (typeof window === 'undefined') {
+    return {} as Socket;
   }
-  return socket;
+
+  if (!socket) {
+    try {
+      socket = io(SOCKET_URL, {
+        path: '/socket.io',
+        autoConnect: true,
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        reconnectionDelayMax: 5000,
+        timeout: 10000,
+      });
+
+      socket.on('connect', () => {
+        hasLoggedConnectWarning = false;
+      });
+
+      socket.on('connect_error', (err) => {
+        if (!hasLoggedConnectWarning) {
+          console.warn(
+            `[Socket.io] Connection warning (${SOCKET_URL}): ${err.message}. Retrying via polling/websocket fallback.`
+          );
+          hasLoggedConnectWarning = true;
+        }
+      });
+
+      socket.on('reconnect_failed', () => {
+        console.warn(
+          `[Socket.io] Reconnection attempts exhausted (${SOCKET_URL}). Check backend server status.`
+        );
+      });
+
+      socket.on('error', (err) => {
+        console.warn('[Socket.io] Diagnostic error:', err);
+      });
+    } catch (err) {
+      console.warn('[Socket.io] Initialization exception:', err);
+    }
+  }
+
+  return socket!;
 };
 
 export const subscribeToQueueEvents = (
@@ -27,6 +63,7 @@ export const subscribeToQueueEvents = (
   onRedFlag?: (data?: any) => void
 ) => {
   const s = getSocket();
+  if (!s || typeof s.on !== 'function') return () => {};
 
   if (onQueueUpdated) s.on('queue:updated', onQueueUpdated);
   if (onTokenCalled) s.on('token:called', onTokenCalled);
@@ -42,8 +79,9 @@ export const subscribeToQueueEvents = (
 };
 
 export const disconnectSocket = () => {
-  if (socket) {
+  if (socket && typeof socket.disconnect === 'function') {
     socket.disconnect();
     socket = null;
+    hasLoggedConnectWarning = false;
   }
 };

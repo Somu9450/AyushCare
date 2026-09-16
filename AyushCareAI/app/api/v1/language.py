@@ -25,5 +25,8 @@ async def translate_text(body: TranslationRequest, service: TranslationService =
     target = body.target_language.lower().split("-")[0]
     if not get_locale(source) or not get_locale(target):
         raise HTTPException(status_code=400, detail="Unsupported source or target language")
-    translated = await service.translate(body.text, source, target)
+    try:
+        translated = await service.translate(body.text, source, target)
+    except Exception:
+        translated = body.text
     return {"text": translated, "source_language": source, "target_language": target, "provider": "bhashini"}

@@ -7,6 +7,11 @@ import {
   ExtractedDrug,
   TranscriptItem,
   PrescriptionItem,
+  DocumentFile,
+  PatientVitals,
+  DrugAllergy,
+  AyushAttributes,
+  SummarySection,
 } from '../types/clinical';
 import { ClinicalSummary, ConsultationQueueItem, UploadedDocument } from '../types/api';
 
@@ -48,13 +53,25 @@ const formatSocratesField = (
   };
 };
 
+const safeParseJson = (data: any) => {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data;
+    }
+  }
+  return data;
+};
+
 export function mapQueueItemToPatient(
   item: ConsultationQueueItem,
   summary?: ClinicalSummary | null,
   reports: UploadedDocument[] = []
 ): Patient {
-  const initials = item.full_name
-    ? item.full_name
+  const fullName = summary?.full_name || item.full_name || 'Anonymous Patient';
+  const initials = fullName
+    ? fullName
         .split(' ')
         .filter(Boolean)
         .map((n) => n[0])
@@ -63,32 +80,93 @@ export function mapQueueItemToPatient(
         .slice(0, 2)
     : 'PT';
 
-  const mappedDocuments = reports.map((doc) => {
+  // Safely parse JSON structures
+  const aiPayload = safeParseJson(summary?.ai_payload) || {};
+  const ayushAttrs = safeParseJson(summary?.ayush_attributes) || {};
+
+  const mappedDocuments: DocumentFile[] = reports.map((doc) => {
     const rawPath = doc.file_path_hash || '';
-    const fileName = rawPath.split('/').pop() || doc.document_type || 'Document';
+    const finalUrl = doc.download_url || doc.url || rawPath;
+    const fileName =
+      rawPath.split('/').pop() ||
+      doc.document_type ||
+      `Document-${doc.id.slice(0, 6)}`;
+
     const isImg =
       rawPath.endsWith('.png') ||
       rawPath.endsWith('.jpg') ||
       rawPath.endsWith('.jpeg') ||
-      rawPath.endsWith('.webp');
+      rawPath.endsWith('.webp') ||
+      (doc.source_mime_type && doc.source_mime_type.startsWith('image/'));
+
+    const isPdf =
+      rawPath.endsWith('.pdf') ||
+      (doc.source_mime_type && doc.source_mime_type.includes('pdf'));
+
+    const extracted = safeParseJson(doc.extracted_data) || {};
 
     return {
       id: doc.id,
       name: fileName,
       date: doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recorded',
-      type: (isImg ? 'image' : 'pdf') as 'pdf' | 'image',
-      size: doc.extracted_data?.file_size || 'Attached Report',
-      url: rawPath,
+      type: isImg ? 'image' : isPdf ? 'pdf' : 'other',
+      documentType: doc.document_type || 'Clinical Document',
+      size: extracted?.file_size || (doc.page_number ? `Page ${doc.page_number}` : 'Attached Report'),
+      url: finalUrl,
+      downloadUrl: doc.download_url || finalUrl,
       filePath: rawPath,
       status: doc.status,
+      mimeType: doc.source_mime_type,
+      extractedData: extracted,
+      processingError: (doc as any).processing_error,
     };
   });
+
+  // Extract Summary Sections from AI Payload
+  let parsedSummarySections: SummarySection[] = [];
+  if (Array.isArray(aiPayload?.sections)) {
+    parsedSummarySections = aiPayload.sections.map((s: any) => ({
+      heading: s.heading_en || s.heading || s.title || 'Clinical Finding',
+      body: s.body || (Array.isArray(s.bullet_points) ? s.bullet_points.join('\n• ') : String(s)),
+    }));
+  }
+
+  // Extract Chief Complaint
+  const chiefComplaint =
+    summary?.chief_complaint ||
+    aiPayload?.chief_complaint ||
+    parsedSummarySections.find((s) => /complaint/i.test(s.heading))?.body ||
+    item.chief_complaint ||
+    'Intake recorded at kiosk';
+
+  // Extract History of Present Illness (HPI)
+  const historyOfPresentIllness =
+    summary?.history_of_present_illness ||
+    aiPayload?.history_of_present_illness ||
+    aiPayload?.hpi ||
+    parsedSummarySections.find((s) => /history|present illness|hpi/i.test(s.heading))?.body ||
+    '';
+
+  // Narrative Summary
+  const narrativeSummary =
+    aiPayload?.summary_text ||
+    aiPayload?.narrative_summary ||
+    aiPayload?.summary ||
+    (parsedSummarySections.length > 0
+      ? parsedSummarySections.map((s) => `### ${s.heading}\n${s.body}`).join('\n\n')
+      : historyOfPresentIllness);
+
+  // Red Flags from AI
+  const redFlags: string[] =
+    aiPayload?.red_flags ||
+    aiPayload?.critical_findings ||
+    [];
 
   // Extract SOCRATES from any available AI summary structure
   const rawSocrates =
     summary?.socrates ||
-    summary?.ai_payload?.socrates ||
-    summary?.ayush_attributes?.socrates ||
+    aiPayload?.socrates ||
+    ayushAttrs?.socrates ||
     {};
 
   const socratesGrid = {
@@ -97,7 +175,7 @@ export function mapQueueItemToPatient(
     character: formatSocratesField(rawSocrates.character, rawSocrates.character_confidence),
     radiation: formatSocratesField(rawSocrates.radiation, rawSocrates.radiation_confidence),
     associated: formatSocratesField(
-      rawSocrates.associated || summary?.history_of_present_illness,
+      rawSocrates.associated || historyOfPresentIllness,
       rawSocrates.associated_confidence
     ),
     timing: formatSocratesField(rawSocrates.timing, rawSocrates.timing_confidence),
@@ -111,7 +189,7 @@ export function mapQueueItemToPatient(
 
   // Parse Medical History
   let parsedHistory: MedicalHistoryItem[] = [];
-  const rawHistory = summary?.past_medical_history || summary?.ai_payload?.medical_history;
+  const rawHistory = safeParseJson(summary?.past_medical_history) || aiPayload?.medical_history;
   if (Array.isArray(rawHistory)) {
     parsedHistory = rawHistory.map((m: any) => ({
       category: m.category || 'General',
@@ -133,9 +211,12 @@ export function mapQueueItemToPatient(
   // Parse Lab Results from summary or reports
   let parsedLabs: LabResult[] = [];
   const rawLabs =
-    summary?.ai_payload?.labs ||
-    summary?.ayush_attributes?.labs ||
-    reports.flatMap((r) => (Array.isArray(r.extracted_data?.labs) ? r.extracted_data.labs : []));
+    aiPayload?.labs ||
+    ayushAttrs?.labs ||
+    reports.flatMap((r) => {
+      const ext = safeParseJson(r.extracted_data);
+      return Array.isArray(ext?.labs) ? ext.labs : [];
+    });
 
   if (Array.isArray(rawLabs)) {
     parsedLabs = rawLabs.map((l: any) => ({
@@ -150,11 +231,12 @@ export function mapQueueItemToPatient(
   // Parse AI Extractions
   let parsedExtractions: ExtractedDrug[] = [];
   const rawExtractions =
-    summary?.ai_payload?.medications ||
-    summary?.ayush_attributes?.extractions ||
-    reports.flatMap((r) =>
-      Array.isArray(r.extracted_data?.medications) ? r.extracted_data.medications : []
-    );
+    aiPayload?.medications ||
+    ayushAttrs?.extractions ||
+    reports.flatMap((r) => {
+      const ext = safeParseJson(r.extracted_data);
+      return Array.isArray(ext?.medications) ? ext.medications : [];
+    });
 
   if (Array.isArray(rawExtractions)) {
     parsedExtractions = rawExtractions.map((e: any) => ({
@@ -169,19 +251,20 @@ export function mapQueueItemToPatient(
   // Parse Transcripts
   let parsedTranscripts: TranscriptItem[] = [];
   const rawTranscripts =
-    summary?.ai_payload?.transcripts ||
-    summary?.ayush_attributes?.transcripts ||
-    summary?.ai_payload?.dialogue;
+    aiPayload?.transcripts ||
+    ayushAttrs?.transcripts ||
+    aiPayload?.dialogue ||
+    aiPayload?.conversation_history;
 
   if (Array.isArray(rawTranscripts) && rawTranscripts.length > 0) {
     parsedTranscripts = rawTranscripts.map((t: any, idx: number) => ({
       id: t.id || `transcript-${item.id}-${idx}`,
-      speaker: t.speaker === 'user' || t.speaker === 'patient' ? 'patient' : 'bot',
-      text: t.text || t.message || '',
+      speaker: t.speaker === 'user' || t.speaker === 'patient' || t.role === 'user' ? 'patient' : 'bot',
+      text: t.text || t.message || t.content || '',
       audioUrl: t.audioUrl || t.audio_url,
       audioDuration: t.audioDuration || t.duration,
     }));
-  } else if (summary?.chief_complaint) {
+  } else if (chiefComplaint && chiefComplaint !== 'Intake recorded at kiosk') {
     parsedTranscripts = [
       {
         id: `t-intro-${item.id}`,
@@ -191,7 +274,7 @@ export function mapQueueItemToPatient(
       {
         id: `t-resp-${item.id}`,
         speaker: 'patient',
-        text: summary.chief_complaint,
+        text: chiefComplaint,
       },
     ];
   }
@@ -199,9 +282,9 @@ export function mapQueueItemToPatient(
   // Parse Prescriptions
   let parsedPrescriptions: PrescriptionItem[] = [];
   const rawPrescriptions =
-    summary?.medications ||
-    summary?.ai_payload?.prescriptions ||
-    summary?.ayush_attributes?.prescriptions;
+    safeParseJson(summary?.medications) ||
+    aiPayload?.prescriptions ||
+    ayushAttrs?.prescriptions;
 
   if (Array.isArray(rawPrescriptions)) {
     parsedPrescriptions = rawPrescriptions.map((rx: any, idx: number) => ({
@@ -214,36 +297,127 @@ export function mapQueueItemToPatient(
     }));
   }
 
-  const patientAge = (item as any).age || summary?.ai_payload?.age || summary?.ayush_attributes?.age || 0;
+  // Parse Drug Allergies
+  let parsedAllergies: DrugAllergy[] = [];
+  const rawAllergies =
+    safeParseJson(summary?.drug_allergies) ||
+    aiPayload?.drug_allergies ||
+    ayushAttrs?.drug_allergies;
+
+  if (Array.isArray(rawAllergies)) {
+    parsedAllergies = rawAllergies.map((a: any) => {
+      if (typeof a === 'string') {
+        return { drug: a, reaction: 'Hypersensitivity reaction', severity: 'Severe' };
+      }
+      return {
+        drug: a.drug || a.name || 'Allergen',
+        reaction: a.reaction || 'Allergic reaction',
+        severity: a.severity || 'Moderate',
+      };
+    });
+  }
+
+  // Parse AYUSH Attributes
+  const parsedAyushProfile: AyushAttributes =
+    ayushAttrs ||
+    aiPayload?.ayush_profile ||
+    {};
+
+  // Vitals: ONLY assign if genuinely recorded (no hardcoding)
+  const hasRecordedVitals = Boolean(
+    summary?.systolic !== undefined ||
+    summary?.pulse !== undefined ||
+    summary?.spo2 !== undefined ||
+    summary?.temperature !== undefined ||
+    item.systolic !== undefined ||
+    item.pulse !== undefined ||
+    item.spo2 !== undefined ||
+    item.temperature !== undefined
+  );
+
+  const vitalsObj: PatientVitals | undefined = hasRecordedVitals
+    ? {
+        systolic: summary?.systolic ?? item.systolic,
+        diastolic: summary?.diastolic ?? item.diastolic,
+        pulse: summary?.pulse ?? item.pulse,
+        temperature: summary?.temperature ?? item.temperature,
+        spo2: summary?.spo2 ?? item.spo2,
+        source: summary?.vitals_source ?? item.vitals_source,
+        recordedAt: summary?.vitals_recorded_at ?? item.vitals_recorded_at,
+      }
+    : undefined;
+
+  const patientAge =
+    summary?.age ??
+    item.age ??
+    aiPayload?.age ??
+    ayushAttrs?.age ??
+    0;
+
   const patientGender =
-    (item as any).gender || summary?.ai_payload?.gender || summary?.ayush_attributes?.gender || 'Other';
+    summary?.gender ||
+    item.gender ||
+    aiPayload?.gender ||
+    ayushAttrs?.gender ||
+    'Other';
+
   const uhidVal =
-    (item as any).uhid || (item.id ? `UHID-${item.id.slice(0, 8).toUpperCase()}` : 'Not Assigned');
+    item.patient_code ||
+    summary?.patient_code ||
+    (item.id ? `UHID-${item.id.slice(0, 8).toUpperCase()}` : 'Not Assigned');
+
   const deptVal =
-    (item as any).department || summary?.ai_payload?.department || 'General Medicine / OPD';
+    summary?.department ||
+    item.department ||
+    aiPayload?.department ||
+    'General Medicine / OPD';
 
   return {
     id: item.id,
     tokenNumber: item.token_number,
-    name: item.full_name,
+    name: fullName,
     initials,
-    age: patientAge,
+    age: Number(patientAge) || 0,
     gender: patientGender,
     uhid: uhidVal,
     department: deptVal,
-    chiefComplaint: summary?.chief_complaint || 'Intake recorded at kiosk',
-    complaintConfidence: item.risk_level === 'high_risk' || item.risk_level === 'emergency' ? 'Critical' : 'High',
+    departmentPathway: summary?.department_pathway || item.department_pathway || 'Allopathy',
+    intakePathway: summary?.intake_pathway || item.intake_pathway || 'General',
+    language: summary?.language || item.language || 'English',
+    mobileNumber: summary?.mobile_number || item.mobile_number,
+    patientCode: summary?.patient_code || item.patient_code,
+    aadhaarNumber: summary?.aadhaar_number || item.aadhaar_number,
+    address: summary?.address || item.address,
+    abhaNumber: summary?.abha_number || item.abha_number,
+    abhaAddress: summary?.abha_address || item.abha_address,
+    registrationType: summary?.registration_type || item.registration_type || 'New Patient',
+    consentGranted: item.consent_granted ?? true,
+    chiefComplaint,
+    historyOfPresentIllness,
+    narrativeSummary,
+    summarySections: parsedSummarySections,
+    redFlags,
+    complaintConfidence:
+      item.risk_level === 'high_risk' || item.risk_level === 'emergency'
+        ? 'Critical'
+        : 'High',
     priority: mapStatusToPriority(item.status, item.risk_level),
     abhaLinked: Boolean(
-      (item as any).abha_number ||
-      summary?.ai_payload?.abha_number ||
-      summary?.ayush_attributes?.abha_number
+      item.abha_number ||
+      summary?.abha_number ||
+      aiPayload?.abha_number ||
+      ayushAttrs?.abha_number
     ),
     alertMessage:
-      item.risk_level === 'high_risk' || item.risk_level === 'emergency'
-        ? 'High Risk Triage Flagged by Intake Kiosk'
+      item.risk_level === 'emergency'
+        ? 'Emergency Triage Flagged by MediKiosk Intake'
+        : item.risk_level === 'high_risk'
+        ? 'High Risk Triage Flagged by MediKiosk Intake'
         : undefined,
-    createdAt: (item as any).created_at || summary?.generated_at,
+    createdAt: item.created_at || summary?.generated_at,
+    vitals: vitalsObj,
+    allergies: parsedAllergies,
+    ayushProfile: parsedAyushProfile,
     socrates: socratesGrid,
     labs: parsedLabs,
     documents: mappedDocuments,
