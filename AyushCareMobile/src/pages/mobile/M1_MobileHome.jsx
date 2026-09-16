@@ -11,6 +11,9 @@ import {
   Stethoscope,
   FileText,
   Activity,
+  Heart,
+  Droplets,
+  Thermometer,
 } from "lucide-react";
 
 import useMobileStore, {
@@ -83,6 +86,7 @@ export const M1_MobileHome =
       appointments,
       visits,
       medicalRecords,
+      vitals,
 
       setScreen,
       setActiveNavTab,
@@ -153,6 +157,8 @@ export const M1_MobileHome =
       getLatestItem(
         []
       );
+
+    const activeVitals = vitals || latestVisit?.vitals || appointments?.[0]?.vitals || null;
 
     const openVisit =
       () => {
@@ -503,6 +509,115 @@ export const M1_MobileHome =
               </button>
             </section>
           )}
+
+          {/* ================================================================ */}
+          {/* RECORDED VITALS (KIOSK INTAKE & CLINICAL READINGS)               */}
+          {/* ================================================================ */}
+          <section
+            aria-label={tr("Recorded Vitals", "दर्ज वाइटल्स (शारीरिक माप)")}
+            className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-3.5"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                  <Activity className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-slate-900 leading-tight">
+                    {tr("Vital Signs", "शारीरिक माप (वाइटल्स)")}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    {activeVitals?.source === "manual" || activeVitals?.recorded_at
+                      ? tr("Recorded at Hospital Kiosk", "कियोस्क जांच में दर्ज")
+                      : tr("Intake Readings", "प्रवेश के समय दर्ज माप")}
+                  </p>
+                </div>
+              </div>
+
+              {activeVitals && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {tr("Verified", "सत्यापित")}
+                </span>
+              )}
+            </div>
+
+            {activeVitals ? (
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* Pulse / Heart Rate */}
+                <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                    <Heart className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-rose-800">
+                      {tr("Pulse / Heart Rate", "नाड़ी / पल्स")}
+                    </p>
+                    <p className="text-base font-black text-slate-900 leading-tight">
+                      {activeVitals.pulse ? `${activeVitals.pulse} bpm` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Oxygen Saturation (SpO2) */}
+                <div className="p-3 rounded-2xl bg-sky-50/60 border border-sky-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                    <Droplets className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">
+                      {tr("SpO₂ Oxygen", "ऑक्सीजन SpO₂")}
+                    </p>
+                    <p className="text-base font-black text-slate-900 leading-tight">
+                      {activeVitals.spo2 ? `${activeVitals.spo2}%` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Blood Pressure */}
+                <div className="p-3 rounded-2xl bg-teal-50/60 border border-teal-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">
+                      {tr("Blood Pressure", "रक्तचाप (BP)")}
+                    </p>
+                    <p className="text-base font-black text-slate-900 leading-tight">
+                      {activeVitals.systolic && activeVitals.diastolic
+                        ? `${activeVitals.systolic}/${activeVitals.diastolic}`
+                        : activeVitals.systolic || activeVitals.diastolic || "—"}{" "}
+                      <span className="text-[10px] font-medium text-slate-500">mmHg</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Temperature */}
+                <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-100 flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <Thermometer className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                      {tr("Temperature", "तापमान")}
+                    </p>
+                    <p className="text-base font-black text-slate-900 leading-tight">
+                      {activeVitals.temperature ? `${activeVitals.temperature} °F` : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4 text-center">
+                <p className="text-xs font-semibold text-slate-600">
+                  {tr("No vitals recorded yet", "अभी कोई वाइटल्स दर्ज नहीं हैं")}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {tr("When you take vitals at the hospital kiosk, your pulse & SpO₂ will appear here.", "अस्पताल कियोस्क पर ली गई पल्स और SpO₂ रीडिंग यहां दिखाई देगी।")}
+                </p>
+              </div>
+            )}
+          </section>
 
           {/* ================================================================ */
           /* RECENT VISIT                                                      */

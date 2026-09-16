@@ -107,7 +107,23 @@ function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const token = new URLSearchParams(window.location.search).get("qr_token");
+
+    const getQrToken = () => {
+      // 1. Direct search param
+      const searchParam = new URLSearchParams(window.location.search).get("qr_token");
+      if (searchParam) return searchParam;
+      // 2. Hash query param (e.g. #/?qr_token=...)
+      if (window.location.hash.includes("?")) {
+        const hashQuery = window.location.hash.substring(window.location.hash.indexOf("?"));
+        const hashParam = new URLSearchParams(hashQuery).get("qr_token");
+        if (hashParam) return hashParam;
+      }
+      // 3. Fallback regex across full URL
+      const match = window.location.href.match(/[?&]qr_token=([^&#]+)/);
+      return match ? decodeURIComponent(match[1]) : null;
+    };
+
+    const token = getQrToken();
     if (!token) return;
 
     let cancelled = false;
@@ -125,10 +141,20 @@ function App() {
           consultationId: result.consultation_id || null,
           source: "patient_qr",
         });
-        useMobileStore.setState({ documentProcessingConsent: Boolean(result.document_processing_consent) });
-        await useMobileStore.getState().loadPortalData?.();
-        useMobileStore.getState().setScreen(SCREENS.M2);
+        useMobileStore.setState({ 
+          documentProcessingConsent: Boolean(result.document_processing_consent),
+          isAuthenticated: true,
+        });
+
+        // Clean query param from URL so browser refresh does not re-exchange expired token
         window.history.replaceState({}, "", window.location.pathname);
+
+        // Load dashboard, vitals, and visits in background safely
+        useMobileStore.getState().loadPortalData?.().catch((err) => {
+          console.warn("Background portal data sync:", err);
+        });
+
+        useMobileStore.getState().setScreen(SCREENS.M2);
       } catch (error) {
         console.error("Patient QR login failed:", error);
         window.history.replaceState({}, "", window.location.pathname);

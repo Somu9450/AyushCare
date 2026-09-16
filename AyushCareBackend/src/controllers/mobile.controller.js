@@ -746,11 +746,22 @@ export const getPortalDashboard = asyncHandler(async (req, res) => {
 
     const summaryQuery = await pool.query(`SELECT cs.* FROM clinical_summaries cs JOIN consultations c ON c.id=cs.consultation_id WHERE c.patient_id=$1 ORDER BY cs.generated_at DESC LIMIT 1`, [patientId]);
     const patientResult = await pool.query(
-        `SELECT id, abha_number, full_name, gender, date_of_birth, mobile_number
+        `SELECT id, abha_number, abha_address, full_name, gender, date_of_birth, mobile_number, address, aadhaar_number
          FROM patients WHERE id=$1 LIMIT 1`,
         [patientId]
     );
-    const patient = patientResult.rows[0] || null;
+    const patient = patientResult.rows[0] ? {
+        ...patientResult.rows[0],
+        name: patientResult.rows[0].full_name,
+        patientId: patientResult.rows[0].abha_number || patientResult.rows[0].id,
+        abhaNumber: patientResult.rows[0].abha_number,
+        mobile: patientResult.rows[0].mobile_number,
+        phone: patientResult.rows[0].mobile_number,
+        dateOfBirth: patientResult.rows[0].date_of_birth,
+        dob: patientResult.rows[0].date_of_birth,
+        aadhaarNumber: patientResult.rows[0].aadhaar_number,
+        abhaAddress: patientResult.rows[0].abha_address,
+    } : null;
     const privacyQuery = await pool.query('SELECT * FROM privacy_settings WHERE patient_id=$1', [patientId]);
     const privacy = privacyQuery.rows[0] || { share_previous_departments: true, share_previous_appointments: true, share_previous_reports: true };
     const departmentQuery = await pool.query(
@@ -962,3 +973,96 @@ export const updatePortalPrivacy = asyncHandler(async (req, res) => {
     }
     return res.status(200).json(new ApiResponse(200, row, 'Preferences saved successfully'));
 });
+
+export const updatePortalProfile = asyncHandler(async (req, res) => {
+    const patientId = req.user.id;
+    const {
+        full_name,
+        name,
+        gender,
+        date_of_birth,
+        dateOfBirth,
+        mobile_number,
+        mobile,
+        phone,
+        address,
+        aadhaar_number,
+        aadhaarNumber,
+        abha_address,
+        abhaAddress
+    } = req.body || {};
+
+    const resolvedName = (full_name || name || '').trim() || null;
+    const resolvedGender = (gender || '').trim() || null;
+    const resolvedDob = (date_of_birth || dateOfBirth || '').trim() || null;
+    const resolvedMobile = (mobile_number || mobile || phone || '').trim() || null;
+    const resolvedAddress = address !== undefined ? String(address).trim() : undefined;
+    const resolvedAadhaar = (aadhaar_number || aadhaarNumber) !== undefined ? String(aadhaar_number || aadhaarNumber).replace(/\D/g, '') : undefined;
+    const resolvedAbhaAddress = (abha_address || abhaAddress) !== undefined ? String(abha_address || abhaAddress).trim() : undefined;
+
+    const fields = [];
+    const values = [];
+
+    if (resolvedName) {
+        values.push(resolvedName);
+        fields.push(`full_name = $${values.length}`);
+    }
+    if (resolvedGender) {
+        values.push(resolvedGender);
+        fields.push(`gender = $${values.length}`);
+    }
+    if (resolvedDob) {
+        values.push(resolvedDob);
+        fields.push(`date_of_birth = $${values.length}`);
+    }
+    if (resolvedMobile) {
+        values.push(resolvedMobile);
+        fields.push(`mobile_number = $${values.length}`);
+    }
+    if (resolvedAddress !== undefined) {
+        values.push(resolvedAddress || null);
+        fields.push(`address = $${values.length}`);
+    }
+    if (resolvedAadhaar !== undefined) {
+        values.push(resolvedAadhaar || null);
+        fields.push(`aadhaar_number = $${values.length}`);
+    }
+    if (resolvedAbhaAddress !== undefined) {
+        values.push(resolvedAbhaAddress || null);
+        fields.push(`abha_address = $${values.length}`);
+    }
+
+    if (fields.length === 0) {
+        throw new ApiError(400, 'No valid fields provided for update');
+    }
+
+    values.push(patientId);
+    const sql = `
+        UPDATE patients
+        SET ${fields.join(', ')}
+        WHERE id = $${values.length}
+        RETURNING id, abha_number, abha_address, full_name, gender, date_of_birth, mobile_number, address, aadhaar_number, created_at
+    `;
+
+    const result = await pool.query(sql, values);
+    if (!result.rowCount) {
+        throw new ApiError(404, 'Patient record not found');
+    }
+
+    const row = result.rows[0];
+    const clientPatient = {
+        ...row,
+        name: row.full_name,
+        patientId: row.abha_number || row.id,
+        abhaNumber: row.abha_number,
+        mobile: row.mobile_number,
+        phone: row.mobile_number,
+        dateOfBirth: row.date_of_birth,
+        dob: row.date_of_birth,
+        aadhaarNumber: row.aadhaar_number,
+        abhaAddress: row.abha_address,
+    };
+
+    return res.status(200).json(new ApiResponse(200, clientPatient, 'Profile updated successfully'));
+});
+

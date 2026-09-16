@@ -5,7 +5,27 @@ import MobileHeader from '../../components/mobile/MobileHeader';
 import { useLanguage } from '../../i18n/translations';
 import { getPortalPrivacyContext, updatePortalPrivacyRule } from '../../services/portalService';
 
-function Toggle({ enabled, label, onClick, disabled=false }) { return <button type="button" role="switch" aria-checked={enabled} aria-label={label} disabled={disabled} onClick={onClick} className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 border-transparent transition ${enabled?'bg-teal-700':'bg-slate-300'} ${disabled?'opacity-50':''}`}><span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition ${enabled?'translate-x-5':'translate-x-0'}`}/></button>; }
+function Toggle({ enabled, label, onClick, disabled = false }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative inline-flex h-[31px] w-[51px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-300 ease-in-out focus:outline-none ${
+        enabled ? 'bg-[#34C759]' : 'bg-[#E9E9EB]'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-[27px] w-[27px] transform rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.06)] transition-transform duration-300 ease-in-out ${
+          enabled ? 'translate-x-[20px]' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  );
+}
 
 export default function PrivacyScreen() {
  const { prevScreen }=useMobileStore(); const { tr }=useLanguage();

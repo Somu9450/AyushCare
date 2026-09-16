@@ -71,6 +71,7 @@ export default function VisitDetailsScreen() {
     medicalRecords,
     setSelectedMedicalRecord,
     setScreen,
+    vitals: storeVitals,
   } = useMobileStore();
 
   const { isHindi, tr } = useLanguage();
@@ -379,14 +380,51 @@ export default function VisitDetailsScreen() {
                 </div>
               </div>
 
-              {visitVitals && (
-          <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="font-bold">{tr('Vitals', 'महत्वपूर्ण संकेत')}</h3>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              {Object.entries(visitVitals).filter(([k,v]) => v != null && !['id','consultation_id','recorded_at','source'].includes(k)).map(([k,v]) => <div key={k} className="rounded-xl bg-slate-50 p-3"><span className="block text-[10px] uppercase text-slate-500">{k.replace(/_/g,' ')}</span><strong>{String(v)}</strong></div>)}
-            </div>
-          </section>
-        )}
+              {(() => {
+                const activeVitals = visitVitals || selectedVisit?.vitals || storeVitals;
+                if (!activeVitals || (!activeVitals.pulse && !activeVitals.spo2 && !activeVitals.systolic && !activeVitals.temperature)) {
+                  return null;
+                }
+                return (
+                  <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-900">{tr('Recorded Vitals', 'महत्वपूर्ण संकेत (वाइटल्स)')}</h3>
+                      <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                        {tr('Kiosk Intake', 'कियोस्क जांच')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {activeVitals.pulse && (
+                        <div className="rounded-2xl bg-rose-50/70 border border-rose-100 p-3">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-800">{tr('Pulse / Heart Rate', 'पल्स')}</span>
+                          <strong className="text-base text-slate-900">{activeVitals.pulse} <span className="text-xs font-medium text-slate-500">bpm</span></strong>
+                        </div>
+                      )}
+                      {activeVitals.spo2 && (
+                        <div className="rounded-2xl bg-sky-50/70 border border-sky-100 p-3">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-sky-800">{tr('SpO₂ Oxygen', 'ऑक्सीजन')}</span>
+                          <strong className="text-base text-slate-900">{activeVitals.spo2}%</strong>
+                        </div>
+                      )}
+                      {(activeVitals.systolic || activeVitals.diastolic) && (
+                        <div className="rounded-2xl bg-teal-50/70 border border-teal-100 p-3">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-teal-800">{tr('Blood Pressure', 'रक्तचाप')}</span>
+                          <strong className="text-base text-slate-900">
+                            {activeVitals.systolic && activeVitals.diastolic ? `${activeVitals.systolic}/${activeVitals.diastolic}` : activeVitals.systolic || activeVitals.diastolic}{" "}
+                            <span className="text-xs font-medium text-slate-500">mmHg</span>
+                          </strong>
+                        </div>
+                      )}
+                      {activeVitals.temperature && (
+                        <div className="rounded-2xl bg-amber-50/70 border border-amber-100 p-3">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800">{tr('Temperature', 'तापमान')}</span>
+                          <strong className="text-base text-slate-900">{activeVitals.temperature} <span className="text-xs font-medium text-slate-500">°F</span></strong>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
 
         {documentsLoading ? (
                 <div className="rounded-3xl bg-white p-7 text-center ring-1 ring-slate-200">

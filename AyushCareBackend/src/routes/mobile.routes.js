@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, selectPortalPatient, getPortalDashboard, getPortalVisits, getPortalVisitDetails, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy, getPortalPrivacyContext, updatePortalPrivacyRule } from '../controllers/mobile.controller.js';
+import { pairKioskSession, getUploadUrl, registerDocument, deleteDocument, getKioskDocuments, syncKioskUpload, sendPortalOtp, verifyPortalOtp, selectPortalPatient, getPortalDashboard, getPortalVisits, getPortalVisitDetails, getAudioSummary, updateKioskSessionLanguage, getPortalDocuments, getPortalDocument, registerPortalDocument, exchangePatientUploadQr, updatePortalPrivacy, getPortalPrivacy, getPortalPrivacyContext, updatePortalPrivacyRule, updatePortalProfile } from '../controllers/mobile.controller.js';
 import { verifyPatientJWT } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -21,6 +21,8 @@ router.post('/portal/auth/send-otp', sendPortalOtp);
 router.post('/portal/auth/verify-otp', verifyPortalOtp);
 router.post('/portal/select-patient', selectPortalPatient);
 router.get('/portal/dashboard', verifyPatientJWT, getPortalDashboard);
+router.patch('/portal/profile', verifyPatientJWT, updatePortalProfile);
+router.put('/portal/profile', verifyPatientJWT, updatePortalProfile);
 router.get('/portal/visits', verifyPatientJWT, getPortalVisits);
 router.get('/portal/visits/:visit_id', verifyPatientJWT, getPortalVisitDetails);
 router.get('/portal/audio-summary', verifyPatientJWT, getAudioSummary);

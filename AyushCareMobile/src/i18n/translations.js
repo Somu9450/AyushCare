@@ -622,6 +622,24 @@ export const translations = {
 };
 
 /**
+ * Standalone translation helper usable outside of React component render trees.
+ */
+export const tr = (english, hindi = english) => {
+  try {
+    const lang = useMobileStore.getState()?.selectedLanguage || "en";
+    if (lang === "hi") return hindi;
+    if (lang === "en") return english;
+    const source = String(english || "");
+    const cached = getCachedTranslation(source, lang);
+    if (cached) return cached;
+    void ensureTranslation(source, lang, apiRequest);
+    return source;
+  } catch {
+    return english;
+  }
+};
+
+/**
  * Custom React hook to get translated strings and language switch helper.
  */
 export const useLanguage = () => {
@@ -640,7 +658,7 @@ export const useLanguage = () => {
     return source;
   };
 
-  const tr = (english, hindi = english) => {
+  const trHook = (english, hindi = english) => {
     if (lang === "hi") return hindi;
     if (lang === "en") return english;
     const source = String(english || "");
@@ -652,7 +670,8 @@ export const useLanguage = () => {
 
   const toggleLanguage = () => setSelectedLanguage(lang === "en" ? "hi" : "en");
 
-  return { lang, isHindi: lang === "hi", t, tr, toggleLanguage, setLanguage: setSelectedLanguage };
+  return { lang, isHindi: lang === "hi", t, tr: trHook, toggleLanguage, setLanguage: setSelectedLanguage };
 };
 
 export default useLanguage;
+

@@ -61,3 +61,14 @@ export async function updatePortalPrivacyRule(payload) {
     body: JSON.stringify(payload),
   }));
 }
+
+export async function updatePortalProfile(payload) {
+  return unwrapApiResponse(
+    await apiRequest("/mobile/portal/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
