@@ -21,7 +21,7 @@ import useMobileStore, {
   SCREENS,
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import { useLanguage } from "../../i18n/translations";
+import { useLanguage, tr } from "../../i18n/translations";
 
 const CATEGORY_META = {
   prescription: {

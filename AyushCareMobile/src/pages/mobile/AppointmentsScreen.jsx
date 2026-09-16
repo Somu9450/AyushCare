@@ -14,7 +14,7 @@ import useMobileStore, {
 } from "../../store/useMobileStore";
 import { fetchTodayAppointment, fetchUpcomingAppointments, fetchPastAppointments } from "../../services/appointmentService";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import { useLanguage } from "../../i18n/translations";
+import { useLanguage, tr } from "../../i18n/translations";
 
 function normalizeAppointmentList(value) {
   if (Array.isArray(value)) return value;

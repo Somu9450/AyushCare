@@ -460,14 +460,14 @@ function SettingToggle({
       <div
         role="switch"
         aria-checked={enabled}
-        className={`pointer-events-none relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-          enabled ? "bg-teal-700 shadow-inner" : "bg-slate-300"
+        className={`pointer-events-none relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full p-[2px] transition-colors duration-300 ease-in-out ${
+          enabled ? "bg-[#34C759]" : "bg-[#E9E9EB]"
         }`}
       >
         <span
           aria-hidden="true"
-          className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-            enabled ? "translate-x-5" : "translate-x-0"
+          className={`pointer-events-none inline-block h-[27px] w-[27px] transform rounded-full bg-white shadow-[0_3px_8px_rgba(0,0,0,0.15),0_1px_1px_rgba(0,0,0,0.06)] transition-transform duration-300 ease-in-out ${
+            enabled ? "translate-x-[20px]" : "translate-x-0"
           }`}
         />
       </div>

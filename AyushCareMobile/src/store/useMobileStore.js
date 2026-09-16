@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
-import { getPortalPrivacySettings, updatePortalPrivacySettings } from "../services/portalService.js";
+import { getPortalPrivacySettings, updatePortalPrivacySettings, updatePortalProfile } from "../services/portalService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -2709,30 +2709,56 @@ export const useMobileStore = create((set, get) => ({
   /* PROFILE                                                                */
   /* ---------------------------------------------------------------------- */
 
-  updatePatientProfile: (updatedFields) => {
+  updatePatientProfile: async (updatedFields) => {
     if (!updatedFields) {
       return;
     }
 
+    // Optimistic update to UI and local storage
     set((state) => {
       const currentPatient = state.patient || state.session?.patient || {};
-
       const updatedPatient = {
         ...currentPatient,
-
         ...clone(updatedFields),
       };
-
+      try {
+        localStorage.setItem("ayushcare_patient", JSON.stringify(updatedPatient));
+      } catch {}
       return {
         patient: updatedPatient,
-
         session: {
           ...state.session,
-
           patient: updatedPatient,
         },
       };
     });
+
+    // Persist to database
+    try {
+      const serverPatient = await updatePortalProfile(updatedFields);
+      if (serverPatient) {
+        set((state) => {
+          const merged = {
+            ...(state.patient || {}),
+            ...serverPatient,
+          };
+          try {
+            localStorage.setItem("ayushcare_patient", JSON.stringify(merged));
+          } catch {}
+          return {
+            patient: merged,
+            session: {
+              ...state.session,
+              patient: merged,
+            },
+          };
+        });
+        return serverPatient;
+      }
+    } catch (error) {
+      console.warn("Could not persist profile changes to backend:", error?.message || error);
+      throw error;
+    }
   },
 
   /* ---------------------------------------------------------------------- */

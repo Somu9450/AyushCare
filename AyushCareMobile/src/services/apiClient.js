@@ -1,5 +1,23 @@
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8001/api/v1").replace(/\/$/, "");
+export function getApiBaseUrl() {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (
+    typeof window !== "undefined" &&
+    window.location?.hostname &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    if (envUrl && (envUrl.includes("localhost") || envUrl.includes("127.0.0.1"))) {
+      return envUrl.replace(/localhost|127\.0\.0\.1/, window.location.hostname).replace(/\/$/, "");
+    }
+    if (!envUrl) {
+      return `http://${window.location.hostname}:8001/api/v1`;
+    }
+  }
+  return (envUrl || "http://localhost:8001/api/v1").replace(/\/$/, "");
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export async function apiRequest(path, options = {}) {
   const token = (() => {
@@ -14,7 +32,8 @@ export async function apiRequest(path, options = {}) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = getApiBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers,
     credentials: "include",

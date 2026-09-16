@@ -13,7 +13,7 @@ import useMobileStore, {
 } from "../../store/useMobileStore";
 import { fetchVisits } from "../../services/visitService";
 import MobileHeader from "../../components/mobile/MobileHeader";
-import { useLanguage } from "../../i18n/translations";
+import { useLanguage, tr } from "../../i18n/translations";
 
 function normalizeVisits(result) {
   if (Array.isArray(result)) return result;
