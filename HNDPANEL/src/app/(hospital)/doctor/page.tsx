@@ -97,7 +97,9 @@ export default function DoctorWorkspacePage() {
   const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(null);
   const [activeSummary, setActiveSummary] = useState<ClinicalSummary | null>(null);
   const [activeReports, setActiveReports] = useState<UploadedDocument[]>([]);
+  const [activeSessionDocs, setActiveSessionDocs] = useState<any[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [liveConsentNotification, setLiveConsentNotification] = useState<string | null>(null);
 
   // Responsive Drawer States
   const [isEvidenceDrawerOpen, setIsEvidenceDrawerOpen] = useState(true);
@@ -156,6 +158,7 @@ export default function DoctorWorkspacePage() {
       // 1. Immediately purge stale active summary and reports
       setActiveSummary(null);
       setActiveReports([]);
+      setActiveSessionDocs([]);
       // 2. Activate skeleton loader synchronously
       setLoadingDetails(true);
       // 3. Switch active ID
@@ -169,6 +172,7 @@ export default function DoctorWorkspacePage() {
     if (!selectedConsultationId) {
       setActiveSummary(null);
       setActiveReports([]);
+      setActiveSessionDocs([]);
       setLoadingDetails(false);
       return;
     }
@@ -178,19 +182,22 @@ export default function DoctorWorkspacePage() {
 
     const loadDetails = async () => {
       try {
-        const [summary, reports] = await Promise.all([
+        const [summary, reports, session] = await Promise.all([
           doctorService.getPatientSummary(selectedConsultationId).catch(() => null),
           doctorService.getPatientReports(selectedConsultationId).catch(() => []),
+          doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
         ]);
 
         if (isMounted) {
           setActiveSummary(summary);
           setActiveReports(Array.isArray(reports) ? reports : []);
+          setActiveSessionDocs(session?.documents || []);
         }
       } catch {
         if (isMounted) {
           setActiveSummary(null);
           setActiveReports([]);
+          setActiveSessionDocs([]);
         }
       } finally {
         if (isMounted) {
@@ -201,8 +208,48 @@ export default function DoctorWorkspacePage() {
 
     loadDetails();
 
+    // Live Real-Time Sync Polling: Synchronize with AyushCare Mobile privacy toggles every 2.5s
+    const pollTimer = setInterval(async () => {
+      try {
+        const [summary, reports, session] = await Promise.all([
+          doctorService.getPatientSummary(selectedConsultationId).catch(() => null),
+          doctorService.getPatientReports(selectedConsultationId).catch(() => []),
+          doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
+        ]);
+
+        const validReports = Array.isArray(reports) ? reports : [];
+        const sessionDocs = session?.documents || [];
+
+        setActiveReports((prev) => {
+          if (validReports.length > prev.length) {
+            setLiveConsentNotification('🔓 Patient granted access via AyushCare Mobile! Document unlocked in real-time.');
+            setTimeout(() => setLiveConsentNotification(null), 4500);
+          } else if (validReports.length < prev.length) {
+            setLiveConsentNotification('🔒 Patient locked report access via AyushCare Mobile privacy controls.');
+            setTimeout(() => setLiveConsentNotification(null), 4500);
+          }
+          return validReports;
+        });
+
+        setActiveSummary((prev) => {
+          if (prev?.restricted && !summary?.restricted) {
+            setLiveConsentNotification('🔓 Patient unlocked visit sharing via AyushCare Mobile!');
+            setTimeout(() => setLiveConsentNotification(null), 4500);
+          }
+          return summary;
+        });
+
+        if (sessionDocs.length > 0) {
+          setActiveSessionDocs(sessionDocs);
+        }
+      } catch {
+        // Silent sync
+      }
+    }, 2500);
+
     return () => {
       isMounted = false;
+      clearInterval(pollTimer);
     };
   }, [selectedConsultationId]);
 
@@ -211,14 +258,14 @@ export default function DoctorWorkspacePage() {
     if (rawQueue.length > 0) {
       const mapped = rawQueue.map((item) =>
         item.id === selectedConsultationId
-          ? mapQueueItemToPatient(item, activeSummary, activeReports)
+          ? mapQueueItemToPatient(item, activeSummary, activeReports, activeSessionDocs)
           : mapQueueItemToPatient(item)
       );
       setPatients(mapped);
     } else {
       setPatients([]);
     }
-  }, [rawQueue, selectedConsultationId, activeSummary, activeReports]);
+  }, [rawQueue, selectedConsultationId, activeSummary, activeReports, activeSessionDocs]);
 
   // Active selected patient
   const selectedPatient = useMemo(() => {
@@ -292,6 +339,19 @@ export default function DoctorWorkspacePage() {
             <RefreshCw className="w-3 h-3" />
             <span>Retry</span>
           </button>
+        </div>
+      )}
+
+      {/* Live Mobile Consent Notification Toast */}
+      {liveConsentNotification && (
+        <div className="bg-teal-50 border-b border-teal-200 px-4 py-2 flex items-center justify-between text-xs text-teal-900 shadow-xs animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="w-2 h-2 rounded-full bg-teal-500 animate-ping shrink-0" />
+            <span>{liveConsentNotification}</span>
+          </div>
+          <span className="text-[10px] text-teal-700 font-mono bg-teal-100/70 px-2 py-0.5 rounded-full border border-teal-200">
+            Real-time Mobile Sync
+          </span>
         </div>
       )}
 

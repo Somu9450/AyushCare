@@ -29,7 +29,7 @@ export const resolveDocumentUrl = (url?: string): string => {
   const backendBase =
     process.env.NEXT_PUBLIC_SOCKET_URL ||
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, '') ||
-    'http://localhost:8000';
+    'http://localhost:8001';
 
   const cleanPath = url.startsWith('/') ? url : `/${url}`;
   return `${backendBase.replace(/\/$/, '')}${cleanPath}`;

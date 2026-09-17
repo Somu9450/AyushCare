@@ -130,6 +130,8 @@ export interface ClinicalSummary {
   spo2?: number;
   vitals_source?: string;
   vitals_recorded_at?: string;
+  restricted?: boolean;
+  message?: string;
 }
 
 export interface UploadedDocument {
@@ -146,6 +148,8 @@ export interface UploadedDocument {
   url?: string;
   created_at: string;
   updated_at?: string;
+  is_locked?: boolean;
+  lock_reason?: string;
 }
 
 export interface VisitAnalytics {

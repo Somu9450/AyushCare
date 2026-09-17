@@ -20,6 +20,8 @@ import {
   X,
   Eye,
   Sparkles,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface EvidenceDrawerProps {
@@ -223,29 +225,57 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {patient.documents.map((doc, idx) => (
-                      <div
-                        key={`doc-${doc.id || idx}-${idx}`}
-                        onClick={() => handleOpenDoc(doc)}
-                        className="p-2.5 rounded-lg border border-slate-200/90 bg-[#f8fafc]/60 hover:bg-teal-50/40 hover:border-teal-300 transition-all flex items-center justify-between group cursor-pointer shadow-2xs"
-                      >
-                        <div className="flex items-center space-x-2.5 min-w-0">
-                          {getFileIcon(doc.name)}
-                          <div className="truncate">
-                            <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#064e4b]">
-                              {doc.name}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-medium">
-                              {doc.date} · {doc.size}
-                            </p>
+                    {patient.documents.map((doc, idx) => {
+                      if (doc.isLocked) {
+                        return (
+                          <div
+                            key={`doc-${doc.id || idx}-${idx}`}
+                            className="p-2.5 rounded-lg border border-amber-300/80 bg-amber-50/40 relative overflow-hidden flex items-center justify-between cursor-not-allowed select-none shadow-2xs"
+                            title="Restricted by patient via AyushCare Mobile (Consent Required)"
+                          >
+                            <div className="flex items-center space-x-2.5 min-w-0 filter blur-[2px] opacity-40">
+                              {getFileIcon(doc.name)}
+                              <div className="truncate">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                  {doc.name}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  {doc.date} · {doc.size}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                              <Lock className="w-3 h-3 text-amber-800" />
+                              <span>Locked</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={`doc-${doc.id || idx}-${idx}`}
+                          onClick={() => handleOpenDoc(doc)}
+                          className="p-2.5 rounded-lg border border-slate-200/90 bg-[#f8fafc]/60 hover:bg-teal-50/40 hover:border-teal-300 transition-all flex items-center justify-between group cursor-pointer shadow-2xs"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            {getFileIcon(doc.name)}
+                            <div className="truncate">
+                              <p className="text-xs font-bold text-slate-900 truncate group-hover:text-[#064e4b]">
+                                {doc.name}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                {doc.date} · {doc.size}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#064e4b] shrink-0" />
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#064e4b] shrink-0" />
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#064e4b] shrink-0" />
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#064e4b] shrink-0" />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -23,6 +23,20 @@ export const doctorService = {
     return response.data.data;
   },
 
+  getConsultationSession: async (consultationId: string): Promise<any> => {
+    try {
+      const response = await apiClient.get<ApiResponse<any>>(`/intake/session/${consultationId}`);
+      return response.data.data;
+    } catch {
+      try {
+        const fallback = await apiClient.get<ApiResponse<any>>(`/kiosk/session/${consultationId}`);
+        return fallback.data.data;
+      } catch {
+        return null;
+      }
+    }
+  },
+
   updateConsultationStatus: async (consultationId: string, status: ConsultationStatus): Promise<void> => {
     await apiClient.patch<ApiResponse<any>>(`/doctor/consultations/${consultationId}/status`, { status });
   },
