@@ -45,7 +45,19 @@ export const KeyboardProvider = ({ children }) => {
     }
 
     if (activeInput.maxLength) nextVal = nextVal.slice(0, activeInput.maxLength);
-    activeInput.onChange(nextVal);
+    
+    // Support both direct string handler (val => ...) and synthetic event ((e) => e.target.value)
+    if (typeof activeInput.onChange === 'function') {
+      try {
+        activeInput.onChange(nextVal);
+      } catch {
+        try {
+          activeInput.onChange({ target: { value: nextVal } });
+        } catch (innerErr) {
+          console.warn('Virtual keyboard onChange dispatch error:', innerErr);
+        }
+      }
+    }
     setActiveInput((prev) => (prev ? { ...prev, value: nextVal } : null));
   }, [activeInput, closeKeyboard]);
 

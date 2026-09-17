@@ -109,8 +109,32 @@ export default function Screen8_QRUpload() {
         <div className="qr-placeholder">
           {qrImage ? <img className="qr-image" src={qrImage} alt="Patient document upload QR code" /> : <Loader2 className="spin" size={32} />}
           <strong>{qr?.abha_number || t('generating','Generating…')}</strong>
-          <small>{t('qrExpires','QR access expires automatically after 80 seconds.')}</small>
+          <small>{t('qrExpires','Mobile session remains valid for 10 minutes. Kiosk countdown:')} {seconds}s</small>
           <div className="qr-secure-note"><ShieldCheck size={16}/> {t('securePatientAccess','Secure patient-account access')}</div>
+
+          {qrUrl && (
+            <div style={{ marginTop: '10px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="secondary-btn"
+                style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                onClick={() => {
+                  navigator.clipboard?.writeText(qrUrl);
+                }}
+              >
+                Copy Link
+              </button>
+              <a
+                href={qrUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="secondary-btn"
+                style={{ fontSize: '12px', padding: '5px 12px', borderRadius: '10px', textDecoration: 'none', color: '#044e42', display: 'inline-flex', alignItems: 'center' }}
+              >
+                Open Mobile ↗
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="document-panel">

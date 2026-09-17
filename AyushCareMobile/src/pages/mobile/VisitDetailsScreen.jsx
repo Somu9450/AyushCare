@@ -4,11 +4,28 @@ import {
   ChevronRight,
   FileText,
   Hospital,
+  Languages,
   Loader2,
   MapPin,
   RefreshCw,
   Stethoscope,
 } from "lucide-react";
+
+const LANGUAGE_NAMES = {
+  hi: 'हिन्दी (Hindi)',
+  en: 'English',
+  bn: 'বাংলা (Bengali)',
+  ta: 'தமிழ் (Tamil)',
+  te: 'తెలుగు (Telugu)',
+  mr: 'मराठी (Marathi)',
+  gu: 'ગુજરાતી (Gujarati)',
+  kn: 'ಕನ್ನಡ (Kannada)',
+  ml: 'മലയാളം (Malayalam)',
+  pa: 'ਪੰਜਾਬੀ (Punjabi)',
+  or: 'ଓଡ଼ିଆ (Odia)',
+  ur: 'اردو (Urdu)',
+  as: 'অসমীয়া (Assamese)',
+};
 
 import useMobileStore, {
   SCREENS,
@@ -200,9 +217,31 @@ export default function VisitDetailsScreen() {
     "";
 
   const summary = visitSummary || visit?.summary || visit?.reason || visit?.chiefComplaint || visit?.notes || '';
-  const summaryText = typeof summary === 'string' ? summary : (summary?.chief_complaint || summary?.history_of_present_illness || summary?.summary || '');
+  let parsedPayload = null;
+  try {
+    parsedPayload = typeof summary?.ai_payload === 'string' ? JSON.parse(summary.ai_payload) : (summary?.ai_payload || (summary?.sections ? summary : null));
+  } catch {}
+
+  const chiefComplaint = summary?.chief_complaint || parsedPayload?.chief_complaint || '';
+  const historyOfIllness = summary?.history_of_present_illness || parsedPayload?.history_of_present_illness || '';
+  const aiSections = Array.isArray(parsedPayload?.sections)
+    ? parsedPayload.sections.filter((s) => !/complaint/i.test(s.heading_en || s.heading || ''))
+    : [];
+
+  const summaryText = typeof summary === 'string'
+    ? summary
+    : (!chiefComplaint && !historyOfIllness ? (summary?.summary || '') : '');
+
+  const visitLang = visit?.language || summary?.language || parsedPayload?.language;
+
   let aiInsights = [];
-  try { const payload = typeof summary?.ai_payload === 'string' ? JSON.parse(summary.ai_payload) : summary?.ai_payload; aiInsights = Array.isArray(payload?.insights) ? payload.insights : Array.isArray(payload?.health_insights) ? payload.health_insights : []; } catch {}
+  try {
+    aiInsights = Array.isArray(parsedPayload?.insights)
+      ? parsedPayload.insights
+      : Array.isArray(parsedPayload?.health_insights)
+      ? parsedPayload.health_insights
+      : [];
+  } catch {}
 
   const diagnosis =
     visit?.diagnosis ||
@@ -326,17 +365,58 @@ export default function VisitDetailsScreen() {
           </div>
         ) : (
           <>
-            {summaryText || diagnosis || aiInsights.length ? (
+            {chiefComplaint || historyOfIllness || summaryText || diagnosis || aiInsights.length || aiSections.length ? (
               <section className="mt-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                <h2 className="text-sm font-black text-slate-800">
-                  {tr('Visit summary', 'मुलाकात का सार')}
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-black text-slate-800">
+                    {tr('Visit summary', 'मुलाकात का सार')}
+                  </h2>
+                  {visitLang && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-full">
+                      <Languages size={12} />
+                      {LANGUAGE_NAMES[visitLang] || visitLang.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                {chiefComplaint ? (
+                  <div className="mt-3 rounded-2xl bg-teal-50/50 border border-teal-100 p-3.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                      {tr('Chief Complaint', 'मुख्य लक्षण / शिकायत')}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 leading-relaxed">
+                      {chiefComplaint}
+                    </p>
+                  </div>
+                ) : null}
+
+                {historyOfIllness ? (
+                  <div className="mt-3 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      {tr('Clinical Summary', 'क्लिनिकल सारांश')}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                      {historyOfIllness}
+                    </p>
+                  </div>
+                ) : null}
 
                 {summaryText ? (
                   <p className="mt-3 text-sm leading-6 text-slate-600">
                     {summaryText}
                   </p>
                 ) : null}
+
+                {aiSections.map((sec, idx) => (
+                  <div key={idx} className="mt-3 rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      {sec.heading_local || sec.heading_en || sec.heading || "Assessment"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                      {sec.body_local || sec.body}
+                    </p>
+                  </div>
+                ))}
 
                 {diagnosis ? (
                   <div className="mt-4 rounded-2xl bg-slate-50 p-3.5">

@@ -300,7 +300,22 @@ export function mapQueueItemToPatient(
       audioUrl: t.audioUrl || t.audio_url,
       audioDuration: t.audioDuration || t.duration,
     }));
-  } else if (chiefComplaint && chiefComplaint !== 'Intake recorded at kiosk') {
+  }
+
+  const resolvedAudioUrl =
+    summary?.patient_audio_url ||
+    (summary as any)?.patientAudioUrl ||
+    aiPayload?.patient_audio_url ||
+    (item as any)?.patient_audio_url ||
+    undefined;
+
+  if (resolvedAudioUrl && parsedTranscripts.length > 0) {
+    const patientItem = parsedTranscripts.find((t) => t.speaker === 'patient');
+    if (patientItem && !patientItem.audioUrl) {
+      patientItem.audioUrl = resolvedAudioUrl;
+      patientItem.audioDuration = '30s';
+    }
+  } else if (parsedTranscripts.length === 0 && chiefComplaint && chiefComplaint !== 'Intake recorded at kiosk') {
     parsedTranscripts = [
       {
         id: `t-intro-${item.id}`,
@@ -311,6 +326,8 @@ export function mapQueueItemToPatient(
         id: `t-resp-${item.id}`,
         speaker: 'patient',
         text: chiefComplaint,
+        audioUrl: resolvedAudioUrl,
+        audioDuration: '30s',
       },
     ];
   }
@@ -462,5 +479,19 @@ export function mapQueueItemToPatient(
     transcripts: parsedTranscripts,
     medicalHistory: parsedHistory,
     prescriptions: parsedPrescriptions,
+    patientAudioUrl:
+      summary?.patient_audio_url ||
+      (summary as any)?.patientAudioUrl ||
+      aiPayload?.patient_audio_url ||
+      (item as any)?.patient_audio_url,
+    patientTranscript:
+      summary?.patient_transcript ||
+      (summary as any)?.patientTranscript ||
+      (item as any)?.patient_transcript,
+    intakeMode:
+      summary?.intake_mode ||
+      (summary as any)?.intakeMode ||
+      (item as any)?.intake_mode ||
+      'interview',
   };
 }

@@ -159,6 +159,9 @@ export const initializeSchema = async () => {
 
         await addColumn(client, 'consultations', 'department_id', 'UUID REFERENCES departments(id) ON DELETE SET NULL');
         await addColumn(client, 'consultations', 'intake_pathway', "VARCHAR(30) NOT NULL DEFAULT 'general'");
+        await addColumn(client, 'consultations', 'intake_mode', "VARCHAR(30) DEFAULT 'interview'");
+        await addColumn(client, 'consultations', 'patient_audio_url', 'TEXT');
+        await addColumn(client, 'consultations', 'patient_transcript', 'TEXT');
         await addColumn(client, 'consultations', 'language', "VARCHAR(20) DEFAULT 'en'");
         await addColumn(client, 'consultations', 'ai_session_id', 'VARCHAR(100)');
         await addColumn(client, 'consultations', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');

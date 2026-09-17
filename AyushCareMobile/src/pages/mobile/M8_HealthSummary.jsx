@@ -17,7 +17,48 @@ import {
   Stethoscope,
   Building2,
   Ticket,
+  Languages,
 } from "lucide-react";
+
+const BCP47_MAP = {
+  hi: 'hi-IN',
+  en: 'en-IN',
+  bn: 'bn-IN',
+  ta: 'ta-IN',
+  te: 'te-IN',
+  mr: 'mr-IN',
+  gu: 'gu-IN',
+  kn: 'kn-IN',
+  ml: 'ml-IN',
+  pa: 'pa-IN',
+  ur: 'ur-IN',
+  or: 'or-IN',
+  as: 'as-IN',
+};
+
+const getLocaleTag = (lang) => {
+  if (!lang) return 'en-IN';
+  const clean = String(lang).toLowerCase().trim();
+  if (BCP47_MAP[clean]) return BCP47_MAP[clean];
+  if (clean.includes('-')) return clean;
+  return `${clean}-IN`;
+};
+
+const LANGUAGE_NAMES = {
+  hi: 'हिन्दी (Hindi)',
+  en: 'English',
+  bn: 'বাংলা (Bengali)',
+  ta: 'தமிழ் (Tamil)',
+  te: 'తెలుగు (Telugu)',
+  mr: 'मराठी (Marathi)',
+  gu: 'ગુજરાતી (Gujarati)',
+  kn: 'ಕನ್ನಡ (Kannada)',
+  ml: 'മലയാളം (Malayalam)',
+  pa: 'ਪੰਜਾਬੀ (Punjabi)',
+  or: 'ଓଡ଼ିଆ (Odia)',
+  ur: 'اردو (Urdu)',
+  as: 'অसमীয়া (Assamese)',
+};
 import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import { useLanguage } from "../../i18n/translations";
 
@@ -141,7 +182,7 @@ const getItemSecondary = (item) => {
   return [frequency, duration].filter(Boolean).join(" • ");
 };
 
-const speakText = (text) => {
+const speakText = (text, lang = 'en-IN') => {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     return false;
   }
@@ -149,7 +190,7 @@ const speakText = (text) => {
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-IN";
+  utterance.lang = lang;
   utterance.rate = 0.9;
   utterance.pitch = 1;
 
@@ -228,15 +269,23 @@ export default function M8_HealthSummary() {
     return payload || (healthSummary.sections ? healthSummary : null);
   }, [healthSummary]);
 
+  const summaryLang =
+    healthSummary?.language ||
+    parsedAiPayload?.language ||
+    latestVisit?.language ||
+    (isHindi ? 'hi' : 'en');
+
   const chiefComplaint =
     healthSummary?.chief_complaint ||
     parsedAiPayload?.chief_complaint ||
+    parsedAiPayload?.sections?.find((s) => /complaint/i.test(s.heading_en || s.heading || ""))?.body_local ||
     parsedAiPayload?.sections?.find((s) => /complaint/i.test(s.heading_en || s.heading || ""))?.body ||
     null;
 
   const historyOfIllness =
     healthSummary?.history_of_present_illness ||
     parsedAiPayload?.history_of_present_illness ||
+    parsedAiPayload?.sections?.find((s) => /history|illness/i.test(s.heading_en || s.heading || ""))?.body_local ||
     parsedAiPayload?.sections?.find((s) => /history|illness/i.test(s.heading_en || s.heading || ""))?.body ||
     null;
 
@@ -285,7 +334,7 @@ export default function M8_HealthSummary() {
       return;
     }
 
-    const started = speakText(summaryText || "Health summary is ready.");
+    const started = speakText(summaryText || "Health summary is ready.", getLocaleTag(summaryLang));
 
     if (started) {
       setIsSpeaking(true);
@@ -318,9 +367,17 @@ export default function M8_HealthSummary() {
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
-              {tr('AI Health Summary', 'एआई स्वास्थ्य सारांश')}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
+                {tr('AI Health Summary', 'एआई स्वास्थ्य सारांश')}
+              </p>
+              {summaryLang && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-800 bg-teal-100/70 border border-teal-200 px-2 py-0.5 rounded-full">
+                  <Languages size={11} />
+                  {LANGUAGE_NAMES[summaryLang] || summaryLang.toUpperCase()}
+                </span>
+              )}
+            </div>
             <h1 className="truncate text-lg font-bold text-slate-900">
               {tr('Health Summary & Vitals', 'स्वास्थ्य सारांश एवं विज़िट')}
             </h1>

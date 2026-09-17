@@ -423,13 +423,13 @@ export const exchangePatientUploadQr = asyncHandler(async (req, res) => {
                 p.id AS pid, p.abha_number, p.full_name, p.gender, p.date_of_birth, p.mobile_number, p.address,
                 EXISTS(SELECT 1 FROM consent_records cr WHERE cr.consultation_id=q.consultation_id AND cr.scope_id='document_processing' AND cr.status='granted' AND cr.withdrawn_at IS NULL) AS document_processing_consent
          FROM patient_qr_tokens q JOIN patients p ON p.id=q.patient_id
-         WHERE q.token_hash=$1 AND q.used_at IS NULL AND q.expires_at>NOW()
+         WHERE q.token_hash=$1 AND q.expires_at>NOW()
          LIMIT 1`,
         [hashQrToken(rawToken)]
     );
-    if (!result.rowCount) throw new ApiError(410, 'This patient QR has expired or has already been used');
+    if (!result.rowCount) throw new ApiError(410, 'This patient QR has expired. Please generate a new QR from the kiosk.');
     const row = result.rows[0];
-    await pool.query('UPDATE patient_qr_tokens SET used_at=NOW() WHERE id=$1 AND used_at IS NULL', [row.id]);
+    await pool.query('UPDATE patient_qr_tokens SET used_at=COALESCE(used_at,NOW()) WHERE id=$1', [row.id]);
     const patient = {
         id: row.pid, abha_number: row.abha_number, full_name: row.full_name,
         gender: row.gender, date_of_birth: row.date_of_birth, mobile_number: row.mobile_number, address: row.address,

@@ -17,6 +17,64 @@ from app.domain.languages import get_bhashini_code
 logger = structlog.get_logger(__name__)
 
 
+def detect_script_language(text: str) -> Optional[str]:
+    """Detect Indian language code from unicode script in text."""
+    if not text:
+        return None
+    for char in text:
+        code = ord(char)
+        if 0x0900 <= code <= 0x097F:
+            return "hi"  # Devanagari (Hindi / Marathi)
+        elif 0x0980 <= code <= 0x09FF:
+            return "bn"  # Bengali
+        elif 0x0B80 <= code <= 0x0BFF:
+            return "ta"  # Tamil
+        elif 0x0C00 <= code <= 0x0C7F:
+            return "te"  # Telugu
+        elif 0x0C80 <= code <= 0x0CFF:
+            return "kn"  # Kannada
+        elif 0x0D00 <= code <= 0x0D7F:
+            return "ml"  # Malayalam
+        elif 0x0A80 <= code <= 0x0AFF:
+            return "gu"  # Gujarati
+        elif 0x0A00 <= code <= 0x0A7F:
+            return "pa"  # Gurmukhi (Punjabi)
+        elif 0x0B00 <= code <= 0x0B7F:
+            return "or"  # Odia
+        elif 0x0600 <= code <= 0x06FF:
+            return "ur"  # Urdu
+    return None
+
+
+WHISPER_LANG_TO_CODE = {
+    "hindi": "hi",
+    "bengali": "bn",
+    "tamil": "ta",
+    "telugu": "te",
+    "marathi": "mr",
+    "gujarati": "gu",
+    "kannada": "kn",
+    "malayalam": "ml",
+    "punjabi": "pa",
+    "odia": "or",
+    "urdu": "ur",
+    "assamese": "as",
+    "english": "en",
+    "hi": "hi",
+    "bn": "bn",
+    "ta": "ta",
+    "te": "te",
+    "mr": "mr",
+    "gu": "gu",
+    "kn": "kn",
+    "ml": "ml",
+    "pa": "pa",
+    "or": "or",
+    "ur": "ur",
+    "en": "en",
+}
+
+
 class ASRError(Exception):
     """Raised when speech recognition fails."""
 
@@ -83,31 +141,36 @@ class ASRService:
     async def transcribe(
         self,
         audio_bytes: bytes,
-        language: str = "en",
+        language: str = "auto",
         *,
         sample_rate_hertz: int = 16000,
         encoding: str = "LINEAR16",
         filename: str = "audio.wav",
     ) -> dict:
-        """Transcribe audio to text.
+        """Transcribe audio to text with automatic language detection.
 
-        Priority: Bhashini ASR (primary) → Groq Whisper (fallback).
+        Priority: Bhashini ASR (primary) → Groq Whisper (fallback / auto-detect).
 
         Returns:
-            dict with keys: 'text', 'confidence', 'language', 'alternatives'
+            dict with keys: 'text', 'confidence', 'language', 'detected_language', 'alternatives'
         """
         clean_bytes, resolved_name = self._clean_audio_payload(audio_bytes, filename)
+        is_auto = not language or str(language).lower().strip() in ("auto", "detect", "default")
 
-        # Primary: Bhashini ASR
+        # Primary: Bhashini ASR (if specific language requested or if bhashini active)
         if self._bhashini_client and self._settings.asr_provider == "bhashini":
             try:
-                res = await self._transcribe_bhashini(clean_bytes, language)
+                target_lang = "hi" if is_auto else language
+                res = await self._transcribe_bhashini(clean_bytes, target_lang)
                 if res.get("text"):
+                    detected = detect_script_language(res.get("text")) or (target_lang if not is_auto else "hi")
+                    res["language"] = detected
+                    res["detected_language"] = detected
                     return res
             except Exception as e:
                 logger.warning("bhashini_asr_error_trying_fallback", error=str(e))
 
-        # Fallback: Groq Whisper
+        # Fallback: Groq Whisper (with auto-detect and native script transcription)
         if self._groq_client:
             try:
                 res = await self._transcribe_groq(clean_bytes, language, filename=resolved_name)
@@ -119,7 +182,8 @@ class ASRService:
         return {
             "text": "",
             "confidence": 0.0,
-            "language": language,
+            "language": "en" if is_auto else language,
+            "detected_language": "en" if is_auto else language,
             "alternatives": [],
         }
 
@@ -153,46 +217,64 @@ class ASRService:
             confidence=result.get("confidence", 0.0),
         )
 
+        text = result.get("text", "").strip()
+        detected_lang = detect_script_language(text) or language
+
         return {
-            "text": result.get("text", "").strip(),
+            "text": text,
             "confidence": result.get("confidence", 0.85),
-            "language": language,
+            "language": detected_lang,
+            "detected_language": detected_lang,
+            "provider": "bhashini",
             "alternatives": [],
         }
 
     async def _transcribe_groq(
         self,
         audio_bytes: bytes,
-        language: str = "en",
+        language: str = "auto",
         *,
         filename: str = "audio.webm",
     ) -> dict:
-        """Transcribe audio using Groq Whisper."""
+        """Transcribe audio using Groq Whisper with automatic language identification."""
+        is_auto = not language or str(language).lower().strip() in ("auto", "detect", "default")
         lang_code = get_bhashini_code(language) or language
         supported_langs = ("en", "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa")
-        selected_lang = lang_code if lang_code in supported_langs else "en"
 
         file_tuple = (filename, audio_bytes)
+        call_kwargs = {
+            "file": file_tuple,
+            "model": self._settings.whisper_model,
+            "response_format": "verbose_json",
+        }
 
-        response = await self._groq_client.audio.transcriptions.create(
-            file=file_tuple,
-            model=self._settings.whisper_model,
-            language=selected_lang,
-            response_format="verbose_json",
-        )
+        # If a specific supported language was requested and not auto, pass language constraint
+        if not is_auto and lang_code in supported_langs:
+            call_kwargs["language"] = lang_code
+
+        response = await self._groq_client.audio.transcriptions.create(**call_kwargs)
 
         text = getattr(response, "text", "") or str(response)
+        whisper_lang_raw = str(getattr(response, "language", "")).lower().strip()
+        detected_lang = (
+            WHISPER_LANG_TO_CODE.get(whisper_lang_raw)
+            or detect_script_language(text)
+            or (lang_code if not is_auto else "en")
+        )
 
         logger.info(
             "groq_whisper_transcription_complete",
-            language=selected_lang,
+            whisper_detected_language=whisper_lang_raw,
+            resolved_language=detected_lang,
             text_length=len(text),
         )
 
         return {
             "text": text.strip(),
             "confidence": 0.95,
-            "language": language,
+            "language": detected_lang,
+            "detected_language": detected_lang,
+            "provider": "groq_whisper",
             "alternatives": [],
         }
 

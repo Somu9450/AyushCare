@@ -7,7 +7,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import AudioButton from '../components/common/AudioButton';
 import KioskInput from '../components/common/KioskInput';
 
-export default function Screen4_SymptomIntake(){
+export default function Screen4_SymptomIntake({ onSwitchToSpeak }){
  const {sessionData,language,updateSession,nextScreen}=useKioskStore();
  const {t}=useTranslation();
  const [question,setQuestion]=useState(sessionData.currentQuestion);
@@ -165,13 +165,26 @@ export default function Screen4_SymptomIntake(){
  },[]);
 
  return <section className="screen-card interview">
-   <div className="section-head">
-     <div>
-       <p className="eyebrow">04 • {t('interview')}</p>
-       <h2>{t('interview')}</h2>
-     </div>
-     <div className="progress-ring">{Math.round(sessionData.progress||0)}%</div>
-   </div>
+    <div className="section-head">
+      <div>
+        <p className="eyebrow">04 • {t('interview')}</p>
+        <h2>{t('interview')}</h2>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {onSwitchToSpeak && (
+          <button
+            type="button"
+            onClick={onSwitchToSpeak}
+            className="secondary-btn"
+            style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Mic size={14} />
+            <span>Switch to Speak Mode</span>
+          </button>
+        )}
+        <div className="progress-ring">{Math.round(sessionData.progress||0)}%</div>
+      </div>
+    </div>
 
    {history.slice(-3).map((h,i)=>
      <div className="answer-history" key={i}>
@@ -228,9 +241,9 @@ export default function Screen4_SymptomIntake(){
            onClick={() => { if (recording) stopRecording(); else startRecording(); }}
            disabled={loading}
          >
-           {recording?<><Mic size={17} className="pulse-mic"/>{t('tapToStop','Tap to stop')}</>:<><Mic size={17}/>{t('tapToSpeak','Tap to speak')}</>}
+           {recording?<><Mic size={17} className="pulse-mic"/>{t('clickToStop','Click to stop')}</>:<><Mic size={17}/>{t('clickToSpeak','Click to speak')}</>}
          </button>
-         <small className="hold-hint">{recording ? t('tapToStopHint','Tap again to stop and send') : t('tapToSpeakHint','Tap once to speak; tap again to send')}</small>
+         <small className="hold-hint">{recording ? t('clickToStopHint','Click to stop and send') : t('clickToSpeakHint','Click once to speak; click again to send')}</small>
          <button className="primary-btn" disabled={loading||(isMultiSelect ? !multiAnswer.length : !answer.trim())} onClick={submit}>
            {loading?<Loader2 className="spin"/>:<Send size={18}/>} {t('submit')}
          </button>
