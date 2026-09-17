@@ -154,7 +154,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span>OPD Telemetry Active</span>
             </div>
             <p className="text-[11px] leading-relaxed text-teal-800/90 font-medium">
-              Synchronized with MediKiosk Intake and AyushCare Mobile patient portal.
+              Synchronized with AyushCare Kiosk Intake and AyushCare Mobile patient portal.
             </p>
           </div>
         </aside>

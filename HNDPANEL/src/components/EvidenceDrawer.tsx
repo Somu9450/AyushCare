@@ -353,7 +353,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   <div className="text-[10px] font-bold text-slate-400">
                     {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString().toUpperCase() : 'CURRENT VISIT'}
                   </div>
-                  <div className="text-xs font-bold text-slate-900 mt-0.5">MediKiosk OPD Intake & Triage</div>
+                  <div className="text-xs font-bold text-slate-900 mt-0.5">AyushCare OPD Intake & Triage</div>
                   <p className="text-[11px] text-slate-600 mt-1">
                     {patient.chiefComplaint || 'Chief complaint recorded. Triage transcript logged.'}
                   </p>

@@ -395,7 +395,7 @@ export default function DoctorWorkspacePage() {
         {selectedPatient && (
           <EvidenceDrawer
             key={`drawer-${selectedPatient.id}`}
-            patient={selectedPatient}
+            patient={selectedPatient} 
             isOpen={isEvidenceDrawerOpen}
             onToggle={() => setIsEvidenceDrawerOpen((prev) => !prev)}
             onClose={() => setIsEvidenceDrawerOpen(false)}

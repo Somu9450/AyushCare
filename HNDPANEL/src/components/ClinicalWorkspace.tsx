@@ -615,7 +615,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-teal-600" />
             </div>
             <p className="text-xs font-bold text-slate-800 truncate">
-              {vitals.source || 'MediKiosk Biosensors'}
+              {vitals.source || 'AyushCare Biosensors'}
             </p>
             <span className="text-[10px] text-slate-400">
               {vitals.recordedAt ? new Date(vitals.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recorded'}
@@ -1300,7 +1300,7 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 </div>
                 <h4 className="text-xs font-bold text-slate-700">No Attached Scans or Documents</h4>
                 <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                  Physical reports scanned or uploaded at the MediKiosk by the patient will automatically populate here.
+                  Physical reports scanned or uploaded at the AyushCare Kiosk by the patient will automatically populate here.
                 </p>
               </div>
             ) : (
