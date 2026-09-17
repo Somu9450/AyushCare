@@ -304,7 +304,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             )}
           </div>
           <span className="text-[11px] text-slate-400">
-            MediKiosk Secure EHR Document Storage
+            AyushCare Secure EHR Document Storage
           </span>
         </div>
       </div>

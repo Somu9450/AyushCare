@@ -53,7 +53,7 @@ export default function LoginPage() {
             <Stethoscope className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            MEDIKIOSK
+            AyushCare
           </h1>
           <p className="text-xs font-medium text-teal-800 tracking-wide uppercase mt-0.5">
             Doctor Workspace & Hospital Admin Portal

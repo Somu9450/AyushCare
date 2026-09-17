@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MediKiosk Doctor Workspace | AIIMS New Delhi OPD",
-  description: "AI-assisted clinical OPD Doctor Workspace for General Medicine OPD",
+  title: "AyushCare Doctor Workspace | Hospital OPD",
+  description: "AI-assisted clinical OPD Doctor Workspace for General Medicine & AYUSH OPD",
 };
 
 export default function RootLayout({

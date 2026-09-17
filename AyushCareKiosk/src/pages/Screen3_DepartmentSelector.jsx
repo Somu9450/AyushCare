@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Leaf, Loader2, ShieldCheck, Stethoscope } from 'lucide-react';
+import { Leaf, Loader2, ShieldCheck, Stethoscope, CheckCircle2 } from 'lucide-react';
 import { kioskApi, getErrorMessage } from '../services/api';
 import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
@@ -7,8 +7,8 @@ import { useTranslation } from '../hooks/useTranslation';
 export default function Screen3_DepartmentSelector() {
   const { sessionData, language, updateSession, setScreen } = useKioskStore();
   const { t } = useTranslation();
-  const pathway = sessionData.pathway || 'allopathy';
 
+  const [pathway, setPathway] = useState(sessionData.pathway || 'allopathy');
   const [departments, setDepartments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [dept, setDept] = useState(sessionData.selectedDepartment?.id || '');
@@ -19,20 +19,29 @@ export default function Screen3_DepartmentSelector() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const handlePathwayChange = (newPathway) => {
+    if (newPathway === pathway) return;
+    setPathway(newPathway);
+    updateSession({ pathway: newPathway });
+    setDept('');
+    setDoctor('');
+  };
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setError('');
     kioskApi.departments(pathway)
       .then((data) => {
         if (!alive) return;
         const list = Array.isArray(data) ? data : [];
         setDepartments(list);
-        setDept(sessionData.selectedDepartment?.id || list[0]?.id || '');
+        setDept(list[0]?.id || '');
       })
       .catch((e) => alive && setError(getErrorMessage(e)))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [pathway, sessionData.selectedDepartment?.id]);
+  }, [pathway]);
 
   useEffect(() => {
     if (!dept) { setDoctors([]); return; }
@@ -55,8 +64,6 @@ export default function Screen3_DepartmentSelector() {
     setError('');
 
     try {
-      // Session creation intentionally happens only after the patient has
-      // explicitly selected the required clinical-intake consent.
       const d = await kioskApi.verifyPatient({
         registrationType: sessionData.registrationType || 'new',
         patientId: profile.id || profile.patient_uuid || profile.patientId || undefined,
@@ -89,15 +96,10 @@ export default function Screen3_DepartmentSelector() {
         his_abdm_sharing: false,
       };
 
-      // Keep the explicit consent receipt in the session. If the auth/session
-      // endpoint already recorded consent, this grant call simply synchronizes
-      // the final scope selection including document processing.
       let receipt = null;
       try {
         receipt = await kioskApi.grantConsent(consultationId, consent);
       } catch (consentError) {
-        // Do not proceed if the backend cannot persist consent. This is a
-        // safety boundary for the clinical interview.
         throw consentError;
       }
 
@@ -111,10 +113,10 @@ export default function Screen3_DepartmentSelector() {
         requestedDoctor: selectedDoctor,
         consent,
         consentReceipt: receipt,
+        pathway,
         isVerified: true,
       });
 
-      // Navigate to language selection screen (screen 5) before AI interview.
       setScreen(5);
     } catch (e) {
       setError(getErrorMessage(e));
@@ -125,19 +127,47 @@ export default function Screen3_DepartmentSelector() {
 
   return (
     <section className="screen-card">
-      <p className="eyebrow">03 • {t('department')}</p>
-      <h2>{t('department')}</h2>
-      
+      <p className="eyebrow">03 • {t('pathway', 'Care Pathway & Department')}</p>
+      <h2>{t('pathway', 'Choose your care pathway')}</h2>
 
-      <div className="pathway-banner">
-        {pathway === 'ayurveda' ? <Leaf /> : <Stethoscope />}
-        <strong>{pathway === 'ayurveda' ? t('ayurveda') : t('allopathy')}</strong>
-        <span>{pathway === 'ayurveda' ? t('ayurvedaDesc') : t('allopathyDesc')}</span>
+      {/* Interactive Pathway Selector: Allopathy vs Ayurveda */}
+      <div className="pathway-grid" role="radiogroup" aria-label="Care Pathway Selection">
+        <button
+          type="button"
+          className={`path-card ${pathway === 'allopathy' ? 'active' : ''}`}
+          onClick={() => handlePathwayChange('allopathy')}
+          aria-pressed={pathway === 'allopathy'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Stethoscope size={28} />
+              <strong style={{ fontSize: '18px' }}>{t('allopathy', 'Allopathy')}</strong>
+            </div>
+            {pathway === 'allopathy' && <CheckCircle2 size={22} className="text-teal" />}
+          </div>
+          <span>{t('allopathyDesc', 'Modern clinical assessment and care (General Medicine, Cardiology, etc.)')}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`path-card ${pathway === 'ayurveda' ? 'active' : ''}`}
+          onClick={() => handlePathwayChange('ayurveda')}
+          aria-pressed={pathway === 'ayurveda'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Leaf size={28} />
+              <strong style={{ fontSize: '18px' }}>{t('ayurveda', 'Ayurveda')}</strong>
+            </div>
+            {pathway === 'ayurveda' && <CheckCircle2 size={22} className="text-teal" />}
+          </div>
+          <span>{t('ayurvedaDesc', 'Traditional AYUSH holistic assessment and care (Kayachikitsa, Panchakarma, etc.)')}</span>
+        </button>
       </div>
 
       <div className="form-grid compact">
         <label>
-          <span>{t('department')}</span>
+          <span>{t('department')} ({pathway === 'ayurveda' ? 'AYUSH' : 'Allopathy'})</span>
           <select value={dept} onChange={(e) => setDept(e.target.value)} disabled={loading}>
             <option value="">{loading ? t('loading') : t('selectDepartment','Select department')}</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}

@@ -202,7 +202,7 @@ export default function AdminQueuePage() {
           <div className="p-12 text-center text-slate-400 text-xs">
             <p className="font-semibold text-slate-600">No Active Tokens in Queue</p>
             <p className="text-[11px] text-slate-400 mt-1">
-              Patients registering at the MediKiosk intake terminal will automatically appear here.
+              Patients registering at the AyushCare intake terminal will automatically appear here.
             </p>
           </div>
         ) : (

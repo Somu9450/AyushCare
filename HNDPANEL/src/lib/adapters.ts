@@ -446,9 +446,9 @@ export function mapQueueItemToPatient(
     ),
     alertMessage:
       item.risk_level === 'emergency'
-        ? 'Emergency Triage Flagged by MediKiosk Intake'
+        ? 'Emergency Triage Flagged by AyushCare Intake'
         : item.risk_level === 'high_risk'
-        ? 'High Risk Triage Flagged by MediKiosk Intake'
+        ? 'High Risk Triage Flagged by AyushCare Intake'
         : undefined,
     isVisitRestricted,
     createdAt: item.created_at || summary?.generated_at,

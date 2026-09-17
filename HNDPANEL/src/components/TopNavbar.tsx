@@ -123,7 +123,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       {/* Center Branding (Desktop / Tablet) */}
       <div className="hidden md:flex items-center shrink-0">
         <span className="font-extrabold tracking-widest text-xs lg:text-sm text-white uppercase">
-          MEDIKIOSK · Doctor Workspace
+          AyushCare · Doctor Workspace
         </span>
       </div>
 
