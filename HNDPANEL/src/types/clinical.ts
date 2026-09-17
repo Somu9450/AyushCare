@@ -148,4 +148,7 @@ export interface Patient {
   transcripts: TranscriptItem[];
   medicalHistory: MedicalHistoryItem[];
   prescriptions: PrescriptionItem[];
+  intakeMode?: 'interview' | 'speak' | string;
+  patientAudioUrl?: string;
+  patientTranscript?: string;
 }

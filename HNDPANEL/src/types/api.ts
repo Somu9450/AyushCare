@@ -71,6 +71,9 @@ export interface ConsultationQueueItem {
   vitals_source?: string;
   vitals_recorded_at?: string;
   chief_complaint?: string;
+  patient_audio_url?: string;
+  patient_transcript?: string;
+  intake_mode?: string;
 }
 
 export interface ClinicalSummary {
@@ -132,6 +135,9 @@ export interface ClinicalSummary {
   vitals_recorded_at?: string;
   restricted?: boolean;
   message?: string;
+  patient_audio_url?: string;
+  patient_transcript?: string;
+  intake_mode?: string;
 }
 
 export interface UploadedDocument {

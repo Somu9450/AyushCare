@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { performAbhaRegister, lookupPatients, createKioskSession, createPatientUploadQr, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth } from '../controllers/kiosk.controller.js';
+import { performAbhaRegister, lookupPatients, createKioskSession, createPatientUploadQr, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth, audioIntake, speakModeSubmit } from '../controllers/kiosk.controller.js';
 import { rawAudio } from '../middleware/rawAudio.middleware.js';
 
 const router = Router();
@@ -15,6 +15,8 @@ router.get('/session/:session_id/dialogue/state', getDialogueState);
 router.delete('/session/:session_id', deleteAiSession);
 router.post('/session/:session_id/dialogue/answer', answerDialogue);
 router.post('/session/:session_id/dialogue/speech', rawAudio, speechDialogue);
+router.post('/session/:session_id/audio-intake', rawAudio, audioIntake);
+router.post('/session/:session_id/speak-mode-submit', speakModeSubmit);
 router.post('/session/:session_id/dialogue/tts', ttsDialogue);
 router.get('/session/:session_id/dialogue/tts', ttsDialogue);
 router.post('/session/:session_id/vitals', saveVitals);

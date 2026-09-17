@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Patient, DocumentFile } from '../types/clinical';
-import { DocumentViewerModal } from './DocumentViewerModal';
+import { DocumentViewerModal, resolveDocumentUrl } from './DocumentViewerModal';
 import {
   FileText,
   Clock,
@@ -53,8 +53,9 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         audioRef.current.pause();
       }
 
-      if (audioUrl && (audioUrl.startsWith('http') || audioUrl.startsWith('blob:') || audioUrl.startsWith('/'))) {
-        const audio = new Audio(audioUrl);
+      const resolved = resolveDocumentUrl(audioUrl);
+      if (resolved && (resolved.startsWith('http') || resolved.startsWith('blob:'))) {
+        const audio = new Audio(resolved);
         audioRef.current = audio;
         audio.play().catch(() => {});
         audio.onended = () => setPlayingAudioId(null);

@@ -13,8 +13,10 @@ const Screen2_PatientType = lazy(() => import('./pages/Screen2_PatientType'));
 const Screen2_Auth = lazy(() => import('./pages/Screen2_Auth'));
 const Screen3_DepartmentSelector = lazy(() => import('./pages/Screen3_DepartmentSelector'));
 const Screen3b_LanguageSelect = lazy(() => import('./pages/Screen3b_LanguageSelect'));
+const Screen3c_ModeSelect = lazy(() => import('./pages/Screen3c_ModeSelect'));
 const Screen4_Consent = lazy(() => import('./pages/Screen4_Consent'));
 const Screen4_SymptomIntake = lazy(() => import('./pages/Screen4_SymptomIntake'));
+const Screen4_SpeakMode = lazy(() => import('./pages/Screen4_SpeakMode'));
 const Screen6_HealthHistory = lazy(() => import('./pages/Screen6_HealthHistory'));
 const Screen8_QRUpload = lazy(() => import('./pages/Screen8_QRUpload'));
 const Screen9_ReviewSubmission = lazy(() => import('./pages/Screen9_ReviewSubmission'));
@@ -25,17 +27,40 @@ function ScreenLoader() {
 }
 
 export default function App() {
-  const { currentScreen, highContrast, audioEnabled } = useKioskStore();
+  const { currentScreen, highContrast, audioEnabled, sessionData, updateSession } = useKioskStore();
   useAutoNarration();
   useDomTranslation();
   useEffect(() => { if (!audioEnabled) audioService.stop(); }, [audioEnabled]);
+
+  const renderIntakeScreen = () => {
+    if (sessionData.intakeMode === 'speak') {
+      return (
+        <Screen4_SpeakMode
+          onSwitchToInterview={() => updateSession({ intakeMode: 'interview' })}
+        />
+      );
+    }
+    if (sessionData.intakeMode === 'interview') {
+      return (
+        <Screen4_SymptomIntake
+          onSwitchToSpeak={() => updateSession({ intakeMode: 'speak' })}
+        />
+      );
+    }
+    return (
+      <Screen3c_ModeSelect
+        onSelectMode={(mode) => updateSession({ intakeMode: mode })}
+      />
+    );
+  };
+
   const screen = {
     1: <Screen1_Welcome />,
     2: <Screen2_PatientType />,
     3: <Screen2_Auth />,
     4: <Screen3_DepartmentSelector />,
     5: <Screen3b_LanguageSelect />,
-    6: <Screen4_SymptomIntake />,
+    6: renderIntakeScreen(),
     7: <Screen6_HealthHistory />,
     8: <Screen8_QRUpload />,
     9: <Screen9_ReviewSubmission />,

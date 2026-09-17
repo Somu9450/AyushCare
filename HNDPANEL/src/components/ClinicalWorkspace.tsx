@@ -35,6 +35,9 @@ import {
   Lock,
   ShieldAlert,
   RefreshCw,
+  Play,
+  Pause,
+  Volume2,
 } from 'lucide-react';
 
 interface ClinicalWorkspaceProps {
@@ -208,6 +211,73 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
   // Voice Dictation (Speech-to-Text)
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  // Patient Voice Playback State (Speak Mode Kiosk Audio)
+  const [isPlayingPatientAudio, setIsPlayingPatientAudio] = useState(false);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
+  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
+  const patientAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Stop and clean up audio when active patient or audio URL changes
+  useEffect(() => {
+    if (patientAudioRef.current) {
+      patientAudioRef.current.pause();
+      patientAudioRef.current = null;
+    }
+    setIsPlayingPatientAudio(false);
+    setAudioCurrentTime(0);
+    setAudioDuration(0);
+  }, [patient.id, patient.patientAudioUrl]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      if (patientAudioRef.current) {
+        patientAudioRef.current.pause();
+        patientAudioRef.current = null;
+      }
+    };
+  }, []);
+
+  const togglePatientAudio = () => {
+    if (!patient.patientAudioUrl) return;
+
+    if (isPlayingPatientAudio) {
+      if (patientAudioRef.current) {
+        patientAudioRef.current.pause();
+      }
+      setIsPlayingPatientAudio(false);
+    } else {
+      if (!patientAudioRef.current) {
+        const resolved = resolveDocumentUrl(patient.patientAudioUrl);
+        const audio = new Audio(resolved);
+        patientAudioRef.current = audio;
+
+        audio.ontimeupdate = () => {
+          setAudioCurrentTime(audio.currentTime);
+        };
+        audio.onloadedmetadata = () => {
+          setAudioDuration(audio.duration || 0);
+        };
+        audio.onended = () => {
+          setIsPlayingPatientAudio(false);
+          setAudioCurrentTime(0);
+        };
+        audio.onerror = () => {
+          setIsPlayingPatientAudio(false);
+        };
+      }
+      patientAudioRef.current
+        .play()
+        .then(() => {
+          setIsPlayingPatientAudio(true);
+        })
+        .catch((e) => {
+          console.warn('Audio playback failed', e);
+          setIsPlayingPatientAudio(false);
+        });
+    }
+  };
 
   // Sync state if active patient changes
   useEffect(() => {
@@ -733,6 +803,85 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Patient Voice Intake Audio Player (Speak Mode Kiosk Audio) */}
+          {(patient.patientAudioUrl || patient.intakeMode === 'speak') && (
+            <div className="bg-linear-to-r from-teal-50/90 via-emerald-50/70 to-slate-50 border border-teal-200 rounded-xl p-3.5 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={togglePatientAudio}
+                    disabled={!patient.patientAudioUrl}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${
+                      !patient.patientAudioUrl
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : isPlayingPatientAudio
+                        ? 'bg-amber-500 text-white animate-pulse ring-4 ring-amber-100'
+                        : 'bg-[#064e4b] hover:bg-[#043634] text-white hover:scale-105'
+                    }`}
+                    title={isPlayingPatientAudio ? 'Pause recording' : 'Play patient voice recording'}
+                  >
+                    {isPlayingPatientAudio ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                  </button>
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-900">
+                        Patient Original Voice Description
+                      </span>
+                      <span className="text-[10px] font-semibold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full border border-teal-200">
+                        Speak Mode
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {patient.patientAudioUrl
+                        ? isPlayingPatientAudio
+                          ? `Playing audio intake... ${audioDuration ? `${Math.floor(audioCurrentTime)}s / ${Math.floor(audioDuration)}s` : ''}`
+                          : 'Recorded at Kiosk in patient\'s own voice. Click play to listen.'
+                        : 'Intake completed in Speak Mode.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {onToggleEvidence && (
+                    <button
+                      type="button"
+                      onClick={onToggleEvidence}
+                      className="text-xs font-semibold text-[#064e4b] hover:bg-teal-100/60 px-2.5 py-1.5 rounded-lg border border-teal-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>View Transcript & Evidence</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Live Audio Progress Bar */}
+              {isPlayingPatientAudio && audioDuration > 0 && (
+                <div className="mt-2.5 pt-2 border-t border-teal-200/60 flex items-center gap-3">
+                  <div className="flex-1 bg-teal-200/60 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-[#064e4b] h-full transition-all duration-200"
+                      style={{ width: `${(audioCurrentTime / audioDuration) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono font-medium text-teal-900">
+                    {Math.floor(audioCurrentTime)}s / {Math.floor(audioDuration)}s
+                  </span>
+                </div>
+              )}
+
+              {/* Patient Voice Transcript Preview */}
+              {patient.patientTranscript && (
+                <div className="mt-2.5 p-2 bg-white/80 rounded-lg border border-teal-100 text-xs text-slate-700">
+                  <span className="font-semibold text-teal-900 mr-1.5">Transcript:</span>
+                  <span className="italic text-slate-600">"{patient.patientTranscript}"</span>
+                </div>
+              )}
             </div>
           )}
 

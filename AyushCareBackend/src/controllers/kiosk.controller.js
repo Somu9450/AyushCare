@@ -1,4 +1,7 @@
 import { randomBytes } from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { ApiResponse } from '../utilities/ApiResponse.js';
 import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
@@ -6,6 +9,9 @@ import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
 import { assertSupportedLanguage } from '../services/languageService.js';
 import { createRawQrToken, hashQrToken } from '../services/patientQrService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DEFAULT_HOSPITAL = () => process.env.DEFAULT_HOSPITAL_ID || null;
 
@@ -298,14 +304,8 @@ export const createPatientUploadQr = asyncHandler(async (req, res) => {
     if (!result.rowCount) throw new ApiError(404, 'Consultation not found');
 
     const rawToken = createRawQrToken();
-    const expiresAt = new Date(Date.now() + 80 * 1000);
-
-    await pool.query(
-        `UPDATE patient_qr_tokens
-         SET used_at=COALESCE(used_at,NOW())
-         WHERE consultation_id=$1 AND used_at IS NULL AND expires_at>NOW()`,
-        [consultationId]
-    );
+    // Valid for 10 minutes (600 seconds) so patient can comfortably take photos and upload from phone
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     const created = await pool.query(
         `INSERT INTO patient_qr_tokens(token_hash,patient_id,consultation_id,expires_at)
@@ -316,7 +316,8 @@ export const createPatientUploadQr = asyncHandler(async (req, res) => {
     return res.status(201).json(new ApiResponse(201, {
         token: rawToken,
         expires_at: created.rows[0].expires_at,
-        expires_in_seconds: 80,
+        expires_in_seconds: 600,
+        kiosk_screen_seconds: 80,
         abha_number: result.rows[0].abha_number,
         patient_name: result.rows[0].full_name
     }, 'Patient document-upload QR generated'));
@@ -531,3 +532,160 @@ export const withdrawConsent = asyncHandler(async(req,res)=>{ const c=await getC
 export const getConsentScopes = asyncHandler(async(req,res)=>{ const c=await getConsultation(req.params.session_id); return res.json(new ApiResponse(200,await AiServiceGateway.getConsentScopes(c.ai_session_id),'Consent scopes loaded')); });
 
 export const fhirPreview = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); return res.json(new ApiResponse(200,await AiServiceGateway.fhirPreview(c.ai_session_id),'FHIR preview loaded'));});
+
+export const audioIntake = asyncHandler(async (req, res) => {
+    const c = await getConsultation(req.params.session_id);
+    const requestedLang = req.query.language || 'auto';
+    const mimeType = req.headers['content-type'] || 'audio/webm';
+    
+    if (!req.body || !req.body.length) {
+        throw new ApiError(400, 'Audio file is required');
+    }
+
+    const audioDir = path.join(__dirname, '../../uploads/audio');
+    if (!fs.existsSync(audioDir)) {
+        fs.mkdirSync(audioDir, { recursive: true });
+    }
+    const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') ? 'm4a' : 'webm';
+    const filename = `consultation-${c.id}-${Date.now()}.${ext}`;
+    const filePath = path.join(audioDir, filename);
+    fs.writeFileSync(filePath, req.body);
+
+    const audioUrl = `/uploads/audio/${filename}`;
+
+    let transcription = { text: '', confidence: 0.9, language: requestedLang };
+    try {
+        transcription = await AiServiceGateway.transcribeAudio(req.body, requestedLang, mimeType);
+    } catch (err) {
+        console.warn('ASR transcription error:', err.message);
+    }
+
+    const detectedLanguage = transcription.detected_language || transcription.language || (requestedLang !== 'auto' ? requestedLang : (c.language || 'en'));
+
+    // Automatically update consultation language if auto-detected
+    if (detectedLanguage && detectedLanguage !== 'auto' && detectedLanguage !== c.language) {
+        await pool.query('UPDATE consultations SET language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
+    }
+
+    return res.json(new ApiResponse(200, {
+        transcript: transcription.text || '',
+        confidence: transcription.confidence || 0.9,
+        audioUrl,
+        language: detectedLanguage,
+        detected_language: detectedLanguage,
+    }, 'Audio recorded and transcribed successfully'));
+});
+
+export const speakModeSubmit = asyncHandler(async (req, res) => {
+    const c = await getConsultation(req.params.session_id);
+    const { transcript, audioUrl, duration, language = c.language || 'en' } = req.body || {};
+
+    if (!transcript || !transcript.trim()) {
+        throw new ApiError(400, 'Transcript is required');
+    }
+
+    const effectiveLanguage = language && language !== 'auto' ? language : (c.language || 'en');
+
+    // 1. Update consultation record with speak mode, audio URL, and effective language
+    await pool.query(
+        `UPDATE consultations 
+         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, language = $3, updated_at = NOW() 
+         WHERE id = $4`,
+        [audioUrl || null, transcript.trim(), effectiveLanguage, c.id]
+    );
+
+    // 2. Format conversation history turn to feed Groq LLM summary generator
+    const conversationHistory = [
+        {
+            question_id: 'q-chief-complaint',
+            question: 'Please describe the health concerns and symptoms you are experiencing today in detail.',
+            answer: transcript.trim(),
+            phase: 'symptom_exploration',
+            input_mode: 'speech',
+        },
+    ];
+
+    // 3. Call Groq AI summary generator in the detected language
+    const includeAyush = c.intake_pathway === 'ayurveda';
+    let summaryResult = null;
+    try {
+        summaryResult = await AiServiceGateway.generateSummary(
+            c.ai_session_id,
+            effectiveLanguage,
+            true,
+            includeAyush,
+            conversationHistory
+        );
+    } catch (e) {
+        console.warn('Groq summary generation error:', e.message);
+        summaryResult = {
+            sections: [
+                {
+                    heading_en: 'Chief Complaint',
+                    heading_local: effectiveLanguage === 'hi' ? 'मुख्य शिकायत' : 'Chief Complaint',
+                    body: transcript.trim(),
+                    body_local: transcript.trim(),
+                },
+                {
+                    heading_en: 'History of Present Illness',
+                    heading_local: effectiveLanguage === 'hi' ? 'वर्तमान बीमारी का इतिहास' : 'History of Present Illness',
+                    body: transcript.trim(),
+                    body_local: transcript.trim(),
+                },
+            ],
+            confidence_score: 0.95,
+        };
+    }
+
+    // Attach transcripts item with audioUrl into ai_payload for doctor Evidence Drawer playback
+    const transcriptsPayload = [
+        {
+            id: `audio-rec-${c.id}`,
+            speaker: 'patient',
+            text: transcript.trim(),
+            audioUrl: audioUrl || null,
+            audioDuration: duration || '30s',
+            language: effectiveLanguage,
+        },
+    ];
+
+    const chiefSection = summaryResult?.sections?.find((s) => /complaint/i.test(s.heading_en || ''));
+    const historySection = summaryResult?.sections?.find((s) => /history/i.test(s.heading_en || ''));
+    const chiefComplaint = chiefSection?.body_local || chiefSection?.body || transcript.trim();
+    const historyIllness = historySection?.body_local || historySection?.body || transcript.trim();
+
+    const ayushAttrs = JSON.stringify(c.intake_pathway === 'ayurveda' ? { pathway: 'ayurveda' } : {});
+    const aiPayload = JSON.stringify({
+        ...(summaryResult || {}),
+        language: effectiveLanguage,
+        transcripts: transcriptsPayload,
+        patient_audio_url: audioUrl || null,
+        patient_transcript: transcript.trim(),
+    });
+
+    // 4. Persist to clinical_summaries
+    const existing = await pool.query('SELECT id FROM clinical_summaries WHERE consultation_id = $1 LIMIT 1', [c.id]);
+    if (existing.rowCount > 0) {
+        await pool.query(
+            `UPDATE clinical_summaries 
+             SET chief_complaint = $1, history_of_present_illness = $2, ayush_attributes = $3, ai_payload = $4, updated_at = NOW(), generated_at = NOW() 
+             WHERE consultation_id = $5`,
+            [chiefComplaint, historyIllness, ayushAttrs, aiPayload, c.id]
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO clinical_summaries(consultation_id, chief_complaint, history_of_present_illness, ayush_attributes, ai_payload, generated_at, updated_at) 
+             VALUES($1, $2, $3, $4, $5, NOW(), NOW())`,
+            [c.id, chiefComplaint, historyIllness, ayushAttrs, aiPayload]
+        );
+    }
+
+    return res.json(new ApiResponse(200, {
+        consultation_id: c.id,
+        summary: summaryResult,
+        intake_mode: 'speak',
+        patient_audio_url: audioUrl,
+        patient_transcript: transcript.trim(),
+        language: effectiveLanguage,
+    }, 'Speak mode summary generated successfully'));
+});

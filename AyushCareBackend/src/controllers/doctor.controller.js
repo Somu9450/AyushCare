@@ -23,7 +23,13 @@ export const getPatientSummary = asyncHandler(async (req, res) => {
     const allowed = await canDoctorAccess({ patientId: consultation.rows[0].patient_id, hospitalId: consultation.rows[0].hospital_id, consultationId: consultation.rows[0].id, category: 'visits' });
     if (!allowed) return res.status(200).json(new ApiResponse(200, { consultation_id: consultation.rows[0].id, abha_number: consultation.rows[0].abha_number, restricted: true }, 'Patient has restricted this visit from doctor view'));
     const summary = await pool.query('SELECT * FROM clinical_summaries WHERE consultation_id = $1', [req.params.id]);
-    return res.status(200).json(new ApiResponse(200, summary.rows[0] || {}, "AI clinical history loaded"));
+    const summaryData = summary.rows[0] || {};
+    return res.status(200).json(new ApiResponse(200, {
+        ...summaryData,
+        intake_mode: consultation.rows[0].intake_mode || 'interview',
+        patient_audio_url: consultation.rows[0].patient_audio_url || null,
+        patient_transcript: consultation.rows[0].patient_transcript || null,
+    }, "AI clinical history loaded"));
 });
 
 export const getPatientReports = asyncHandler(async (req, res) => {

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, useRef } from "react";
 
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 
@@ -56,6 +56,8 @@ function App() {
     setScreen,
     setDocumentUploadContext,
   } = useMobileStore();
+
+  const qrExchangeInProgressRef = useRef(false);
 
   /* ---------------------------------------------------------------------- */
   /* ACCESSIBILITY                                                          */
@@ -124,13 +126,30 @@ function App() {
     };
 
     const token = getQrToken();
-    if (!token) return;
+    if (!token) {
+      // Check if there is an active upload consultation saved in session
+      try {
+        const savedConsultationId = sessionStorage.getItem("ayushcare_upload_consultation_id");
+        if (savedConsultationId && !useMobileStore.getState().documentUploadContext?.consultationId) {
+          setDocumentUploadContext({
+            consultationId: savedConsultationId,
+            source: "patient_qr",
+          });
+        }
+      } catch {}
+      return;
+    }
+
+    if (qrExchangeInProgressRef.current) return;
+    qrExchangeInProgressRef.current = true;
 
     let cancelled = false;
     (async () => {
       try {
         const result = await exchangePatientQrToken(token);
         if (cancelled) return;
+        qrExchangeInProgressRef.current = false;
+
         const patientData = result.patient || result.user || {};
         const patient = {
           ...patientData,
@@ -146,6 +165,12 @@ function App() {
           isAuthenticated: true,
         });
 
+        if (result.consultation_id) {
+          try {
+            sessionStorage.setItem("ayushcare_upload_consultation_id", result.consultation_id);
+          } catch {}
+        }
+
         // Clean query param from URL so browser refresh does not re-exchange expired token
         window.history.replaceState({}, "", window.location.pathname);
 
@@ -154,8 +179,10 @@ function App() {
           console.warn("Background portal data sync:", err);
         });
 
+        // Direct user straight to Document Type Selection / Upload Page
         useMobileStore.getState().setScreen(SCREENS.M2);
       } catch (error) {
+        qrExchangeInProgressRef.current = false;
         console.error("Patient QR login failed:", error);
         window.history.replaceState({}, "", window.location.pathname);
         if (!useMobileStore.getState().isAuthenticated) {

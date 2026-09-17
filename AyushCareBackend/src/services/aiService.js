@@ -86,6 +86,21 @@ const AiServiceGateway = {
         form.append('audio', new Blob([buffer], { type: cleanMime }), `speech.${extension}`);
         return request(`/api/v1/sessions/${sessionId}/conversation/speech?question_id=${encodeURIComponent(questionId)}&language=${encodeURIComponent(language)}`, { method: 'POST', body: form });
     },
+    transcribeAudio: async (buffer, language = 'auto', mimeType = 'audio/webm') => {
+        const cleanMime = String(mimeType || 'audio/webm').split(';')[0].trim().toLowerCase();
+        const extension = cleanMime.includes('webm') ? 'webm'
+            : cleanMime.includes('ogg') ? 'ogg'
+            : cleanMime.includes('mp4') ? 'm4a'
+            : cleanMime.includes('wav') ? 'wav'
+            : 'webm';
+        const form = new FormData();
+        form.append('audio', new Blob([buffer], { type: cleanMime }), `audio.${extension}`);
+        return request(`/api/v1/transcribe?language=${encodeURIComponent(language || 'auto')}`, {
+            method: 'POST',
+            body: form,
+            timeoutMs: 60000,
+        });
+    },
     tts: (sessionId, text, language = 'en') => json(`/api/v1/sessions/${sessionId}/conversation/tts`, { text, language }),
     uploadDocument: async (sessionId, buffer, mimeType, fileName, documentType = 'medical_document') => {
         const form = new FormData();
