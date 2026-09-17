@@ -67,7 +67,8 @@ const safeParseJson = (data: any) => {
 export function mapQueueItemToPatient(
   item: ConsultationQueueItem,
   summary?: ClinicalSummary | null,
-  reports: UploadedDocument[] = []
+  reports: UploadedDocument[] = [],
+  sessionDocs: any[] = []
 ): Patient {
   const fullName = summary?.full_name || item.full_name || 'Anonymous Patient';
   const initials = fullName
@@ -84,13 +85,43 @@ export function mapQueueItemToPatient(
   const aiPayload = safeParseJson(summary?.ai_payload) || {};
   const ayushAttrs = safeParseJson(summary?.ayush_attributes) || {};
 
-  const mappedDocuments: DocumentFile[] = reports.map((doc) => {
+  const isVisitRestricted = Boolean(summary?.restricted);
+
+  // Merge sessionDocs (from kiosk session) with reports (permitted visible reports)
+  const permittedReportIds = new Set(reports.map((r) => String(r.id)));
+  const allRawDocs: any[] = [];
+  const seenDocIds = new Set<string>();
+
+  // Add permitted reports first
+  reports.forEach((doc) => {
+    if (doc?.id && !seenDocIds.has(String(doc.id))) {
+      seenDocIds.add(String(doc.id));
+      allRawDocs.push({
+        ...doc,
+        __isLocked: isVisitRestricted || Boolean(doc.is_locked),
+      });
+    }
+  });
+
+  // Add any session docs that might be locked by privacy policy
+  sessionDocs.forEach((doc) => {
+    if (doc?.id && !seenDocIds.has(String(doc.id))) {
+      seenDocIds.add(String(doc.id));
+      const isLocked = isVisitRestricted || !permittedReportIds.has(String(doc.id));
+      allRawDocs.push({
+        ...doc,
+        __isLocked: isLocked,
+      });
+    }
+  });
+
+  const mappedDocuments: DocumentFile[] = allRawDocs.map((doc) => {
     const rawPath = doc.file_path_hash || '';
     const finalUrl = doc.download_url || doc.url || rawPath;
     const fileName =
       rawPath.split('/').pop() ||
       doc.document_type ||
-      `Document-${doc.id.slice(0, 6)}`;
+      `Document-${String(doc.id).slice(0, 6)}`;
 
     const isImg =
       rawPath.endsWith('.png') ||
@@ -104,6 +135,7 @@ export function mapQueueItemToPatient(
       (doc.source_mime_type && doc.source_mime_type.includes('pdf'));
 
     const extracted = safeParseJson(doc.extracted_data) || {};
+    const isLocked = Boolean(doc.__isLocked || doc.is_locked);
 
     return {
       id: doc.id,
@@ -119,6 +151,10 @@ export function mapQueueItemToPatient(
       mimeType: doc.source_mime_type,
       extractedData: extracted,
       processingError: (doc as any).processing_error,
+      isLocked,
+      lockReason: isLocked
+        ? 'Restricted by patient via AyushCare Mobile (Consent Required)'
+        : undefined,
     };
   });
 
@@ -414,6 +450,7 @@ export function mapQueueItemToPatient(
         : item.risk_level === 'high_risk'
         ? 'High Risk Triage Flagged by MediKiosk Intake'
         : undefined,
+    isVisitRestricted,
     createdAt: item.created_at || summary?.generated_at,
     vitals: vitalsObj,
     allergies: parsedAllergies,

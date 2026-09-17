@@ -28,6 +28,8 @@ export interface DocumentFile {
   mimeType?: string;
   extractedData?: Record<string, any>;
   processingError?: string;
+  isLocked?: boolean;
+  lockReason?: string;
 }
 
 export interface ExtractedDrug {
@@ -124,6 +126,7 @@ export interface Patient {
   priority: PriorityStatus;
   abhaLinked: boolean;
   alertMessage?: string;
+  isVisitRestricted?: boolean;
   createdAt?: string;
   vitals?: PatientVitals;
   allergies?: DrugAllergy[];
