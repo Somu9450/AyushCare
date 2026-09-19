@@ -370,12 +370,19 @@ const getInitialAuthState = () => {
 
     if (token && rawPatient && !isExpired) {
       const patient = JSON.parse(rawPatient);
+      let initialScreen = SCREENS.M1;
+      try {
+        const savedConsultationId = sessionStorage.getItem("ayushcare_upload_consultation_id");
+        if (savedConsultationId) {
+          initialScreen = SCREENS.M2;
+        }
+      } catch {}
       return {
         isAuthenticated: true,
         authType,
         patient,
-        currentScreen: SCREENS.M1,
-        screenHistory: [SCREENS.M1],
+        currentScreen: initialScreen,
+        screenHistory: [initialScreen],
       };
     }
   } catch (e) {
@@ -544,6 +551,7 @@ export const useMobileStore = create((set, get) => ({
 
   setVerifiedPatient: (patient, authType) => {
     const resolvedAuthType = authType || patient?.authMethod || "ABHA";
+    const targetScreen = patient?.targetScreen || (resolvedAuthType === "QR" ? SCREENS.M2 : SCREENS.M1);
 
     const verifiedPatient = {
       ...clone(patient || {}),
@@ -568,16 +576,16 @@ export const useMobileStore = create((set, get) => ({
 
       patient: verifiedPatient,
 
-      activeNavTab: "home",
+      activeNavTab: targetScreen === SCREENS.M2 ? "records" : "home",
 
       session: {
         ...state.session,
         patient: verifiedPatient,
       },
 
-      currentScreen: SCREENS.M1,
+      currentScreen: targetScreen,
 
-      screenHistory: [SCREENS.M1],
+      screenHistory: [targetScreen],
     }));
   },
 
@@ -591,15 +599,22 @@ export const useMobileStore = create((set, get) => ({
   },
 
   documentUploadContext: {
-    consultationId: null,
-    source: null,
+    consultationId: (typeof sessionStorage !== "undefined" && sessionStorage.getItem("ayushcare_upload_consultation_id")) || null,
+    source: (typeof sessionStorage !== "undefined" && sessionStorage.getItem("ayushcare_upload_consultation_id")) ? "patient_qr" : null,
   },
 
   setDocumentUploadContext: (context = {}) => {
+    const consultationId = context.consultationId || null;
+    const source = context.source || null;
+    if (typeof sessionStorage !== "undefined" && consultationId) {
+      try {
+        sessionStorage.setItem("ayushcare_upload_consultation_id", consultationId);
+      } catch {}
+    }
     set({
       documentUploadContext: {
-        consultationId: context.consultationId || null,
-        source: context.source || null,
+        consultationId,
+        source,
       },
     });
   },

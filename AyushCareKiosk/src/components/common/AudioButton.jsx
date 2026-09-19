@@ -16,10 +16,14 @@ export default function AudioButton({ textToRead, audioPayload = null, label = '
     void audioService.prefetch(sessionData.consultationId, textToRead, language).catch(() => {});
   }, [textToRead, language, sessionData.consultationId, audioEnabled]);
   useEffect(() => {
+    // Immediately cut off any previous question's audio as soon as text/payload changes
     audioService.stop();
     if (!autoPlay || !audioEnabled || !textToRead || !sessionData.consultationId) return;
     const timer = window.setTimeout(() => {
-      void (audioPayload?.base64 ? audioService.playPayload({ base64: audioPayload.base64, mime: audioPayload.mime_type || (String(audioPayload.encoding || '').toUpperCase()==='WAV' ? 'audio/wav' : 'audio/mpeg') }) : audioService.speak(sessionData.consultationId, textToRead, language)).catch((e) => setError(getErrorMessage(e)));
+      void (audioPayload?.base64
+        ? audioService.playPayload({ base64: audioPayload.base64, mime: audioPayload.mime_type || (String(audioPayload.encoding || '').toUpperCase()==='WAV' ? 'audio/wav' : 'audio/mpeg') })
+        : audioService.speak(sessionData.consultationId, textToRead, language)
+      ).catch((e) => setError(getErrorMessage(e)));
     }, 400);
     return () => {
       window.clearTimeout(timer);

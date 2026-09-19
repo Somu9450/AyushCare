@@ -2,18 +2,13 @@ import { useEffect } from 'react';
 import { useKioskStore } from '../store/useKioskStore';
 import audioService from '../services/audioService';
 
-/**
- * Confines automatic dictation / talk-back strictly to the active AI interview screen.
- * On all other screens (vitals input, QR scanning, demographic, etc.), auto-dictation
- * is completely removed, and any previous audio is immediately stopped upon screen exit.
- */
 export default function useAutoNarration() {
-  const { currentScreen, sessionData } = useKioskStore();
+  const { currentScreen } = useKioskStore();
 
   useEffect(() => {
-    const isInterviewActive = currentScreen === 6 && sessionData?.intakeMode === 'interview';
-    if (!isInterviewActive) {
-      audioService.stop();
-    }
-  }, [currentScreen, sessionData?.intakeMode]);
+    // Whenever switching screens or leaving the interview, immediately stop any active audio.
+    // Audio dictation is exclusively restricted to the AI interview screen (handled by Screen4_SymptomIntake).
+    // It is completely removed from all other pages (department selection, vitals taking, QR scanning, etc.).
+    audioService.stop();
+  }, [currentScreen]);
 }

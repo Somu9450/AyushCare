@@ -1,24 +1,11 @@
 @import "tailwindcss";
-@theme {
-  --color-teal-950: #002522;
-  --color-teal-900: #003834;
-  --color-teal-800: #004540;
-  --color-teal-700: #00504b;
-  --color-teal-600: #09726b;
-  --color-teal-500: #0d8a82;
-  --color-teal-400: #14b8a6;
-  --color-teal-300: #5eead4;
-  --color-teal-200: #99f6e4;
-  --color-teal-100: #ccfbf1;
-  --color-teal-50: #f0fdf9;
-}
 
 @layer base {
   :root {
-    --kiosk-teal: #00504b;
-    --kiosk-teal-dark: #003834;
-    --kiosk-teal-light: #09726b;
-    --kiosk-teal-soft: #f0fdf9;
+    --kiosk-teal: #006666;
+    --kiosk-teal-dark: #005454;
+    --kiosk-teal-light: #0d9488;
+    --kiosk-teal-soft: #e8f4f3;
     --kiosk-bg: #f8fafc;
     --kiosk-text: #0f172a;
     --kiosk-muted: #64748b;

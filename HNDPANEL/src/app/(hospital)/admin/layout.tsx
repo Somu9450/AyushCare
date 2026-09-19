@@ -49,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="h-screen w-screen bg-[#f8fafc] flex flex-col text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Navbar */}
-      <header className="h-[56px] bg-[#00504b] text-white px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-sm border-b border-[#003834] z-40">
+      <header className="h-[56px] bg-[#044e42] text-white px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-sm border-b border-[#033434] z-40">
         {/* Left Branding & Mobile Hamburger */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button

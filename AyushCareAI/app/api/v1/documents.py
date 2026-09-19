@@ -63,11 +63,11 @@ async def upload_document(
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided.")
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
     from pathlib import Path
     extension = Path(file.filename).suffix.lower()
     if extension not in allowed_extensions:
-        raise HTTPException(status_code=415, detail="Only JPG, PNG, and WebP images are supported.")
+        raise HTTPException(status_code=415, detail="Only PDF, JPG, PNG, and WebP documents are supported.")
 
     content = await file.read()
     max_bytes = settings.max_upload_size_mb * 1024 * 1024

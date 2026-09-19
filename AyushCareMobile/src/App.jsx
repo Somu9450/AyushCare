@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef } from "react";
+import React, { lazy, Suspense, useEffect,useState, useRef } from "react";
 
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 
@@ -48,7 +48,6 @@ import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function App() {
   useDomTranslation();
-  useDomTranslation();
   const {
     currentScreen,
     isAuthenticated,
@@ -58,6 +57,17 @@ function App() {
   } = useMobileStore();
 
   const qrExchangeInProgressRef = useRef(false);
+
+  const [isExchangingQr, setIsExchangingQr] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const searchParam = new URLSearchParams(window.location.search).get("qr_token");
+    if (searchParam) return true;
+    if (window.location.hash.includes("?")) {
+      const hashQuery = window.location.hash.substring(window.location.hash.indexOf("?"));
+      if (new URLSearchParams(hashQuery).get("qr_token")) return true;
+    }
+    return Boolean(window.location.href.match(/[?&]qr_token=([^&#]+)/));
+  });
 
   /* ---------------------------------------------------------------------- */
   /* ACCESSIBILITY                                                          */
@@ -127,6 +137,7 @@ function App() {
 
     const token = getQrToken();
     if (!token) {
+      setIsExchangingQr(false);
       // Check if there is an active upload consultation saved in session
       try {
         const savedConsultationId = sessionStorage.getItem("ayushcare_upload_consultation_id");
@@ -143,27 +154,17 @@ function App() {
     if (qrExchangeInProgressRef.current) return;
     qrExchangeInProgressRef.current = true;
 
-    let cancelled = false;
     (async () => {
       try {
         const result = await exchangePatientQrToken(token);
-        if (cancelled) return;
         qrExchangeInProgressRef.current = false;
 
         const patientData = result.patient || result.user || {};
         const patient = {
           ...patientData,
           accessToken: result.accessToken,
+          targetScreen: SCREENS.M2,
         };
-        useMobileStore.getState().setVerifiedPatient(patient, "QR");
-        setDocumentUploadContext({
-          consultationId: result.consultation_id || null,
-          source: "patient_qr",
-        });
-        useMobileStore.setState({ 
-          documentProcessingConsent: Boolean(result.document_processing_consent),
-          isAuthenticated: true,
-        });
 
         if (result.consultation_id) {
           try {
@@ -171,16 +172,25 @@ function App() {
           } catch {}
         }
 
+        useMobileStore.getState().setVerifiedPatient(patient, "QR");
+        useMobileStore.getState().setDocumentUploadContext({
+          consultationId: result.consultation_id || null,
+          source: "patient_qr",
+        });
+        useMobileStore.setState({ 
+          documentProcessingConsent: Boolean(result.document_processing_consent),
+          isAuthenticated: true,
+          currentScreen: SCREENS.M2,
+          screenHistory: [SCREENS.M2],
+        });
+
         // Clean query param from URL so browser refresh does not re-exchange expired token
-        window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({ screen: SCREENS.M2 }, "", window.location.pathname);
 
         // Load dashboard, vitals, and visits in background safely
         useMobileStore.getState().loadPortalData?.().catch((err) => {
           console.warn("Background portal data sync:", err);
         });
-
-        // Direct user straight to Document Type Selection / Upload Page
-        useMobileStore.getState().setScreen(SCREENS.M2);
       } catch (error) {
         qrExchangeInProgressRef.current = false;
         console.error("Patient QR login failed:", error);
@@ -188,9 +198,10 @@ function App() {
         if (!useMobileStore.getState().isAuthenticated) {
           useMobileStore.getState().setScreen(SCREENS.AUTH);
         }
+      } finally {
+        setIsExchangingQr(false);
       }
     })();
-    return () => { cancelled = true; };
   }, [setDocumentUploadContext]);
 
   useEffect(() => {
@@ -238,6 +249,32 @@ function App() {
   /* ---------------------------------------------------------------------- */
 
   const renderScreen = () => {
+    if (isExchangingQr) {
+      return (
+        <div
+          className="mobile-app-loading"
+          style={{
+            minHeight: "80vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "14px",
+            padding: "24px",
+            textAlign: "center",
+          }}
+        >
+          <div className="mobile-loading-spinner" />
+          <div style={{ fontWeight: 600, fontSize: "16px", color: "#044e42" }}>
+            Connecting to Kiosk Session…
+          </div>
+          <div style={{ fontSize: "13px", color: "#64748b" }}>
+            Verifying your patient account and opening document upload
+          </div>
+        </div>
+      );
+    }
+
     if (!isAuthenticated && currentScreen !== SCREENS.AUTH) {
       return <AuthScreen />;
     }
