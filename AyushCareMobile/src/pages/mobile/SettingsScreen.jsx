@@ -33,11 +33,6 @@ const TEXT_SIZES = [
     label: "Large",
     hindi: "बड़ा",
   },
-  {
-    id: "x-large",
-    label: "Extra large",
-    hindi: "बहुत बड़ा",
-  },
 ];
 
 export default function SettingsScreen() {
@@ -173,26 +168,7 @@ export default function SettingsScreen() {
               }
             />
 
-            <SettingToggle
-              icon={MoveHorizontal}
-              title={
-                tr('Extra large text', 'बहुत बड़ा टेक्स्ट')
-              }
-              description={
-                tr('Use a larger text size for improved readability.', 'कम दृष्टि वाले उपयोगकर्ताओं के लिए और बड़ा टेक्स्ट।')
-              }
-              enabled={
-                accessibility.textSize ===
-                "x-large"
-              }
-              onChange={(enabled) =>
-                updateAccessibility({
-                  textSize: enabled
-                    ? "x-large"
-                    : "default",
-                })
-              }
-            />
+
 
             <SettingToggle
               icon={ShieldCheck}

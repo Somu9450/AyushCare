@@ -16,11 +16,15 @@ export default function AudioButton({ textToRead, audioPayload = null, label = '
     void audioService.prefetch(sessionData.consultationId, textToRead, language).catch(() => {});
   }, [textToRead, language, sessionData.consultationId, audioEnabled]);
   useEffect(() => {
+    audioService.stop();
     if (!autoPlay || !audioEnabled || !textToRead || !sessionData.consultationId) return;
     const timer = window.setTimeout(() => {
       void (audioPayload?.base64 ? audioService.playPayload({ base64: audioPayload.base64, mime: audioPayload.mime_type || (String(audioPayload.encoding || '').toUpperCase()==='WAV' ? 'audio/wav' : 'audio/mpeg') }) : audioService.speak(sessionData.consultationId, textToRead, language)).catch((e) => setError(getErrorMessage(e)));
-    }, 500);
-    return () => window.clearTimeout(timer);
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+      audioService.stop();
+    };
   }, [autoPlay, textToRead, audioPayload?.base64, audioPayload?.encoding, audioPayload?.mime_type, language, sessionData.consultationId, audioEnabled]);
 
   const toggle = async () => {

@@ -100,20 +100,10 @@ export default function LanguageToggle() {
     };
   }, [open]);
 
-  const handleLanguageChange = async (code) => {
+  const handleLanguageChange = (code) => {
     setError('');
-    setLoading(true);
-    try {
-      if (sessionData?.consultationId) {
-        await kioskApi.updateLanguage(sessionData.consultationId, code);
-      }
-      setLanguage(code);
-      setOpen(false);
-    } catch (error) {
-      setError(getErrorMessage(error));
-    } finally {
-      setLoading(false);
-    }
+    setLanguage(code);
+    setOpen(false);
   };
 
   const languageMenu =

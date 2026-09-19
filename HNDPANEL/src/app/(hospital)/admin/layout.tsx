@@ -17,6 +17,7 @@ import {
   History,
   ShieldCheck,
 } from 'lucide-react';
+import { LiveClock } from '../../../components/LiveClock';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -48,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="h-screen w-screen bg-[#f8fafc] flex flex-col text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Navbar */}
-      <header className="h-[56px] bg-[#044e42] text-white px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-sm border-b border-[#033434] z-40">
+      <header className="h-[56px] bg-[#00504b] text-white px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-sm border-b border-[#003834] z-40">
         {/* Left Branding & Mobile Hamburger */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
@@ -83,8 +84,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
 
-        {/* Right Info & Logout */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Center Workspace Branding */}
+        <div className="hidden md:flex items-center shrink-0">
+          <span className="font-extrabold tracking-widest text-xs lg:text-sm text-white uppercase">
+            AyushCare · Hospital Control Desk
+          </span>
+        </div>
+
+        {/* Right Info, Time & Logout */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Live Clock Widget */}
+          <LiveClock />
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#033030] border border-[#0d6e6e] rounded-full text-xs text-slate-200">
             <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
             <span className="font-semibold text-white truncate max-w-[120px]">{user?.name || 'Administrator'}</span>
