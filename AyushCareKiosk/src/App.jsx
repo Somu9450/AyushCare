@@ -32,35 +32,13 @@ export default function App() {
   useDomTranslation();
   useEffect(() => { if (!audioEnabled) audioService.stop(); }, [audioEnabled]);
 
-  const renderIntakeScreen = () => {
-    if (sessionData.intakeMode === 'speak') {
-      return (
-        <Screen4_SpeakMode
-          onSwitchToInterview={() => updateSession({ intakeMode: 'interview' })}
-        />
-      );
-    }
-    if (sessionData.intakeMode === 'interview') {
-      return (
-        <Screen4_SymptomIntake
-          onSwitchToSpeak={() => updateSession({ intakeMode: 'speak' })}
-        />
-      );
-    }
-    return (
-      <Screen3c_ModeSelect
-        onSelectMode={(mode) => updateSession({ intakeMode: mode })}
-      />
-    );
-  };
-
   const screen = {
     1: <Screen1_Welcome />,
     2: <Screen2_PatientType />,
     3: <Screen2_Auth />,
     4: <Screen3_DepartmentSelector />,
     5: <Screen3b_LanguageSelect />,
-    6: renderIntakeScreen(),
+    6: <Screen4_SymptomIntake />,
     7: <Screen6_HealthHistory />,
     8: <Screen8_QRUpload />,
     9: <Screen9_ReviewSubmission />,

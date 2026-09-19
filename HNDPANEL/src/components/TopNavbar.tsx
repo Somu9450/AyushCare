@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../store/useAuthStore';
+import { LiveClock } from './LiveClock';
 import {
   LogOut,
   Users,
@@ -81,7 +82,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   };
 
   return (
-    <header className="h-[54px] bg-[#054444] text-white px-3 sm:px-4 flex items-center justify-between shadow-sm shrink-0 select-none border-b border-[#033434] gap-2 relative z-50">
+    <header className="h-[54px] bg-[#00504b] text-white px-3 sm:px-4 flex items-center justify-between shadow-sm shrink-0 select-none border-b border-[#003834] gap-2 relative z-50">
       {/* Left Branding & Mobile Queue Toggle */}
       <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
         {/* Mobile/Tablet Queue Toggle Button */}
@@ -127,8 +128,13 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </span>
       </div>
 
-      {/* Right: Doctor Profile Dropdown Trigger */}
-      <div className="relative shrink-0 z-50" ref={dropdownRef}>
+      {/* Right: Live Time & Doctor Profile */}
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        {/* Live Clock Widget */}
+        <LiveClock />
+
+        {/* Doctor Profile Dropdown Trigger */}
+        <div className="relative shrink-0 z-50" ref={dropdownRef}>
         <button
           type="button"
           onClick={() => setIsDropdownOpen((prev) => !prev)}
@@ -220,6 +226,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </div>
           </div>
         )}
+      </div>
       </div>
     </header>
   );
