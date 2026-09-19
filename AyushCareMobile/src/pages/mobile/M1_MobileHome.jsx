@@ -14,6 +14,8 @@ import {
   Heart,
   Droplets,
   Thermometer,
+  Clock3,
+  Building2,
 } from "lucide-react";
 
 import useMobileStore, {
@@ -41,6 +43,27 @@ const getLatestItem = (
   }
 
   return items[0];
+};
+
+const formatDateTimeCaption = (rawTimestamp, isHindi) => {
+  if (!rawTimestamp) return null;
+  try {
+    const d = new Date(rawTimestamp);
+    if (isNaN(d.getTime())) return null;
+    const datePart = d.toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timePart = d.toLocaleTimeString(isHindi ? 'hi-IN' : 'en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return { datePart, timePart, full: `${datePart}, ${timePart}` };
+  } catch {
+    return null;
+  }
 };
 
 const formatTimer = (
@@ -85,8 +108,10 @@ export const M1_MobileHome =
 
       appointments,
       visits,
+      latestVisit: storeLatestVisit,
       medicalRecords,
       vitals,
+      loadPortalData,
 
       setScreen,
       setActiveNavTab,
@@ -101,6 +126,11 @@ export const M1_MobileHome =
       tr,
       isHindi,
     } = useLanguage();
+
+    // Ensure latest portal data (vitals, visits, documents) is loaded on mount
+    useEffect(() => {
+      loadPortalData?.();
+    }, [loadPortalData]);
 
     /* ---------------------------------------------------------------------- */
     /* PATIENT                                                                 */
@@ -151,14 +181,55 @@ export const M1_MobileHome =
     /* ---------------------------------------------------------------------- */
 
     const latestVisit =
-      getLatestItem(
-        visits
-      ) ||
-      getLatestItem(
-        []
-      );
+      (Array.isArray(visits) && visits.length > 0)
+        ? visits[0]
+        : (storeLatestVisit || null);
 
-    const activeVitals = vitals || latestVisit?.vitals || appointments?.[0]?.vitals || null;
+    const visitRawDate =
+      latestVisit?.created_at ||
+      latestVisit?.createdAt ||
+      latestVisit?.date ||
+      null;
+    const visitDateTime = formatDateTimeCaption(visitRawDate, isHindi);
+    const visitDoctor =
+      latestVisit?.doctor_name ||
+      latestVisit?.doctorName ||
+      latestVisit?.doctor ||
+      latestVisit?.physician ||
+      (isHindi ? "चिकित्सक" : "General OPD Doctor");
+    const visitDepartment =
+      latestVisit?.department_name ||
+      latestVisit?.departmentName ||
+      latestVisit?.department ||
+      latestVisit?.specialty ||
+      (isHindi ? "सामान्य चिकित्सा" : "General Medicine");
+    const visitHospital =
+      latestVisit?.hospital_name ||
+      latestVisit?.hospitalName ||
+      latestVisit?.hospital ||
+      latestVisit?.facility ||
+      (isHindi ? "आयुषकेयर अस्पताल" : "AyushCare Hospital");
+    const visitToken =
+      latestVisit?.token_number ||
+      latestVisit?.tokenNumber ||
+      null;
+    const visitStatus =
+      latestVisit?.status ||
+      "completed";
+
+    const activeVitals =
+      vitals ||
+      latestVisit?.vitals ||
+      appointments?.[0]?.vitals ||
+      null;
+
+    const vitalsTimestamp =
+      activeVitals?.recorded_at ||
+      activeVitals?.recordedAt ||
+      activeVitals?.created_at ||
+      activeVitals?.timestamp ||
+      null;
+    const vitalsDateTime = formatDateTimeCaption(vitalsTimestamp, isHindi);
 
     const openVisit =
       () => {
@@ -179,17 +250,22 @@ export const M1_MobileHome =
       };
 
     /* ---------------------------------------------------------------------- */
-    /* RECORD                                                                  */
+    /* RECORDS / DOCUMENTS                                                     */
     /* ---------------------------------------------------------------------- */
 
+    const recentDocs =
+      Array.isArray(medicalRecords)
+        ? medicalRecords.slice(0, 3)
+        : [];
+
     const latestRecord =
-      getLatestItem(
-        medicalRecords
-      );
+      recentDocs[0] ||
+      getLatestItem(medicalRecords);
 
     const openRecord =
-      () => {
-        if (!latestRecord) {
+      (docToOpen) => {
+        const target = docToOpen || latestRecord;
+        if (!target) {
           setScreen(
             SCREENS.RECORDS
           );
@@ -197,7 +273,7 @@ export const M1_MobileHome =
         }
 
         setSelectedMedicalRecord(
-          latestRecord
+          target
         );
 
         setScreen(
@@ -534,75 +610,125 @@ export const M1_MobileHome =
                 </div>
               </div>
 
-              {activeVitals && (
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  {tr("Verified", "सत्यापित")}
-                </span>
-              )}
+              <div className="text-right shrink-0">
+                {activeVitals ? (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {tr("Verified", "सत्यापित")}
+                  </span>
+                ) : null}
+                {vitalsDateTime ? (
+                  <p className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center justify-end gap-1">
+                    <Clock3 className="w-3 h-3 text-slate-400" />
+                    <span>{vitalsDateTime.full}</span>
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {activeVitals ? (
-              <div className="grid grid-cols-2 gap-2.5">
-                {/* Pulse / Heart Rate */}
-                <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                    <Heart className="w-4 h-4" />
+              <div className="space-y-3">
+                {/* Vitals Feed Date & Time Banner / Caption */}
+                {vitalsDateTime && (
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-1.5 border border-slate-150 text-[11px] text-slate-600">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock3 className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                      <span>{tr("Feed recorded on:", "माप दर्ज समय:")}</span>
+                      <span className="font-bold text-slate-800">{vitalsDateTime.full}</span>
+                    </span>
+                    {activeVitals?.source && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {activeVitals.source === "manual" ? tr("Kiosk Sensor", "कियोस्क सेंसर") : activeVitals.source}
+                      </span>
+                    )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-rose-800">
-                      {tr("Pulse / Heart Rate", "नाड़ी / पल्स")}
-                    </p>
-                    <p className="text-base font-black text-slate-900 leading-tight">
-                      {activeVitals.pulse ? `${activeVitals.pulse} bpm` : "—"}
-                    </p>
-                  </div>
-                </div>
+                )}
 
-                {/* Oxygen Saturation (SpO2) */}
-                <div className="p-3 rounded-2xl bg-sky-50/60 border border-sky-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-                    <Droplets className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-sky-800">
-                      {tr("SpO₂ Oxygen", "ऑक्सीजन SpO₂")}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Pulse / Heart Rate */}
+                  <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100 flex flex-col justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                        <Heart className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-800 truncate">
+                          {tr("Pulse / Heart Rate", "नाड़ी / पल्स")}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-tight">
+                          {activeVitals.pulse ? `${activeVitals.pulse} bpm` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 pt-1 border-t border-rose-100/60 flex items-center justify-between">
+                      <span>{tr("Range: 60-100", "सीमा: 60-100")}</span>
+                      {vitalsDateTime && <span className="text-slate-400 font-medium">{vitalsDateTime.timePart}</span>}
                     </p>
-                    <p className="text-base font-black text-slate-900 leading-tight">
-                      {activeVitals.spo2 ? `${activeVitals.spo2}%` : "—"}
-                    </p>
                   </div>
-                </div>
 
-                {/* Blood Pressure */}
-                <div className="p-3 rounded-2xl bg-teal-50/60 border border-teal-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700">
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">
-                      {tr("Blood Pressure", "रक्तचाप (BP)")}
+                  {/* Oxygen Saturation (SpO2) */}
+                  <div className="p-3 rounded-2xl bg-sky-50/60 border border-sky-100 flex flex-col justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                        <Droplets className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-sky-800 truncate">
+                          {tr("SpO₂ Oxygen", "ऑक्सीजन SpO₂")}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-tight">
+                          {activeVitals.spo2 ? `${activeVitals.spo2}%` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 pt-1 border-t border-sky-100/60 flex items-center justify-between">
+                      <span>{tr("Normal: ≥95%", "सामान्य: ≥95%")}</span>
+                      {vitalsDateTime && <span className="text-slate-400 font-medium">{vitalsDateTime.timePart}</span>}
                     </p>
-                    <p className="text-base font-black text-slate-900 leading-tight">
-                      {activeVitals.systolic && activeVitals.diastolic
-                        ? `${activeVitals.systolic}/${activeVitals.diastolic}`
-                        : activeVitals.systolic || activeVitals.diastolic || "—"}{" "}
-                      <span className="text-[10px] font-medium text-slate-500">mmHg</span>
-                    </p>
                   </div>
-                </div>
 
-                {/* Temperature */}
-                <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-100 flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                    <Thermometer className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                      {tr("Temperature", "तापमान")}
+                  {/* Blood Pressure */}
+                  <div className="p-3 rounded-2xl bg-teal-50/60 border border-teal-100 flex flex-col justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700">
+                        <Activity className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800 truncate">
+                          {tr("Blood Pressure", "रक्तचाप (BP)")}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-tight">
+                          {activeVitals.systolic && activeVitals.diastolic
+                            ? `${activeVitals.systolic}/${activeVitals.diastolic}`
+                            : activeVitals.systolic || activeVitals.diastolic || "—"}{" "}
+                          <span className="text-[10px] font-medium text-slate-500">mmHg</span>
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 pt-1 border-t border-teal-100/60 flex items-center justify-between">
+                      <span>{tr("Standard: 120/80", "मानक: 120/80")}</span>
+                      {vitalsDateTime && <span className="text-slate-400 font-medium">{vitalsDateTime.timePart}</span>}
                     </p>
-                    <p className="text-base font-black text-slate-900 leading-tight">
-                      {activeVitals.temperature ? `${activeVitals.temperature} °F` : "—"}
+                  </div>
+
+                  {/* Temperature */}
+                  <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-100 flex flex-col justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                        <Thermometer className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800 truncate">
+                          {tr("Temperature", "तापमान")}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-tight">
+                          {activeVitals.temperature ? `${activeVitals.temperature} °F` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 pt-1 border-t border-amber-100/60 flex items-center justify-between">
+                      <span>{tr("Normal: 98.6 °F", "सामान्य: 98.6 °F")}</span>
+                      {vitalsDateTime && <span className="text-slate-400 font-medium">{vitalsDateTime.timePart}</span>}
                     </p>
                   </div>
                 </div>
@@ -619,9 +745,9 @@ export const M1_MobileHome =
             )}
           </section>
 
-          {/* ================================================================ */
-          /* RECENT VISIT                                                      */
-          /* ================================================================ */}
+          {/* ================================================================ */}
+          {/* RECENT VISIT                                                      */}
+          {/* ================================================================ */}
 
           <section
             aria-label={
@@ -672,37 +798,41 @@ export const M1_MobileHome =
             </div>
 
             {latestVisit ? (
-              <div
-                className="
-                  flex
-                  items-start
-                  justify-between
-                  gap-3
-                "
-              >
-                <div className="space-y-1 min-w-0">
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {latestVisit.date ||
-                      "Recent visit"}
-                  </span>
+              <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-teal-100/70 text-teal-900 px-2 py-0.5 rounded-md">
+                      {visitDepartment}
+                    </span>
+                    {visitToken && (
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-slate-200/80 text-slate-700 px-2 py-0.5 rounded-md">
+                        {tr("Token", "टोकन")} #{visitToken}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 uppercase">
+                      {visitStatus === 'complete' || visitStatus === 'completed'
+                        ? tr("Completed", "पूर्ण")
+                        : visitStatus}
+                    </span>
+                  </div>
 
                   <h3 className="text-base font-black text-slate-900 truncate">
-                    {isHindi
-                      ? latestVisit.hindiDoctor ||
-                        latestVisit.doctor ||
-                        "डॉक्टर"
-                      : latestVisit.doctor ||
-                        "Doctor"}
+                    {visitDoctor}
                   </h3>
 
-                  <p className="text-xs text-slate-500 font-medium truncate">
-                    {isHindi
-                      ? latestVisit.hindiDepartment ||
-                        latestVisit.department ||
-                        "चिकित्सा विभाग"
-                      : latestVisit.department ||
-                        "General Medicine"}
-                  </p>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate max-w-[200px]">{visitHospital}</span>
+                    </span>
+
+                    {visitDateTime && (
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{visitDateTime.full}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <button
@@ -712,7 +842,7 @@ export const M1_MobileHome =
                   }
                   className="
                     px-3.5
-                    py-2
+                    py-2.5
                     rounded-xl
                     bg-teal-50
                     hover:bg-teal-100
@@ -721,10 +851,12 @@ export const M1_MobileHome =
                     text-xs
                     flex
                     items-center
-                    gap-1
+                    justify-center
+                    gap-1.5
                     border
                     border-teal-200
                     shrink-0
+                    transition
                   "
                 >
                   {t(
@@ -742,13 +874,15 @@ export const M1_MobileHome =
                 }
                 className="
                   w-full
-                  p-3
+                  p-3.5
                   rounded-2xl
                   bg-slate-50
                   text-left
                   text-sm
                   text-slate-600
                   font-medium
+                  hover:bg-slate-100
+                  transition
                 "
               >
                 {tr('View your previous visits', 'अपनी पिछली मुलाकातें देखें')}
@@ -756,13 +890,13 @@ export const M1_MobileHome =
             )}
           </section>
 
-          {/* ================================================================ */
-          /* RECENT RECORD                                                     */
-          /* ================================================================ */}
+          {/* ================================================================ */}
+          {/* RECENT DOCUMENTS (LAST 3 UPLOADED DOCUMENTS)                      */}
+          {/* ================================================================ */}
 
           <section
             aria-label={
-              tr('Recent medical record', 'हालिया रिकॉर्ड')
+              tr('Recent documents', 'हालिया दस्तावेज़')
             }
             className="
               p-4
@@ -789,7 +923,7 @@ export const M1_MobileHome =
                 <FileText className="w-4 h-4 text-teal-800" />
 
                 <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  {tr('Recent Document', 'हालिया दस्तावेज़')}
+                  {tr('Recent Documents', 'हालिया दस्तावेज़')}
                 </h2>
               </div>
 
@@ -804,84 +938,98 @@ export const M1_MobileHome =
               </button>
             </div>
 
-            {latestRecord ? (
-              <div
-                className="
-                  flex
-                  items-start
-                  justify-between
-                  gap-3
-                "
-              >
-                <div className="space-y-1 min-w-0">
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {latestRecord.displayDate ||
-                      latestRecord.date ||
-                      "Recent"}{" "}
-                    ·{" "}
-                    {latestRecord.typeLabel ||
-                      "Medical Record"}
-                  </span>
+            {recentDocs.length > 0 ? (
+              <div className="space-y-2.5">
+                {recentDocs.map((record, index) => {
+                  const docDate = formatDateTimeCaption(
+                    record.uploadedAt || record.createdAt || record.created_at || record.date,
+                    isHindi
+                  );
+                  const docType = record.typeLabel || (
+                    record.document_type
+                      ? record.document_type.replace(/_/g, ' ')
+                      : tr('Medical Record', 'चिकित्सीय रिकॉर्ड')
+                  );
+                  const status = String(record.status || 'PROCESSED').toUpperCase();
 
-                  <h3 className="text-base font-black text-slate-900 truncate">
-                    {latestRecord.title ||
-                      "Medical Record"}
-                  </h3>
+                  return (
+                    <div
+                      key={record.id || record.documentId || `doc-${index}`}
+                      onClick={() => openRecord(record)}
+                      className="p-3 rounded-2xl bg-slate-50/70 hover:bg-teal-50/50 border border-slate-200/80 transition flex items-center justify-between gap-3 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 border border-teal-100 text-teal-700 group-hover:bg-teal-100 transition">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-teal-100/60 text-teal-800 px-2 py-0.5 rounded-md">
+                              {docType}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                              status === 'PROCESSED' || status === 'COMPLETED'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
+                                : 'bg-amber-50 text-amber-700 border-amber-200/60'
+                            }`}>
+                              {status}
+                            </span>
+                          </div>
+                          <h3 className="text-xs sm:text-sm font-black text-slate-800 truncate mt-1 group-hover:text-teal-900 transition">
+                            {record.title || record.fileName || (tr('Medical document', 'चिकित्सीय दस्तावेज़'))}
+                          </h3>
+                          {docDate && (
+                            <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                              <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{docDate.full}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                  <p className="text-xs text-slate-500 font-medium truncate">
-                    {latestRecord.source ||
-                      "Patient Record"}
-                  </p>
-                </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRecord(record);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white hover:bg-teal-100 text-teal-800 font-bold text-xs flex items-center gap-1 border border-teal-200 shrink-0 shadow-2xs transition"
+                      >
+                        {t("view_details")}
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
 
-                <button
-                  type="button"
-                  onClick={
-                    openRecord
-                  }
-                  className="
-                    px-3.5
-                    py-2
-                    rounded-xl
-                    bg-teal-50
-                    hover:bg-teal-100
-                    text-teal-800
-                    font-bold
-                    text-xs
-                    flex
-                    items-center
-                    gap-1
-                    border
-                    border-teal-200
-                    shrink-0
-                  "
-                >
-                  {t(
-                    "view_details"
-                  )}
-
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                {medicalRecords.length > 3 && (
+                  <button
+                    type="button"
+                    onClick={goRecords}
+                    className="w-full py-2 text-center text-xs font-bold text-teal-800 hover:text-teal-950 flex items-center justify-center gap-1 transition"
+                  >
+                    {tr(`View all ${medicalRecords.length} documents`, `सभी ${medicalRecords.length} दस्तावेज़ देखें`)}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={
-                  goRecords
-                }
-                className="
-                  w-full
-                  p-3
-                  rounded-2xl
-                  bg-slate-50
-                  text-left
-                  text-sm
-                  text-slate-600
-                  font-medium
-                "
-              >
-                {tr('View your medical records', 'अपने मेडिकल रिकॉर्ड देखें')}
-              </button>
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4 text-center space-y-2">
+                <p className="text-xs font-semibold text-slate-600">
+                  {tr("No medical documents uploaded yet", "अभी तक कोई मेडिकल दस्तावेज़ अपलोड नहीं किया गया")}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {tr("Upload your prescriptions, lab reports, or discharge summaries.", "अपने पर्चे, लैब रिपोर्ट या डिस्चार्ज सारांश अपलोड करें।")}
+                </p>
+                <button
+                  type="button"
+                  onClick={startUpload}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-800 text-white font-bold text-xs shadow-sm hover:bg-teal-900 transition"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  {tr("Upload Document", "दस्तावेज़ अपलोड करें")}
+                </button>
+              </div>
             )}
           </section>
 

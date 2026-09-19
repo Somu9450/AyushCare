@@ -4,8 +4,6 @@ import {
   ChevronRight,
   Languages,
   LogOut,
-  MoveHorizontal,
-  PlayCircle,
   RotateCcw,
   ShieldCheck,
   Type,
@@ -168,8 +166,6 @@ export default function SettingsScreen() {
               }
             />
 
-
-
             <SettingToggle
               icon={ShieldCheck}
               title={
@@ -184,24 +180,6 @@ export default function SettingsScreen() {
               onChange={(enabled) =>
                 updateAccessibility({
                   highContrast: enabled,
-                })
-              }
-            />
-
-            <SettingToggle
-              icon={PlayCircle}
-              title={
-                tr('Reduce motion', 'कम मोशन')
-              }
-              description={
-                tr('Reduce animations and transitions.', 'एनिमेशन और ट्रांज़िशन कम करें।')
-              }
-              enabled={Boolean(
-                accessibility.reduceMotion
-              )}
-              onChange={(enabled) =>
-                updateAccessibility({
-                  reduceMotion: enabled,
                 })
               }
             />

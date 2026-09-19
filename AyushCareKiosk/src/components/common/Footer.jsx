@@ -3,16 +3,23 @@ import { ArrowLeft } from 'lucide-react';
 import { useKioskStore } from '../../store/useKioskStore';
 import { useTranslation } from '../../hooks/useTranslation';
 
+import audioService from '../../services/audioService';
+
 export default function Footer({ showContinue = false }) {
   const { currentScreen, prevScreen } = useKioskStore();
   const { t } = useTranslation();
+
+  const handleBack = () => {
+    audioService.stop();
+    prevScreen();
+  };
 
   return (
     <footer className="kiosk-footer">
       <div className="footer-inner">
         <button
           className="secondary-btn footer-back"
-          onClick={prevScreen}
+          onClick={handleBack}
           disabled={currentScreen === 1}
           aria-label={t('back')}
         >

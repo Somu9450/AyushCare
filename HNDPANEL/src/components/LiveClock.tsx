@@ -45,16 +45,16 @@ export const LiveClock: React.FC<LiveClockProps> = ({ className = '', showIcon =
 
   if (!isMounted) {
     return (
-      <div className={`hidden sm:flex flex-col items-end justify-center px-2.5 py-1 rounded-lg bg-[#003834]/80 border border-[#09726b]/60 min-w-[120px] ${className}`}>
-        <div className="h-3.5 w-16 bg-[#002522] animate-pulse rounded" />
-        <div className="h-2.5 w-20 bg-[#002522] animate-pulse rounded mt-1" />
+      <div className={`hidden sm:flex flex-col items-end justify-center px-2.5 py-1 rounded-lg bg-[#033030]/80 border border-[#0d6e6e]/60 min-w-[120px] ${className}`}>
+        <div className="h-3.5 w-16 bg-[#043b3b] animate-pulse rounded" />
+        <div className="h-2.5 w-20 bg-[#043b3b] animate-pulse rounded mt-1" />
       </div>
     );
   }
 
   return (
     <div
-      className={`flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#003834]/90 border border-[#09726b] shadow-xs select-none ${className}`}
+      className={`flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#033030]/90 border border-[#0d6e6e] shadow-xs select-none ${className}`}
       title="Current Hospital System Date & Time"
     >
       {showIcon && <Clock className="w-3.5 h-3.5 text-teal-300 shrink-0 hidden md:block" />}
