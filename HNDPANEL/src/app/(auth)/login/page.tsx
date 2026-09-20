@@ -41,23 +41,31 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-teal-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-slate-600/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-screen bg-[url('/KioskScreenBg.png')] bg-center bg-cover bg-no-repeat bg-[#f1f8f7] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Overlay */}
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] pointer-events-none" />
 
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl shadow-xl p-8 text-slate-800 z-10">
+      <div className="w-full max-w-md bg-white/98 border border-slate-200/90 rounded-2xl shadow-2xl p-8 text-slate-800 z-10">
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 bg-teal-900 rounded-xl flex items-center justify-center shadow-md mb-3 text-white">
-            <Stethoscope className="w-6 h-6" />
+        <div className="flex flex-col items-center text-center mb-7">
+          <div className="w-16 h-16 flex items-center justify-center mb-2">
+            <img
+              src="/ayushCareLogo.png"
+              alt="AyushCare Logo"
+              className="w-16 h-16 object-contain"
+            />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            AyushCare
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            <span className="text-[#12383b]">Ayush</span>
+            <span className="text-[#438b34]">Care</span>
           </h1>
-          <p className="text-xs font-medium text-teal-800 tracking-wide uppercase mt-0.5">
+          <p className="text-xs font-semibold text-slate-500 tracking-wide mt-1">
             Doctor Workspace & Hospital Admin Portal
           </p>
+          <div className="flex items-center gap-1.5 mt-2 px-3 py-1 bg-teal-50 border border-teal-200 rounded-full text-[11px] font-semibold text-teal-800">
+            <img src="/ayushman-bharat-icon.png" alt="Ayushman Bharat" className="w-4 h-4 object-contain" />
+            <span>Ayushman Bharat Digital Mission</span>
+          </div>
         </div>
 
         {/* Role Segment Toggle */}

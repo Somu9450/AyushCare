@@ -315,7 +315,7 @@ export default function DoctorWorkspacePage() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#f8fafc] flex flex-col font-sans text-slate-900 antialiased select-none">
+    <div className="h-screen w-screen overflow-hidden bg-[url('/KioskScreenBg.png')] bg-center bg-cover bg-no-repeat bg-[#f1f8f7] flex flex-col font-sans text-slate-900 antialiased select-none">
       {/* 1. Top Navbar with Responsive Drawer Toggles & Doctor Profile Dropdown */}
       <TopNavbar
         onToggleQueue={() => setIsQueueSidebarOpen((prev) => !prev)}

@@ -316,13 +316,16 @@ export default function AuthScreen() {
   return (
     <div className="mobile-auth-shell">
       <div className="mobile-auth-brand">
-        <img
-          src="https://www.uxdt.nic.in/wp-content/uploads/2025/09/ayushman-bharat-digital-mission-feature--ayushman-bharat-digital-mission.jpg"
-          alt="Ayushman Bharat Digital Mission"
-        />
+        <div className="mobile-auth-logo-wrap">
+          <img
+            src="/ayushCareLogo.png"
+            alt="AyushCare Logo"
+            className="mobile-auth-logo-img"
+          />
+        </div>
         <div>
-          <strong><span>Ayush</span>Care</strong>
-          <small>Digital Patient Care</small>
+          <strong><span className="brand-title-ayush">Ayush</span><span className="brand-title-care">Care</span></strong>
+          <small>Digital Patient Care Portal</small>
         </div>
       </div>
 
