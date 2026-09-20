@@ -77,12 +77,14 @@ export default function App() {
   }[currentScreen] || <Screen1_Welcome />;
 
   return (
-    <div className={`kiosk-app ${highContrast ? 'high-contrast' : ''}`}>
+    <div className={`kiosk-app ${highContrast ? 'high-contrast' : ''} ${currentScreen === 1 ? 'kiosk-app-welcome' : ''}`}>
       <Navbar />
-      <main className="kiosk-main" aria-label="AyushCare patient kiosk">
-        <div className="kiosk-main-scroll"><Suspense fallback={<ScreenLoader />}>{screen}</Suspense></div>
+      <main className={`kiosk-main ${currentScreen === 1 ? 'kiosk-main-welcome' : ''}`} aria-label="AyushCare patient kiosk">
+        <div className={`kiosk-main-scroll ${currentScreen === 1 ? 'kiosk-scroll-welcome' : ''}`}>
+          <Suspense fallback={<ScreenLoader />}>{screen}</Suspense>
+        </div>
       </main>
-      {currentScreen < 10 && <Footer />}
+      {currentScreen > 1 && currentScreen < 10 && <Footer />}
     </div>
   );
 }
