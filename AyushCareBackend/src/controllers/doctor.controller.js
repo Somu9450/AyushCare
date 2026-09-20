@@ -39,7 +39,15 @@ export const getPatientReports = asyncHandler(async (req, res) => {
     const reports = await pool.query('SELECT * FROM uploaded_documents WHERE consultation_id = $1 ORDER BY created_at DESC', [req.params.id]);
     const visible = [];
     for (const report of reports.rows) {
-        if (await canDoctorAccess({ patientId: consultation.rows[0].patient_uuid, hospitalId: consultation.rows[0].hospital_id, consultationId: consultation.rows[0].id, documentId: report.id, category: 'reports' })) visible.push(report);
+        if (await canDoctorAccess({ patientId: consultation.rows[0].patient_uuid, hospitalId: consultation.rows[0].hospital_id, consultationId: consultation.rows[0].id, documentId: report.id, category: 'reports' })) {
+            const docUrl = report.document_url || (report.file_path_hash?.startsWith('http') ? report.file_path_hash : null) || report.download_url;
+            visible.push({
+                ...report,
+                download_url: docUrl,
+                url: docUrl,
+                document_url: docUrl
+            });
+        }
     }
     return res.status(200).json(new ApiResponse(200, visible, "Chronological medical files loaded"));
 });

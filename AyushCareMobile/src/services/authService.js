@@ -24,6 +24,9 @@ export async function requestOtp({ authType = "ABHA", identifier = "" } = {}) {
   } else return { success:false, error:'Use ABHA number or mobile number.' };
   const mobileNumber = type === 'MOBILE' ? normalizeMobile(clean) : undefined;
   const payload = unwrapApiResponse(await apiRequest("/mobile/portal/auth/send-otp", { method: "POST", body: JSON.stringify(type === 'ABHA' ? { abhaNumber: clean } : { mobileNumber }) }));
+  if (payload?.otp) {
+    console.log(`%c[DEV OTP RECEIVED]: ${payload.otp}`, 'color: #0d9488; font-weight: bold; font-size: 14px;');
+  }
 
   return {
     success: true,
@@ -125,14 +128,42 @@ export async function exchangePatientQrToken(token) {
       localStorage.setItem('ayushcare_token_saved_at', String(Date.now()));
     } catch {}
   }
+
+  const patientData = payload?.patient || {};
+  const normalizedPatient = payload?.patient ? {
+    ...patientData,
+    id: patientData.id,
+    patientId: patientData.abha_number || patientData.abhaNumber || patientData.id,
+    abhaNumber: patientData.abha_number || patientData.abhaNumber,
+    abha_number: patientData.abha_number || patientData.abhaNumber,
+    abhaAddress: patientData.abha_address || patientData.abhaAddress,
+    abha_address: patientData.abha_address || patientData.abhaAddress,
+    name: patientData.full_name || patientData.name || 'Patient',
+    full_name: patientData.full_name || patientData.name || 'Patient',
+    gender: patientData.gender,
+    dateOfBirth: patientData.date_of_birth || patientData.dateOfBirth,
+    date_of_birth: patientData.date_of_birth || patientData.dateOfBirth,
+    dob: patientData.date_of_birth || patientData.dateOfBirth,
+    mobile: patientData.mobile_number || patientData.mobile,
+    mobile_number: patientData.mobile_number || patientData.mobile,
+    phone: patientData.mobile_number || patientData.mobile,
+    address: patientData.address,
+    aadhaarNumber: patientData.aadhaar_number || patientData.aadhaarNumber,
+    aadhaar_number: patientData.aadhaar_number || patientData.aadhaarNumber,
+    authMethod: 'QR',
+  } : undefined;
+
+  if (normalizedPatient) {
+    try {
+      localStorage.setItem('ayushcare_patient', JSON.stringify(normalizedPatient));
+      localStorage.setItem('ayushcare_auth_type', 'QR');
+    } catch {}
+  }
+
   return {
     success: true,
     ...payload,
-    user: payload?.patient ? {
-      id: payload.patient.id,
-      patientId: payload.patient.abha_number || payload.patient.abhaNumber || payload.patient.id,
-      name: payload.patient.full_name,
-      mobile: payload.patient.mobile_number,
-    } : undefined,
+    patient: normalizedPatient,
+    user: normalizedPatient,
   };
 }

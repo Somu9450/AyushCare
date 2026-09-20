@@ -18,6 +18,7 @@ import {
 import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
 import { useKeyboard } from '../context/KeyboardContext';
+import { kioskApi } from '../services/api';
 
 const Screen7_PreparingSession = () => {
   const {
@@ -81,7 +82,7 @@ const Screen7_PreparingSession = () => {
     });
   }, [bp, pulse, temp, spo2, updateSessionData]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     updateSessionData({
       vitals: {
         bp,
@@ -90,6 +91,20 @@ const Screen7_PreparingSession = () => {
         spo2,
       },
     });
+
+    if (sessionData.consultationId && (bp || pulse || temp || spo2)) {
+      try {
+        await kioskApi.vitals(sessionData.consultationId, {
+          bp,
+          pulse,
+          temp,
+          spo2,
+          source: completed ? 'kiosk_sensors' : 'manual',
+        });
+      } catch (err) {
+        console.warn('Could not save vitals to consultation:', err);
+      }
+    }
 
     nextScreen();
   };

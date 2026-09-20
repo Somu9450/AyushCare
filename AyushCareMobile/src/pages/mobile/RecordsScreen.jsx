@@ -146,31 +146,38 @@ function getCategory(record) {
 }
 
 function getEntityCount(record) {
-  const extraction =
+  let extraction =
     record?.extractedInformation ||
+    record?.extracted_data ||
     record?.extraction ||
     record?.extractedData ||
     {};
 
-  const medicines = Array.isArray(
-    extraction?.medicines
-  )
-    ? extraction.medicines.length
+  if (typeof extraction === "string") {
+    try {
+      extraction = JSON.parse(extraction);
+    } catch {
+      extraction = {};
+    }
+  }
+
+  const medicines = Array.isArray(extraction?.medicines || extraction?.medications)
+    ? (extraction.medicines || extraction.medications).length
     : 0;
 
-  const investigations = Array.isArray(
-    extraction?.investigations
-  )
-    ? extraction.investigations.length
+  const investigations = Array.isArray(extraction?.investigations || extraction?.lab_results)
+    ? (extraction.investigations || extraction.lab_results).length
     : 0;
 
-  const procedures = Array.isArray(
-    extraction?.procedures
-  )
+  const procedures = Array.isArray(extraction?.procedures)
     ? extraction.procedures.length
     : 0;
 
-  return medicines + investigations + procedures;
+  const diagnoses = Array.isArray(extraction?.diagnosis || extraction?.diagnoses)
+    ? (extraction.diagnosis || extraction.diagnoses).length
+    : 0;
+
+  return medicines + investigations + procedures + diagnoses;
 }
 
 export default function RecordsScreen() {

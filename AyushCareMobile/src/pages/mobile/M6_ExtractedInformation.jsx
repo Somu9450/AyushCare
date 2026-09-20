@@ -271,6 +271,19 @@ export default function M6_ExtractedInformation() {
       ? "The document was read and useful medical information was found."
       : "No clear structured insight was detected.";
 
+  const summaryText =
+    extractedData?.summary ||
+    extractedData?.extractedData?.summary ||
+    extractedData?.documents?.[0]?.extracted_data?.summary ||
+    extractedData?.ai_summary ||
+    null;
+
+  const healthInfoText =
+    extractedData?.health_info ||
+    extractedData?.extractedData?.health_info ||
+    extractedData?.documents?.[0]?.extracted_data?.health_info ||
+    null;
+
   const openEditor = (section) => {
     const values = normalized[section] || [];
 
@@ -385,6 +398,20 @@ export default function M6_ExtractedInformation() {
             </div>
           </div>
         </section>
+
+        {summaryText && (
+          <section className="rounded-2xl border border-teal-200 bg-white p-4 shadow-xs space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-wider text-teal-800">AI Clinical Summary</p>
+            <p className="text-xs font-medium text-slate-800 leading-relaxed">{summaryText}</p>
+          </section>
+        )}
+
+        {healthInfoText && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-xs space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-800">Health Guidance & Advice</p>
+            <p className="text-xs font-medium text-emerald-950 leading-relaxed">{healthInfoText}</p>
+          </section>
+        )}
 
         <section className={`rounded-2xl border p-4 shadow-sm ${abnormalValues.length ? "border-amber-200 bg-amber-50" : "border-teal-100 bg-teal-50"}`}>
           <p className={`text-xs font-black uppercase tracking-wide ${abnormalValues.length ? "text-amber-800" : "text-teal-800"}`}>Key insight</p>

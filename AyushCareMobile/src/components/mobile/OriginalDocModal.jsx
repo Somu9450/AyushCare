@@ -106,12 +106,42 @@ export const OriginalDocModal = () => {
   const currentImage =
     activePage?.image ||
     activePage?.dataUrl ||
+    activePage?.previewUrl ||
+    activePage?.imageUrl ||
+    capturedDocument?.document_url ||
+    capturedDocument?.download_url ||
+    capturedDocument?.url ||
+    capturedDocument?.image ||
+    capturedDocument?.dataUrl ||
     null;
+
+  const isPdf = Boolean(
+    activePage?.mimeType?.includes("pdf") ||
+    capturedDocument?.mimeType?.includes("pdf") ||
+    String(currentImage || "").toLowerCase().includes(".pdf")
+  );
+
+  const isCloudinaryPdf = Boolean(isPdf && currentImage && String(currentImage).includes("cloudinary.com"));
 
   const documentName =
     activePage?.fileName ||
     capturedDocument?.fileName ||
+    capturedDocument?.title ||
     (tr('Original Medical Document', 'मूल चिकित्सीय दस्तावेज़'));
+
+  const docSummary =
+    capturedDocument?.summary ||
+    capturedDocument?.extractedInformation?.summary ||
+    capturedDocument?.extracted_data?.summary ||
+    capturedDocument?.extractedInformation?.ai_summary ||
+    capturedDocument?.extracted_data?.ai_summary ||
+    null;
+
+  const docHealthInfo =
+    capturedDocument?.health_info ||
+    capturedDocument?.extractedInformation?.health_info ||
+    capturedDocument?.extracted_data?.health_info ||
+    null;
 
   const goToPreviousPage = () => {
     setCurrentPageIndex((index) =>
@@ -155,7 +185,7 @@ export const OriginalDocModal = () => {
 
               <p className="text-[10px] text-slate-400 mt-0.5">
                 {totalPages > 1
-                  ? tr('Page ${safePageIndex + 1} of ${totalPages}', 'पृष्ठ ${safePageIndex + 1} / ${totalPages}')
+                  ? tr(`Page ${safePageIndex + 1} of ${totalPages}`, `पृष्ठ ${safePageIndex + 1} / ${totalPages}`)
                   : tr('Original source document', 'मूल दस्तावेज़')}
               </p>
             </div>
@@ -191,7 +221,7 @@ export const OriginalDocModal = () => {
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                   }`}
                 >
-                  {tr('Page ${index + 1}', 'पृष्ठ ${index + 1}')}
+                  {tr(`Page ${index + 1}`, `पृष्ठ ${index + 1}`)}
                 </button>
               ))}
             </div>
@@ -201,7 +231,35 @@ export const OriginalDocModal = () => {
         {/* Document */}
         <div className="flex-1 overflow-y-auto bg-slate-900 p-3 sm:p-4">
           <div className="rounded-2xl overflow-hidden bg-white shadow-xl">
-            {currentImage && !imageError ? (
+            {isPdf && currentImage ? (
+              <div className="flex flex-col items-center justify-center p-3 bg-slate-900 min-h-[360px]">
+                {isCloudinaryPdf ? (
+                  <div className="relative w-full rounded-xl overflow-hidden bg-white">
+                    <img
+                      src={currentImage.replace(/\.pdf$/i, '.jpg')}
+                      alt={documentName}
+                      className="block w-full h-auto max-h-[65vh] object-contain bg-white mx-auto"
+                      onError={() => setImageError(true)}
+                    />
+                  </div>
+                ) : (
+                  <iframe
+                    src={currentImage}
+                    title={documentName}
+                    className="w-full h-[55vh] rounded-xl bg-white border border-slate-700"
+                  />
+                )}
+                <a
+                  href={currentImage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-xs font-bold transition cursor-pointer shadow-md"
+                >
+                  <FileText className="w-4 h-4" />
+                  {tr('Open Full PDF Document', 'पूरा PDF दस्तावेज़ खोलें')}
+                </a>
+              </div>
+            ) : currentImage && !imageError ? (
               <div className="relative">
                 <img
                   src={currentImage}
@@ -223,18 +281,40 @@ export const OriginalDocModal = () => {
                 </div>
               </div>
             ) : (
-              <div className="min-h-[280px] flex flex-col items-center justify-center px-6 py-10 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
+              <div className="min-h-[280px] flex flex-col items-center justify-center px-6 py-8 text-center bg-slate-50">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
                   <FileText className="w-7 h-7" />
                 </div>
 
                 <h3 className="mt-4 text-sm font-black text-slate-900">
-                  {tr('Original image unavailable', 'मूल छवि उपलब्ध नहीं है')}
+                  {documentName}
                 </h3>
 
-                <p className="mt-1.5 text-xs text-slate-500 max-w-xs leading-relaxed">
-                  {tr('The source image is not stored for this prototype record. Available record information is shown below.', 'इस प्रोटोटाइप रिकॉर्ड में दस्तावेज़ की छवि संग्रहीत नहीं है। नीचे उपलब्ध रिकॉर्ड जानकारी देखें।')}
-                </p>
+                {docSummary && (
+                  <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 text-left w-full text-xs text-slate-700 shadow-xs">
+                    <p className="font-bold text-teal-800 text-[11px] mb-1 uppercase tracking-wider">{tr('AI Document Summary', 'एआई सारांश')}</p>
+                    <p className="leading-relaxed">{docSummary}</p>
+                  </div>
+                )}
+
+                {docHealthInfo && (
+                  <div className="mt-2 p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-left w-full text-xs text-emerald-900 shadow-xs">
+                    <p className="font-bold text-emerald-800 text-[11px] mb-1 uppercase tracking-wider">{tr('Health Guidance', 'स्वास्थ्य सलाह')}</p>
+                    <p className="leading-relaxed">{docHealthInfo}</p>
+                  </div>
+                )}
+
+                {currentImage && (
+                  <a
+                    href={currentImage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-700 text-white text-xs font-bold shadow-xs hover:bg-teal-600 transition"
+                  >
+                    <FileText className="w-4 h-4" />
+                    {tr('Open Document File', 'दस्तावेज़ फ़ाइल खोलें')}
+                  </a>
+                )}
               </div>
             )}
           </div>

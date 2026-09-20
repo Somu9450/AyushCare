@@ -64,43 +64,75 @@ async function toBlob(page) {
   return response.blob();
 }
 
+const activeUploads = new Map();
+
 async function uploadBlob(consultationId, page, documentType) {
   const blob = await toBlob(page);
   const type = String(blob.type || page.mimeType || "image/jpeg").split(";")[0].toLowerCase();
   if (!ALLOWED.has(type)) throw new Error("Only JPEG, PNG, WebP images, or PDF documents can be analyzed.");
-  if (blob.size > MAX_BYTES) throw new Error("Each image must be 15 MB or smaller.");
+  if (blob.size > MAX_BYTES) throw new Error("Each file must be 20 MB or smaller.");
 
-  const fileName = page.fileName || `document-${page.pageNumber || 1}.jpg`;
-  const uploadInfo = unwrapApiResponse(await apiRequest("/mobile/portal/documents/upload-url", {
-    method: "POST",
-    body: JSON.stringify({ file_name: fileName, content_type: type, consultation_id: consultationId || undefined, document_processing_consent: true }),
-  }));
+  const ext = type === "application/pdf" ? "pdf" : type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+  const fileName = page.fileName || `document-${page.pageNumber || 1}.${ext}`;
+  const uploadKey = `${consultationId || 'default'}-${fileName}-${blob.size}-${normalizeDocumentType(documentType)}`;
 
-  let response;
-  let lastError;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      response = await fetch(uploadInfo.upload_url, { method: "PUT", headers: { "Content-Type": type }, body: blob });
-      if (response.ok) break;
-      lastError = new Error(`Cloud upload failed (${response.status}).`);
-    } catch (error) { lastError = error; }
-    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 600));
+  if (activeUploads.has(uploadKey)) {
+    return activeUploads.get(uploadKey);
   }
-  if (!response?.ok) throw lastError || new Error("Cloud upload failed.");
 
-  const registered = unwrapApiResponse(await apiRequest("/mobile/portal/documents/register", {
-    method: "POST",
-    body: JSON.stringify({ file_key: uploadInfo.file_key, document_type: normalizeDocumentType(documentType), consultation_id: consultationId || undefined }),
-  }));
-  return { ...registered, fileName, documentType: normalizeDocumentType(documentType) };
+  const uploadPromise = (async () => {
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, fileName);
+      formData.append("document_type", normalizeDocumentType(documentType));
+      if (consultationId) {
+        formData.append("consultation_id", consultationId);
+      }
+
+      const registered = unwrapApiResponse(await apiRequest("/mobile/portal/documents/upload", {
+        method: "POST",
+        body: formData,
+      }));
+
+      return { ...registered, fileName, documentType: normalizeDocumentType(documentType) };
+    } finally {
+      activeUploads.delete(uploadKey);
+    }
+  })();
+
+  activeUploads.set(uploadKey, uploadPromise);
+  return uploadPromise;
 }
 
 export async function uploadDocumentsToPortal(consultationId, pages, documentType, onProgress) {
   if (!pages?.length) throw new Error("Please capture at least one document page.");
   const results = [];
   for (let i = 0; i < pages.length; i += 1) {
-    onProgress?.(Math.round((i / pages.length) * 45), `Uploading image ${i + 1} of ${pages.length}…`);
-    results.push(await uploadBlob(consultationId, pages[i], documentType));
+    const isPdf = Boolean(pages[i]?.mimeType?.includes("pdf") || pages[i]?.fileName?.toLowerCase()?.endsWith(".pdf"));
+    const docWord = isPdf ? "PDF document" : "document";
+    let curProgress = Math.max(10, Math.round((i / pages.length) * 40));
+    onProgress?.(curProgress, `Uploading ${docWord} ${i + 1} of ${pages.length}…`);
+
+    // Dynamic ticker while synchronous backend AI OCR + Cloudinary upload runs
+    const ticker = setInterval(() => {
+      curProgress = Math.min(88, curProgress + Math.floor(Math.random() * 6) + 3);
+      let stageMsg = `Uploading ${docWord} ${i + 1} of ${pages.length}…`;
+      if (curProgress >= 28 && curProgress < 52) {
+        stageMsg = "Running AI OCR on document…";
+      } else if (curProgress >= 52 && curProgress < 72) {
+        stageMsg = "Securing document in Cloudinary…";
+      } else if (curProgress >= 72) {
+        stageMsg = "Extracting medicines and clinical diagnoses…";
+      }
+      onProgress?.(curProgress, stageMsg);
+    }, 1100);
+
+    try {
+      const res = await uploadBlob(consultationId, pages[i], documentType);
+      results.push(res);
+    } finally {
+      clearInterval(ticker);
+    }
   }
   return results;
 }
@@ -123,7 +155,7 @@ export async function waitForPortalDocumentProcessing(documentIds, onProgress, t
     }
     const finished = docs.length === ids.size && docs.every((d) => ["completed", "failed", "deleted"].includes(String(d.status || "").toLowerCase()));
     const completedCount = docs.filter((d) => String(d.status).toLowerCase() === "completed").length;
-    onProgress?.(45 + Math.round((completedCount / Math.max(1, ids.size)) * 55), finished ? "Document analysis complete." : "Reading your document…");
+    onProgress?.(85 + Math.round((completedCount / Math.max(1, ids.size)) * 15), finished ? "Document analysis complete." : "Finalizing document extraction…");
     if (finished) return docs;
     await new Promise((resolve) => setTimeout(resolve, 1800));
   }
@@ -135,11 +167,29 @@ export async function analyzeDocumentOCR(input, onProgress) {
   const pages = normalizeDocumentPages({ capturedDocuments: input?.pages, capturedDocument: input?.document, documentType: input?.documentType });
   if (!pages.length) throw new Error("Please capture at least one document page.");
   const registered = await uploadDocumentsToPortal(consultationId, pages, input.documentType, onProgress);
-  const ids = registered.map((d) => d.id).filter(Boolean);
-  const docs = await waitForPortalDocumentProcessing(ids, onProgress);
-  const completed = docs.filter((d) => String(d.status).toLowerCase() === "completed");
+
+  // If backend already completed AI OCR and Cloudinary upload synchronously:
+  const allCompleted = registered.length > 0 && registered.every(
+    (d) => String(d?.status).toLowerCase() === "completed" || Boolean(d?.extracted_data && (typeof d.extracted_data === 'object' ? Object.keys(d.extracted_data).length > 0 : true))
+  );
+
+  let docs = registered;
+  if (!allCompleted) {
+    const ids = registered.map((d) => d.id).filter(Boolean);
+    docs = await waitForPortalDocumentProcessing(ids, onProgress);
+  }
+
+  onProgress?.(100, "Document analyzed successfully");
+  const completed = docs.filter((d) => String(d.status).toLowerCase() === "completed" || Boolean(d?.extracted_data));
   const failed = docs.filter((d) => String(d.status).toLowerCase() === "failed");
-  const extracted = completed.reduce((acc, d) => ({ ...acc, ...(d.extracted_data || {}), documents: [...(acc.documents || []), d] }), {});
+  const extracted = completed.reduce((acc, d) => {
+    let ed = d.extracted_data || {};
+    if (typeof ed === "string") {
+      try { ed = JSON.parse(ed); } catch { ed = {}; }
+    }
+    return { ...acc, ...ed, documents: [...(acc.documents || []), d] };
+  }, {});
+
   return { success: completed.length > 0 && failed.length === 0, extractedData: extracted, documents: docs, registered };
 }
 

@@ -48,7 +48,25 @@ export const kioskApi = {
   doctors: (departmentId) => request({ method: 'GET', url: `/intake/departments/${departmentId}/doctors` }),
   vitals: (sessionId, payload) => request({ method: 'POST', url: `/intake/session/${sessionId}/vitals`, data: payload }),
   documents: (sessionId) => request({ method: 'GET', url: `/intake/session/${sessionId}/documents` }),
-  summaryGenerate: (sessionId, language, includeAyush, conversationHistory) => request({ method: 'POST', url: `/intake/session/${sessionId}/summary/generate`, data: { language, include_documents: true, include_ayush: includeAyush, conversation_history: conversationHistory || [] } }),
+  summaryGenerate: (sessionId, languageOrOptions, includeAyush, conversationHistory) => {
+    let payload = {};
+    if (languageOrOptions && typeof languageOrOptions === 'object') {
+      payload = {
+        language: languageOrOptions.language || 'en',
+        include_documents: languageOrOptions.include_documents !== false,
+        include_ayush: Boolean(languageOrOptions.include_ayush),
+        conversation_history: languageOrOptions.conversation_history || []
+      };
+    } else {
+      payload = {
+        language: languageOrOptions || 'en',
+        include_documents: true,
+        include_ayush: Boolean(includeAyush),
+        conversation_history: conversationHistory || []
+      };
+    }
+    return request({ method: 'POST', url: `/intake/session/${sessionId}/summary/generate`, data: payload });
+  },
   summary: (sessionId) => request({ method: 'GET', url: `/intake/session/${sessionId}/summary` }),
   consentScopes: (sessionId) => request({ method: 'GET', url: `/intake/session/${sessionId}/consent/scopes` }),
   grantConsent: (sessionId, scopes) => request({ method: 'POST', url: `/intake/session/${sessionId}/consent`, data: scopes }),

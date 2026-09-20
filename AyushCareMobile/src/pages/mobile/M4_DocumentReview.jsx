@@ -487,6 +487,7 @@ export default function M4_DocumentReview() {
               <Plus size={19} />
               Add another page
             </button>
+            <p className="text-center text-xs text-slate-500 pt-1">Supported file types: PDF, JPEG, PNG, WebP (up to 20MB)</p>
 
             <div className="pt-4 pb-8 space-y-3">
               <button

@@ -50,7 +50,18 @@ export default function Screen8_QRUpload() {
       if (completedCount > processedCountRef.current && sessionData.consultationId) {
         processedCountRef.current = completedCount;
         try {
-          const summary = await kioskApi.summaryGenerate(sessionData.consultationId, { language: sessionData.language || 'en', include_documents: true, include_ayush: sessionData.pathway === 'ayurveda' });
+          const history = (sessionData.questionHistory || []).map((item) => ({
+            question_id: item.question?.question_id || '',
+            question: item.question?.prompt || item.question?.prompt_local || '',
+            answer: item.answer || '',
+            input_mode: item.input_mode || 'text',
+          }));
+          const summary = await kioskApi.summaryGenerate(sessionData.consultationId, {
+            language: sessionData.language || 'en',
+            include_documents: true,
+            include_ayush: sessionData.pathway === 'ayurveda',
+            conversation_history: history,
+          });
           updateSession({ documents: list, liveDocumentSummary: summary });
         } catch { updateSession({ documents: list }); }
       }

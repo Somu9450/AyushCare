@@ -4,7 +4,7 @@ import { useMobileStore } from "../../store/useMobileStore";
 import { createDocumentPage, normalizeDocumentType } from "../../services/documentService";
 
 export default function M3_DocumentCapture() {
-  const { selectedDocumentType, documentType, capturedDocument, capturedDocuments, setCapturedDocument, setCapturedDocuments, setScreen } = useMobileStore();
+  const { selectedDocumentType, documentType, capturedDocument, capturedDocuments, setCapturedDocument, setCapturedDocuments, setExtractedData, setScreen } = useMobileStore();
   const inputRef = useRef(null);
   const [error, setError] = useState("");
   const type = normalizeDocumentType(selectedDocumentType || documentType || capturedDocument?.documentType || "other");
@@ -27,6 +27,7 @@ export default function M3_DocumentCapture() {
       const all = [...pages, ...next].map((page, index) => ({ ...page, pageNumber: index + 1, documentType: type }));
       setCapturedDocuments(all);
       setCapturedDocument({ ...(capturedDocument || {}), ...all[0], id: capturedDocument?.id || all[0].id, documentId: capturedDocument?.documentId || `document-${Date.now()}`, documentType: type, pages: all, pageCount: all.length });
+      setExtractedData(null);
       setError("");
       setScreen("M4");
     } catch (e) { setError(e?.message || "The image could not be opened."); }
@@ -49,9 +50,13 @@ export default function M3_DocumentCapture() {
             <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-teal-700 px-4 font-semibold text-white"><Camera size={19}/> Take photo</button>
             <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 font-semibold text-slate-800"><ImageIcon size={19}/> Choose from phone</button>
           </div>
+          <div className="mt-4 flex items-center justify-center gap-1.5 rounded-2xl bg-teal-50/70 border border-teal-200/60 px-3.5 py-2 text-xs text-slate-700 shadow-sm">
+            <span className="font-semibold text-teal-800">Supported file types:</span>
+            <span className="font-medium text-slate-700">PDF, JPEG, PNG, WebP (up to 20MB)</span>
+          </div>
           {pages.length > 0 && <div className="mt-5 rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold">{pages.length} image{pages.length === 1 ? "" : "s"} selected</p><p className="mt-1 text-xs text-slate-500">You can add more images before analysis.</p></div>}
           {error && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-          <p className="mt-6 text-center text-xs leading-5 text-slate-500">JPEG, PNG, WebP or PDF • maximum 20 MB per file</p>
+          <p className="mt-5 text-center text-xs leading-5 text-slate-500">Camera photos and digital files supported • maximum 20 MB per file</p>
         </section>
       </main>
       <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"  className="hidden" onChange={(e) => { void saveFiles(e.target.files); e.target.value = ""; }}/>
