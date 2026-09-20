@@ -29,7 +29,8 @@ body {
 }
 
 /* Every routed screen gets a real viewport-sized scroll context. */
-#root > div:first-child {
+#root > div:first-child,
+#root > div:first-of-type {
   width: 100%;
   min-height: 100dvh;
   background: url('/KioskScreenBg.png') center center / cover no-repeat fixed, #f1f8f7;
@@ -37,7 +38,9 @@ body {
 
 /* Screens that contain the primary bottom navigation use a
    fixed navigation bar + independently scrolling content. */
-#root > div:first-child:has(> nav[aria-label="Primary navigation"]) {
+#root > div:first-child:has(> nav[aria-label="Primary navigation"]),
+#root:has(nav[aria-label="Primary navigation"]) > div:first-of-type,
+#root:has(nav[aria-label="Primary navigation"]) > div:first-child {
   height: 100dvh;
   min-height: 100dvh;
   display: flex;
@@ -47,7 +50,9 @@ body {
   margin: 0 !important;
 }
 
-#root > div:first-child:has(> nav[aria-label="Primary navigation"]) > main {
+#root > div:first-child:has(> nav[aria-label="Primary navigation"]) > main,
+#root:has(nav[aria-label="Primary navigation"]) > div:first-of-type > main,
+#root:has(nav[aria-label="Primary navigation"]) > div:first-child > main {
   flex: 1 1 auto;
   min-height: 0;
   width: min(100%, 1100px);
@@ -63,7 +68,10 @@ body {
 }
 
 /* Flow/detail screens without the primary nav scroll as one page. */
-#root > div:first-child:not(:has(> nav[aria-label="Primary navigation"])) {
+#root > div:first-child:not(:has(> nav[aria-label="Primary navigation"])),
+#root:not(:has(nav[aria-label="Primary navigation"])) > div:first-of-type,
+#root:not(:has(nav[aria-label="Primary navigation"])) > div:first-child,
+.mobile-auth-shell {
   height: 100dvh;
   min-height: 100dvh;
   overflow-x: hidden;
@@ -260,10 +268,12 @@ body {
 ============================================================ */
 
 .mobile-auth-shell {
+  height: 100dvh;
   min-height: 100dvh;
   padding: 18px 16px 28px;
   background: url('/KioskScreenBg.png') center center / cover no-repeat fixed, #f1f8f7;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mobile-auth-brand {

@@ -18,6 +18,7 @@ import {
   selectPatientAccount,
 } from "../../services/authService";
 import { useLanguage } from "../../i18n/translations";
+import { toast } from "sonner";
 
 const AUTH_METHODS = [
   { id: "ABHA", label: "ABHA Number", hindi: "आभा नंबर", placeholder: "Enter 14-digit ABHA number", hindiPlaceholder: "14 अंकों का आभा नंबर दर्ज करें", maxLength: 14, isDemo: false },
@@ -107,6 +108,12 @@ export default function AuthScreen() {
         if (!result?.success) throw new Error(result?.message || "Unable to verify ABHA number.");
         setMaskedIdentifier(result?.maskedIdentifier || "registered mobile");
         setStep("otp");
+        if (result?.otp) {
+          toast.success(`OTP: ${result.otp}`, {
+            description: isHindi ? 'लॉगिन करने के लिए यह OTP दर्ज करें' : 'Enter this OTP to login',
+            duration: 12000,
+          });
+        }
       } catch (e) { setError(e?.message || "Unable to send OTP."); } finally { setLoading(false); }
       return;
     }
@@ -142,6 +149,12 @@ export default function AuthScreen() {
         );
 
         setStep("otp");
+        if (result?.otp) {
+          toast.success(`OTP: ${result.otp}`, {
+            description: isHindi ? 'लॉगिन करने के लिए यह OTP दर्ज करें' : 'Enter this OTP to login',
+            duration: 12000,
+          });
+        }
       } catch (requestError) {
         setError(
           requestError?.message ||
@@ -168,22 +181,6 @@ export default function AuthScreen() {
       }, 350);
       return;
     }
-
-    if (method === "ABHA") {
-      if (cleanIdentifier.length !== 14) {
-        setError(tr('Enter a valid 14-digit ABHA number.', '14 अंकों का आभा नंबर दर्ज करें।'));
-        return;
-      }
-
-      setLoading(true);
-      setTimeout(() => {
-        setMaskedIdentifier(maskIdentifierValue(cleanIdentifier, "ABHA"));
-        setExpiresIn(300);
-        setStep("otp");
-        setLoading(false);
-      }, 350);
-      return;
-    }
   };
 
   const handleVerifyOtp = async () => {
@@ -196,21 +193,21 @@ export default function AuthScreen() {
     setLoading(true);
     setError("");
 
-    if (method === "AADHAAR" || method === "ABHA") {
+    if (method === "AADHAAR") {
       setTimeout(() => {
         const demoPatient = {
           id: `demo-${identifier.slice(-4)}`,
           patientId: `1234567890${identifier.slice(-4)}`.slice(0,14),
           abhaNumber: `1234567890${identifier.slice(-4)}`.slice(0,14),
-          full_name: method === "AADHAAR" ? "Aadhaar Demo Patient" : "ABHA Demo Patient",
-          name: method === "AADHAAR" ? "Aadhaar Demo Patient" : "ABHA Demo Patient",
+          full_name: "Aadhaar Demo Patient",
+          name: "Aadhaar Demo Patient",
           gender: "Male",
           age: 32,
           last_visit: "Today",
           department: "Ayush OPD",
           doctor: "Dr. Sharma",
           mobile_number: "+919876543210",
-          abha_number: method === "ABHA" ? identifier : "12-3456-7890-1234",
+          abha_number: "12-3456-7890-1234",
           authMethod: method,
           isDemo: true,
           verifiedAt: new Date().toISOString(),
@@ -225,7 +222,7 @@ export default function AuthScreen() {
 
     try {
       const result = await verifyOtp({
-        authType: "MOBILE",
+        authType: method,
         identifier: identifier.trim(),
         otp: cleanOtp,
       });
