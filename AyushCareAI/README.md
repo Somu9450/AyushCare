@@ -116,3 +116,17 @@ docker-compose up --build
 - 6 predefined safety scenarios with automated testing
 - Suicidal ideation detection with crisis helpline numbers
 - Critical lab value alerting
+
+
+## AI provider configuration
+
+The Python AI service is the server-side integration boundary for external AI providers.
+
+- **Bhashini:** ASR, TTS, translation and language detection (plus the retained Bhashini OCR provider).
+- **Azure AI Document Intelligence:** primary OCR when `OCR_PROVIDER=azure`.
+- **Azure AI Language / Text Analytics for Health:** specialist medical entity/assertion extraction when `MEDICAL_NLP_PROVIDER=azure`.
+- **Groq:** existing LLM and optional vision/Whisper fallback functionality.
+
+Provider credentials must be supplied through server-side environment variables. Never expose them in Kiosk, Mobile, or Doctor Panel frontend code.
+
+The Azure medical NLP result is an assistive extraction signal and remains subject to clinician verification; it is not a diagnosis or substitute for clinical judgment.

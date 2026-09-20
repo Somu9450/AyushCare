@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app.config import Settings, get_settings
-from app.dependencies import get_document_intelligence
-from app.infrastructure import redis_client
-from app.infrastructure.audit_log import AuditEventType, log_audit_event
-from app.infrastructure.storage import save_file
-from app.models.consent import ConsentScopeId
-from app.models.document import DocumentListResponse, DocumentUploadResponse
-from app.services.document_intelligence import DocumentIntelligenceService
+from AyushCareAILatest_UPDATED.app.config import Settings, get_settings
+from AyushCareAILatest_UPDATED.app.dependencies import get_document_intelligence
+from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
+from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
+from AyushCareAILatest_UPDATED.app.infrastructure.storage import save_file
+from AyushCareAILatest_UPDATED.app.models.consent import ConsentScopeId
+from AyushCareAILatest_UPDATED.app.models.document import DocumentListResponse, DocumentUploadResponse
+from AyushCareAILatest_UPDATED.app.services.document_intelligence import DocumentIntelligenceService
 
 router = APIRouter(prefix="/sessions/{session_id}/documents", tags=["Documents"])
 
@@ -63,11 +63,11 @@ async def upload_document(
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided.")
-    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
     from pathlib import Path
     extension = Path(file.filename).suffix.lower()
     if extension not in allowed_extensions:
-        raise HTTPException(status_code=415, detail="Only JPG, PNG, and WebP images are supported.")
+        raise HTTPException(status_code=415, detail="Only PDF, JPG, PNG, and WebP documents are supported.")
 
     content = await file.read()
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
@@ -132,7 +132,7 @@ async def list_documents(
     entities = data.get("document_entities", [])
 
     # Build timeline from all entities
-    from app.models.document import ExtractedEntity
+    from AyushCareAILatest_UPDATED.app.models.document import ExtractedEntity
     parsed_entities = [ExtractedEntity(**e) for e in entities]
     timeline = doc_service.build_timeline(parsed_entities, session_id)
 

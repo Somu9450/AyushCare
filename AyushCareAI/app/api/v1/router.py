@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.health import router as health_router
-from app.api.v1.sessions import router as sessions_router
-from app.api.v1.conversation import router as conversation_router
-from app.api.v1.documents import router as documents_router
-from app.api.v1.summary import router as summary_router
-from app.api.v1.consent import router as consent_router
-from app.api.v1.fhir import router as fhir_router
+from AyushCareAILatest_UPDATED.app.api.v1.health import router as health_router
+from AyushCareAILatest_UPDATED.app.api.v1.sessions import router as sessions_router
+from AyushCareAILatest_UPDATED.app.api.v1.conversation import router as conversation_router
+from AyushCareAILatest_UPDATED.app.api.v1.documents import router as documents_router
+from AyushCareAILatest_UPDATED.app.api.v1.summary import router as summary_router
+from AyushCareAILatest_UPDATED.app.api.v1.consent import router as consent_router
+from AyushCareAILatest_UPDATED.app.api.v1.fhir import router as fhir_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 

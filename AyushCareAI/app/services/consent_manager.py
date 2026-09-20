@@ -15,7 +15,7 @@ from typing import Optional
 
 import structlog
 
-from app.models.consent import (
+from AyushCareAILatest_UPDATED.app.models.consent import (
     ConsentReceipt,
     ConsentScope,
     ConsentScopeId,

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_clinical_summary_service, get_red_flag_detector
-from app.infrastructure import redis_client
-from app.infrastructure.audit_log import AuditEventType, log_audit_event
-from app.models.summary import (
+from AyushCareAILatest_UPDATED.app.dependencies import get_clinical_summary_service, get_red_flag_detector
+from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
+from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
+from AyushCareAILatest_UPDATED.app.models.summary import (
     GenerateSummaryRequest,
     PhysicianSummaryResponse,
     SummaryDecision,
@@ -15,8 +15,8 @@ from app.models.summary import (
     SummaryEditRequest,
     SummaryLanguage,
 )
-from app.services.clinical_summary import ClinicalSummaryService
-from app.services.red_flag_detector import RedFlagDetector
+from AyushCareAILatest_UPDATED.app.services.clinical_summary import ClinicalSummaryService
+from AyushCareAILatest_UPDATED.app.services.red_flag_detector import RedFlagDetector
 
 router = APIRouter(prefix="/sessions/{session_id}/summary", tags=["Summary"])
 

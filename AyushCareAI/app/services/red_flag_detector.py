@@ -12,13 +12,13 @@ from typing import Optional
 
 import structlog
 
-from app.ai.llm_service import LLMService
-from app.ai.prompts.red_flag_analysis import (
+from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
+from AyushCareAILatest_UPDATED.app.ai.prompts.red_flag_analysis import (
     build_red_flag_analysis_prompt,
     build_red_flag_system_prompt,
 )
-from app.domain.red_flags import evaluate_all_rules, Severity
-from app.models.conversation import RedFlagAlert
+from AyushCareAILatest_UPDATED.app.domain.red_flags import evaluate_all_rules, Severity
+from AyushCareAILatest_UPDATED.app.models.conversation import RedFlagAlert
 
 logger = structlog.get_logger(__name__)
 

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     log_level: str = "INFO"
+    enable_docs: bool = False
 
     # ── Server ───────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
@@ -67,8 +68,22 @@ class Settings(BaseSettings):
     bhashini_ald_model: str = "bhashini/iitmandi/audio-lang-detection/gpu"
 
     # ── OCR ──────────────────────────────────────────────────────────────
-    ocr_provider: str = "bhashini"  # "bhashini" | "groq_vision" | "tesseract"
+    # Azure Document Intelligence is the primary production OCR provider.
+    # Bhashini/Groq Vision/Tesseract remain available as explicit providers.
+    ocr_provider: str = "azure"  # "azure" | "bhashini" | "groq_vision" | "tesseract"
+    azure_document_intelligence_endpoint: Optional[str] = None
+    azure_document_intelligence_key: Optional[str] = None
+    azure_document_intelligence_api_version: str = "2024-11-30"
     tesseract_cmd: Optional[str] = None
+
+    # ── Medical NLP ─────────────────────────────────────────────────────
+    # Azure Text Analytics for Health provides a specialist medical entity/
+    # assertion extraction signal; the existing LLM remains available for
+    # contextual normalization and fields not covered by the health API.
+    medical_nlp_provider: str = "azure"
+    azure_language_endpoint: Optional[str] = None
+    azure_language_key: Optional[str] = None
+    azure_language_api_version: str = "2023-04-01"
 
     # ── ASR — Speech-to-Text ─────────────────────────────────────────────
     asr_provider: str = "bhashini"  # "bhashini" | "groq_whisper"

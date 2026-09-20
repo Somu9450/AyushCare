@@ -12,12 +12,12 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.middleware import AuditMiddleware, RateLimitMiddleware
-from app.api.v1.router import api_v1_router
-from app.config import get_settings
-from app.infrastructure.database import init_db, close_db
-from app.infrastructure.redis_client import init_redis, close_redis
-from app.infrastructure.storage import init_storage
+from AyushCareAILatest_UPDATED.app.api.middleware import AuditMiddleware, RateLimitMiddleware
+from AyushCareAILatest_UPDATED.app.api.v1.router import api_v1_router
+from AyushCareAILatest_UPDATED.app.config import get_settings
+from AyushCareAILatest_UPDATED.app.infrastructure.database import init_db, close_db
+from AyushCareAILatest_UPDATED.app.infrastructure.redis_client import init_redis, close_redis
+from AyushCareAILatest_UPDATED.app.infrastructure.storage import init_storage
 
 logger = structlog.get_logger(__name__)
 
@@ -59,8 +59,8 @@ def create_app() -> FastAPI:
             "medical document intelligence, clinical summary generation, "
             "and FHIR interoperability."
         ),
-        docs_url="/docs" if not settings.is_production else None,
-        redoc_url="/redoc" if not settings.is_production else None,
+        docs_url="/docs" if settings.enable_docs else None,
+        redoc_url="/redoc" if settings.enable_docs else None,
         lifespan=lifespan,
     )
 
@@ -80,12 +80,12 @@ def create_app() -> FastAPI:
     # ── Routers ──────────────────────────────────────────────────────────
     app.include_router(api_v1_router)
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     async def root_health():
-        from app.api.v1.health import health_check
+        from AyushCareAILatest_UPDATED.app.api.v1.health import health_check
         return await health_check()
 
-    @app.get("/")
+    @app.api_route("/", methods=["GET", "HEAD"])
     async def root():
         return {"service": "medikiosk-ai", "status": "running"}
 
