@@ -47,68 +47,91 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="h-screen w-screen bg-[#f8fafc] flex flex-col text-slate-900 overflow-hidden font-sans select-none">
+    <div className="h-screen w-screen bg-[url('/KioskScreenBg.png')] bg-center bg-cover bg-no-repeat bg-[#f1f8f7] flex flex-col text-slate-900 overflow-hidden font-sans select-none">
       {/* Top Navbar */}
-      <header className="h-[56px] bg-[#044e42] text-white px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-sm border-b border-[#033434] z-40">
+      <header className="h-[64px] bg-white/98 text-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 shadow-[0_2px_12px_rgba(18,56,56,0.04)] border-b border-[#dce8e7] z-40">
         {/* Left Branding & Mobile Hamburger */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="lg:hidden p-1.5 rounded-lg bg-[#033434] text-[#99f6e4] border border-[#0d6e6e] hover:bg-[#055a4c] transition-colors cursor-pointer shrink-0"
+            className="lg:hidden p-1.5 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 transition-colors cursor-pointer shrink-0"
             aria-label="Toggle Navigation Menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <div className="h-8.5 px-2 bg-white rounded-lg flex items-center justify-center shadow-xs shrink-0 border border-slate-200/80">
+          {/* AyushCare Brand Identity */}
+          <div className="w-10 h-10 shrink-0 flex items-center justify-center">
             <img
-              src="https://abdm.gov.in/strapicms/uploads/logo_1c71441e1d.png"
-              alt="Ayushman Bharat Digital Mission (ABDM)"
-              className="h-6 w-auto object-contain"
+              src="/ayushCareLogo.png"
+              alt="AyushCare Logo"
+              className="w-10 h-10 object-contain"
             />
           </div>
 
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-              <h1 className="text-xs sm:text-sm font-bold text-white tracking-wide leading-tight truncate">
-                AyushCare Admin
-              </h1>
-              <span className="hidden xs:inline-block px-1.5 py-0.2 text-[9px] font-bold bg-[#033030] text-[#99f6e4] border border-[#0d6e6e] rounded-full">
+              <strong className="text-base sm:text-lg font-extrabold tracking-tight leading-tight">
+                <span className="text-[#12383b]">Ayush</span>
+                <span className="text-[#438b34]">Care</span>
+                <span className="text-slate-800 font-bold ml-1.5 text-sm sm:text-base">Admin</span>
+              </strong>
+              <span className="hidden xs:inline-block px-1.5 py-0.2 text-[9px] font-bold bg-teal-50 text-teal-800 border border-teal-200 rounded-full">
                 HOSPITAL
               </span>
             </div>
-            <p className="text-[10px] text-[#99f6e4]/80 leading-tight hidden sm:block truncate">
+            <p className="text-[11px] font-semibold text-slate-500 leading-tight hidden sm:block truncate mt-0.5">
               AyushCare Central Health Operations & OPD Control
             </p>
+          </div>
+
+          {/* Divider & Tagline */}
+          <div className="hidden md:block w-px h-7 bg-slate-200 mx-1.5 shrink-0" aria-hidden="true" />
+          <div className="hidden md:flex flex-col text-[11px] font-semibold text-slate-500 leading-tight shrink-0">
+            <span>Traditional Wisdom</span>
+            <span>Modern Care</span>
           </div>
         </div>
 
         {/* Center Workspace Branding */}
-        <div className="hidden md:flex items-center shrink-0">
-          <span className="font-extrabold tracking-widest text-xs lg:text-sm text-white uppercase">
-            AyushCare · Hospital Control Desk
-          </span>
+        <div className="hidden xl:flex items-center px-3 py-1 bg-[#f0f9f8] border border-[#cfe3e1] rounded-full text-xs font-semibold text-teal-900 gap-1.5 shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-bold tracking-wide">Hospital Control Desk</span>
         </div>
 
         {/* Right Info, Time & Logout */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Ayushman Bharat Logo + Text */}
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-[#f4f8f7] border border-[#dce8e7] rounded-xl shrink-0">
+            <img
+              src="/ayushman-bharat-icon.png"
+              alt="Ayushman Bharat"
+              className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0"
+            />
+            <div className="flex flex-col leading-tight">
+              <strong className="text-[11.5px] font-bold text-slate-800 leading-none">Ayushman Bharat</strong>
+              <small className="text-[9.5px] font-semibold text-slate-500 mt-0.5 leading-none">Swasth Bharat, Samriddh Bharat</small>
+            </div>
+          </div>
+
           {/* Live Clock Widget */}
-          <LiveClock />
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[#033030] border border-[#0d6e6e] rounded-full text-xs text-slate-200">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
-            <span className="font-semibold text-white truncate max-w-[120px]">{user?.name || 'Administrator'}</span>
-            <span className="text-[#99f6e4]/60">|</span>
-            <span className="text-[#99f6e4]/80 text-[11px] hidden md:inline truncate max-w-[150px]">
+          <LiveClock variant="light" />
+
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#f8fbfa] border border-[#cfe3e1] rounded-xl text-xs text-slate-700">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+            <span className="font-bold text-slate-900 truncate max-w-[120px]">{user?.name || 'Administrator'}</span>
+            <span className="text-slate-300">|</span>
+            <span className="text-slate-500 text-[11px] hidden md:inline truncate max-w-[150px]">
               {user?.email || 'admin@hospital.gov.in'}
             </span>
           </div>
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs font-semibold text-white/90 hover:text-white bg-[#033434] sm:bg-transparent px-2.5 py-1.5 sm:p-0 rounded-lg sm:rounded-none sm:border-l sm:border-teal-700/60 sm:pl-3 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 text-xs font-bold text-red-700 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer shrink-0"
           >
-            <LogOut className="w-3.5 h-3.5 text-white/80" />
+            <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>

@@ -66,49 +66,70 @@ function MobileHeader({
     "Patient";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[68px] max-w-5xl items-center gap-3 px-4 py-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+    <header className="sticky top-0 z-40 border-b border-[#dce8e7] bg-white/98 shadow-[0_2px_12px_rgba(18,56,56,0.04)] backdrop-blur">
+      <div className="mx-auto flex min-h-[66px] max-w-5xl items-center justify-between gap-3 px-3.5 py-2.5">
+        {/* Left: Back Button + AyushCare Brand Identity */}
+        <div className="flex min-w-0 items-center gap-2.5">
           {showBack && (
             <button
               type="button"
               onClick={handleBack}
               aria-label="Go back"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <ArrowLeft size={20} />
             </button>
           )}
 
-          <div className="mobile-header-brand">
+          {/* AyushCare Logo */}
+          <div className="w-10 h-10 shrink-0 flex items-center justify-center">
             <img
-              src="https://www.uxdt.nic.in/wp-content/uploads/2025/09/ayushman-bharat-digital-mission-feature--ayushman-bharat-digital-mission.jpg"
-              alt="Ayushman Bharat Digital Mission"
+              src="/ayushCareLogo.png"
+              alt="AyushCare Logo"
+              className="w-10 h-10 object-contain"
             />
           </div>
 
+          {/* AyushCare Brand & Screen Title */}
           <div className="min-w-0">
-            {title && (
-              <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
-                {title}
-              </h1>
-            )}
+            <strong className="block text-base sm:text-lg font-extrabold tracking-tight leading-tight">
+              <span className="text-[#12383b]">Ayush</span>
+              <span className="text-[#438b34]">Care</span>
+            </strong>
+            <small className="block text-[11px] font-semibold text-slate-500 truncate leading-tight mt-0.5">
+              {title || subtitle || "Digital Patient Care Portal"}
+            </small>
+          </div>
 
-            {subtitle && (
-              <p className="truncate text-xs text-slate-500 sm:text-sm">
-                {subtitle}
-              </p>
-            )}
+          {/* Traditional Wisdom / Modern Care divider on tablet+ */}
+          <div className="hidden md:block w-px h-7 bg-slate-200 mx-1.5 shrink-0" aria-hidden="true" />
+          <div className="hidden md:flex flex-col text-[11px] font-semibold text-slate-500 leading-tight shrink-0">
+            <span>Traditional Wisdom</span>
+            <span>Modern Care</span>
           </div>
         </div>
 
+        {/* Right: Language Switcher, Ayushman Bharat Badge & Actions */}
         <div className="flex shrink-0 items-center gap-2">
           {rightContent}
 
           <LanguageSwitcher />
 
+          {/* Ayushman Bharat Logo + Text */}
+          <div className="flex items-center gap-1.5 pl-1 shrink-0">
+            <img
+              src="/ayushman-bharat-icon.png"
+              alt="Ayushman Bharat"
+              className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0"
+            />
+            <div className="hidden lg:flex flex-col leading-tight">
+              <strong className="text-[12px] font-bold text-slate-800 leading-none">Ayushman Bharat</strong>
+              <small className="text-[9.5px] font-semibold text-slate-500 mt-0.5 leading-none">Swasth Bharat</small>
+            </div>
+          </div>
+
           {(patient?.abha_number || patient?.abhaNumber || patient?.patientId) ? (
-            <span className="hidden rounded-full bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 sm:inline">
+            <span className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-800 border border-teal-200 sm:inline">
               ABHA {patient.abha_number || patient.abhaNumber || patient.patientId}
             </span>
           ) : null}
@@ -118,9 +139,9 @@ function MobileHeader({
               type="button"
               onClick={handleProfile}
               aria-label={`Open profile for ${patientName}`}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
-              <CircleUserRound size={21} />
+              <CircleUserRound size={20} />
             </button>
           )}
 
@@ -129,9 +150,9 @@ function MobileHeader({
               type="button"
               onClick={handleMenu}
               aria-label="Open menu"
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-100 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
-              <Menu size={21} />
+              <Menu size={20} />
             </button>
           )}
         </div>
