@@ -19,6 +19,7 @@ import useMobileStore, {
 } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import { useLanguage, tr } from "../../i18n/translations";
+import { getPortalProfile } from "../../services/portalService";
 
 function formatDate(value, isHindi) {
   if (!value) return null;
@@ -43,6 +44,7 @@ export default function ProfileScreen() {
   const {
     patient,
     session,
+    loadPortalData,
     updatePatientProfile,
     logout,
     setScreen,
@@ -56,6 +58,29 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    // Fetch fresh patient profile directly from DB on profile screen mount
+    getPortalProfile()
+      .then((fresh) => {
+        if (fresh) {
+          useMobileStore.setState((state) => {
+            const merged = { ...(state.patient || {}), ...fresh };
+            try { localStorage.setItem("ayushcare_patient", JSON.stringify(merged)); } catch {}
+            return {
+              patient: merged,
+              session: {
+                ...state.session,
+                patient: merged,
+              },
+            };
+          });
+        }
+      })
+      .catch(() => {
+        loadPortalData?.();
+      });
+  }, [loadPortalData]);
 
   const getInitialForm = () => {
     const rawDob = activePatient?.dateOfBirth || activePatient?.date_of_birth || activePatient?.dob;

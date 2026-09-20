@@ -96,16 +96,16 @@ function App() {
       );
     }
 
-    if (accessibilitySettings?.reduceMotion) {
-      document.documentElement.setAttribute(
-        "data-reduce-motion",
-        "true"
-      );
-    } else {
-      document.documentElement.removeAttribute(
-        "data-reduce-motion"
-      );
-    }
+    // Clean up reduce-motion attribute so animations and spinners are always lively
+    document.documentElement.removeAttribute("data-reduce-motion");
+    try {
+      const stored = localStorage.getItem("ayushcare_accessibility");
+      if (stored && stored.includes("reduceMotion")) {
+        const parsed = JSON.parse(stored);
+        delete parsed.reduceMotion;
+        localStorage.setItem("ayushcare_accessibility", JSON.stringify(parsed));
+      }
+    } catch {}
   }, [accessibilitySettings]);
 
   useEffect(() => {

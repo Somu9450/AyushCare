@@ -156,11 +156,16 @@ export default function M2_DocumentType() {
 
           <label className="mt-6 flex items-start gap-3 rounded-2xl border border-teal-100 bg-teal-50 p-4 text-left">
             <input type="checkbox" checked={Boolean(documentProcessingConsent)} onChange={(e) => setDocumentProcessingConsent(e.target.checked)} className="mt-1 h-5 w-5 accent-teal-700" />
-            <span className="text-sm leading-5 text-teal-950"><strong>I agree to secure document analysis.</strong><br/><span className="text-xs text-teal-800">AyushCare will read this image to extract useful medical information and save it to my account.</span></span>
+            <span className="text-sm leading-5 text-teal-950"><strong>I agree to secure document analysis.</strong><br/><span className="text-xs text-teal-800">AyushCare will read this document or image to extract useful medical information and save it to my account.</span></span>
           </label>
 
+          <div className="mt-4 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-100 border border-slate-200/80 px-3.5 py-2.5 text-xs text-slate-700">
+            <span className="font-semibold text-teal-800">Supported formats:</span>
+            <span className="font-medium text-slate-600">PDF, JPEG, PNG, WebP (up to 20MB)</span>
+          </div>
+
           {/* Privacy note */}
-          <section className="mt-6 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+          <section className="mt-4 rounded-3xl border border-blue-100 bg-blue-50 p-4">
             <div className="flex gap-3">
               <Info
                 size={19}

@@ -21,7 +21,7 @@ import useMobileStore, { SCREENS } from "../../store/useMobileStore";
 import MobileHeader from "../../components/mobile/MobileHeader";
 import OriginalDocModal from "../../components/mobile/OriginalDocModal";
 import EditItemModal from "../../components/mobile/EditItemModal";
-import useLanguage from "../../i18n/translations";
+import useLanguage, { tr } from "../../i18n/translations";
 
 const normalizeArray = (value) => {
   if (Array.isArray(value)) return value;
@@ -69,6 +69,11 @@ const StatusBadge = ({ status, isHindi }) => {
       label: tr('Processed', 'प्रसंस्कृत'),
       className: "bg-emerald-50 text-emerald-800 border-emerald-200",
     },
+    COMPLETED: {
+      icon: CheckCircle2,
+      label: tr('Processed', 'प्रसंस्कृत'),
+      className: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    },
     FAILED: {
       icon: AlertCircle,
       label: tr('Failed', 'विफल'),
@@ -76,7 +81,8 @@ const StatusBadge = ({ status, isHindi }) => {
     },
   };
 
-  const current = config[status] || config.PROCESSED;
+  const normalized = String(status || "PROCESSED").toUpperCase();
+  const current = config[normalized] || config.PROCESSED;
   const Icon = current.icon;
 
   return (
@@ -85,7 +91,7 @@ const StatusBadge = ({ status, isHindi }) => {
     >
       <Icon
         className={`w-3.5 h-3.5 ${
-          status === "PROCESSING" ? "animate-spin" : ""
+          normalized === "PROCESSING" ? "animate-spin" : ""
         }`}
       />
       {current.label}
@@ -163,22 +169,44 @@ export const DocumentDetailsScreen = () => {
     );
   }, [record]);
 
-  const extraction =
+  const rawExtraction =
     record?.extractedInformation ||
+    record?.extracted_data ||
     record?.extraction ||
     record?.extractedData ||
     {};
 
-  const medicines = normalizeArray(extraction?.medicines);
-  const investigations = normalizeArray(extraction?.investigations);
+  const extraction = useMemo(() => {
+    if (!rawExtraction) return {};
+    if (typeof rawExtraction === "string") {
+      try {
+        return JSON.parse(rawExtraction);
+      } catch {
+        return {};
+      }
+    }
+    return rawExtraction;
+  }, [rawExtraction]);
+
+  const medicines = normalizeArray(
+    extraction?.medicines || extraction?.medications
+  );
+  const investigations = normalizeArray(
+    extraction?.investigations || extraction?.lab_results || extraction?.tests
+  );
   const procedures = normalizeArray(extraction?.procedures);
-  const diagnosis = normalizeArray(extraction?.diagnosis);
-  const recordDetails = normalizeArray(extraction?.recordDetails);
+  const diagnosis = normalizeArray(
+    extraction?.diagnosis || extraction?.diagnoses || extraction?.conditions
+  );
+  const recordDetails = normalizeArray(
+    extraction?.recordDetails || extraction?.details
+  );
 
   const date =
     record?.displayDate ||
     record?.date ||
     record?.createdAt ||
+    record?.created_at ||
     (tr('Date unavailable', 'तारीख उपलब्ध नहीं'));
 
   const source =
@@ -187,19 +215,37 @@ export const DocumentDetailsScreen = () => {
     record?.hospital ||
     (tr('Healthcare facility', 'स्वास्थ्य केंद्र'));
 
-  const pages =
-    Array.isArray(record?.pages) && record.pages.length > 0
-      ? record.pages
-      : record?.download_url
-        ? [{
-            id: `${record.id || "record"}-page-1`,
-            fileName: record.fileName || record.title || "Medical document",
-            dataUrl: record.download_url,
-            image: record.download_url,
-            previewUrl: record.download_url,
-            imageUrl: record.download_url,
-          }]
-        : [];
+  const fileUrl =
+    record?.download_url ||
+    record?.document_url ||
+    record?.file_url ||
+    record?.url ||
+    (record?.file_path_hash && String(record.file_path_hash).startsWith("http") ? record.file_path_hash : null) ||
+    record?.dataUrl ||
+    record?.image ||
+    null;
+
+  const pages = useMemo(() => {
+    if (Array.isArray(record?.pages) && record.pages.length > 0) {
+      return record.pages;
+    }
+    if (fileUrl) {
+      const isPdf = Boolean(
+        record?.source_mime_type?.includes("pdf") ||
+        String(fileUrl).toLowerCase().includes(".pdf")
+      );
+      return [{
+        id: `${record.id || "record"}-page-1`,
+        fileName: record.fileName || record.title || record.file_name || "Medical document",
+        dataUrl: fileUrl,
+        image: fileUrl,
+        previewUrl: fileUrl,
+        imageUrl: fileUrl,
+        mimeType: record?.source_mime_type || (isPdf ? "application/pdf" : "image/jpeg"),
+      }];
+    }
+    return [];
+  }, [record, fileUrl]);
 
   const totalPages =
     pages.length > 0
@@ -220,12 +266,15 @@ export const DocumentDetailsScreen = () => {
         page?.image ||
         page?.dataUrl ||
         page?.imageSrc ||
+        fileUrl ||
         null,
       dataUrl:
         page?.dataUrl ||
         page?.image ||
         page?.imageSrc ||
+        fileUrl ||
         null,
+      mimeType: page?.mimeType || (String(fileUrl || '').toLowerCase().includes('.pdf') ? 'application/pdf' : 'image/jpeg'),
     }));
 
     setCapturedDocument({
@@ -233,11 +282,20 @@ export const DocumentDetailsScreen = () => {
       fileName:
         record.fileName ||
         record.title ||
+        record.file_name ||
         "Medical_Document",
       date,
       doctor: record.doctor || "",
       clinic: source,
+      summary: extraction?.summary || record?.summary || extraction?.ai_summary || null,
+      health_info: extraction?.health_info || record?.health_info || null,
+      extractedInformation: extraction,
+      document_url: fileUrl,
+      download_url: fileUrl,
+      url: fileUrl,
+      mimeType: record?.source_mime_type || (String(fileUrl || '').toLowerCase().includes('.pdf') ? 'application/pdf' : undefined),
       dataUrl:
+        fileUrl ||
         record.dataUrl ||
         record.download_url ||
         record.image ||
@@ -375,6 +433,40 @@ export const DocumentDetailsScreen = () => {
           </div>
         </section>
 
+        {/* AI Clinical Summary & Health Guidance */}
+        {(extraction?.summary || record?.summary || extraction?.health_info || record?.health_info) && (
+          <section className="p-5 rounded-3xl bg-gradient-to-br from-teal-900 via-teal-800 to-slate-900 text-white shadow-sm space-y-3">
+            <div className="flex items-center gap-2 border-b border-white/10 pb-2.5">
+              <ClipboardList className="w-4 h-4 text-teal-300 shrink-0" />
+              <h2 className="text-sm font-black text-white">
+                {tr('AI Clinical Summary & Health Review', 'एआई चिकित्सीय सारांश और समीक्षा')}
+              </h2>
+            </div>
+
+            {(extraction?.summary || record?.summary) && (
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-teal-300">
+                  {tr('Clinical Summary', 'नैदानिक सारांश')}
+                </p>
+                <p className="text-xs text-slate-100 leading-relaxed font-medium">
+                  {extraction?.summary || record?.summary}
+                </p>
+              </div>
+            )}
+
+            {(extraction?.health_info || record?.health_info) && (
+              <div className="pt-2 border-t border-white/10 space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                  {tr('Health Guidance & Precautions', 'स्वास्थ्य मार्गदर्शन और सावधानियां')}
+                </p>
+                <p className="text-xs text-emerald-100 leading-relaxed font-medium">
+                  {extraction?.health_info || record?.health_info}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Associated visit */}
         <Section
           title={
@@ -476,9 +568,10 @@ export const DocumentDetailsScreen = () => {
 
                         {(medicine?.dosage ||
                           medicine?.schedule ||
+                          medicine?.frequency ||
                           medicine?.instruction) && (
                           <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                            {[medicine?.dosage, medicine?.schedule]
+                            {[medicine?.dosage, medicine?.schedule || medicine?.frequency]
                               .filter(Boolean)
                               .join(" · ")}
                           </p>
@@ -559,6 +652,7 @@ export const DocumentDetailsScreen = () => {
                         <p className="text-sm font-black text-slate-900">
                           {test?.testName ||
                             test?.name ||
+                            test?.label ||
                             (tr('Investigation', 'जांच'))}
                         </p>
 
@@ -568,10 +662,10 @@ export const DocumentDetailsScreen = () => {
                             .join(" ")}
                         </p>
 
-                        {test?.referenceRange && (
+                        {(test?.referenceRange || test?.reference_range) && (
                           <p className="text-[11px] text-slate-500 mt-1">
                             {tr('Reference range', 'संदर्भ सीमा')}:{" "}
-                            {test.referenceRange}
+                            {test.referenceRange || test.reference_range}
                           </p>
                         )}
 
@@ -629,7 +723,7 @@ export const DocumentDetailsScreen = () => {
             <div className="space-y-2.5">
               {diagnosis.map((item, index) => {
                 const id = item?.id || `diagnosis-${index}`;
-                const label = item?.value || item?.name || "";
+                const label = typeof item === "string" ? item : (item?.name || item?.diagnosis || item?.label || item?.value || "");
 
                 return (
                   <div

@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
-import { getPortalPrivacySettings, updatePortalPrivacySettings, updatePortalProfile } from "../services/portalService.js";
+import { getPortalPrivacySettings, updatePortalPrivacySettings, updatePortalProfile, normalizePortalDocument } from "../services/portalService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -337,9 +337,12 @@ const getInitialAccessibility = () => {
       return defaults;
     }
 
+    const parsed = JSON.parse(stored);
+    delete parsed.reduceMotion;
     return {
       ...defaults,
-      ...JSON.parse(stored),
+      ...parsed,
+      reduceMotion: false,
     };
   } catch {
     return defaults;
@@ -555,8 +558,25 @@ export const useMobileStore = create((set, get) => ({
 
     const verifiedPatient = {
       ...clone(patient || {}),
+      id: patient?.id,
+      patientId: patient?.abha_number || patient?.abhaNumber || patient?.patientId || patient?.id,
+      abhaNumber: patient?.abha_number || patient?.abhaNumber,
+      abha_number: patient?.abha_number || patient?.abhaNumber,
+      abhaAddress: patient?.abha_address || patient?.abhaAddress,
+      abha_address: patient?.abha_address || patient?.abhaAddress,
+      name: patient?.full_name || patient?.name || "Patient",
+      full_name: patient?.full_name || patient?.name || "Patient",
+      gender: patient?.gender,
+      mobile: patient?.mobile_number || patient?.mobile || patient?.phone,
+      mobile_number: patient?.mobile_number || patient?.mobile || patient?.phone,
+      phone: patient?.mobile_number || patient?.mobile || patient?.phone,
+      dateOfBirth: patient?.date_of_birth || patient?.dateOfBirth || patient?.dob,
+      date_of_birth: patient?.date_of_birth || patient?.dateOfBirth || patient?.dob,
+      dob: patient?.date_of_birth || patient?.dateOfBirth || patient?.dob,
+      aadhaarNumber: patient?.aadhaar_number || patient?.aadhaarNumber,
+      aadhaar_number: patient?.aadhaar_number || patient?.aadhaarNumber,
+      address: patient?.address,
       authMethod: resolvedAuthType,
-
       verifiedAt: patient?.verifiedAt || new Date().toISOString(),
     };
 
@@ -1970,19 +1990,46 @@ export const useMobileStore = create((set, get) => ({
   loadPortalData: async () => {
     try {
       const [dashboard, visits, documents] = await Promise.all([
-        getPortalDashboard().catch(() => null),
-        getPortalVisits().catch(() => []),
-        getPortalDocuments().catch(() => []),
+        getPortalDashboard().catch((err) => { console.warn("[Portal Data] Dashboard error:", err?.message || err); return null; }),
+        getPortalVisits().catch((err) => { console.warn("[Portal Data] Visits error:", err?.message || err); return []; }),
+        getPortalDocuments().catch((err) => { console.warn("[Portal Data] Documents error:", err?.message || err); return []; }),
       ]);
       const normalizedVisits = Array.isArray(visits) ? visits : [];
       const normalizedDocuments = Array.isArray(documents)
         ? documents.map(normalizePortalDocument)
         : [];
+
+      let mergedPatient = null;
+      if (dashboard?.patient) {
+        const p = dashboard.patient;
+        mergedPatient = {
+          ...(get().patient || {}),
+          ...p,
+          name: p.full_name || p.name || "Patient",
+          full_name: p.full_name || p.name || "Patient",
+          patientId: p.abha_number || p.abhaNumber || p.patientId || p.id,
+          abhaNumber: p.abha_number || p.abhaNumber,
+          abha_number: p.abha_number || p.abhaNumber,
+          abhaAddress: p.abha_address || p.abhaAddress,
+          abha_address: p.abha_address || p.abhaAddress,
+          aadhaarNumber: p.aadhaar_number || p.aadhaarNumber,
+          aadhaar_number: p.aadhaar_number || p.aadhaarNumber,
+          mobile: p.mobile_number || p.mobile || p.phone,
+          mobile_number: p.mobile_number || p.mobile || p.phone,
+          dateOfBirth: p.date_of_birth || p.dateOfBirth || p.dob,
+          date_of_birth: p.date_of_birth || p.dateOfBirth || p.dob,
+          dob: p.date_of_birth || p.dateOfBirth || p.dob,
+        };
+        try {
+          localStorage.setItem("ayushcare_patient", JSON.stringify(mergedPatient));
+        } catch {}
+      }
+
       set((state) => ({
-        patient: dashboard?.patient || state.patient,
+        patient: mergedPatient || dashboard?.patient || state.patient,
         session: {
           ...state.session,
-          patient: dashboard?.patient || state.session?.patient,
+          patient: mergedPatient || dashboard?.patient || state.session?.patient,
         },
         healthSummary: dashboard?.ai_summary || state.healthSummary,
         vitals: dashboard?.vitals || state.vitals,

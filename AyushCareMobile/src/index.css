@@ -147,13 +147,22 @@ html[data-high-contrast="true"] button:focus-visible,
   outline-offset: 2px;
 }
 
-/* Reduced Motion Mode */
-html[data-reduce-motion="true"] *,
-html[data-reduce-motion="true"] *::before,
-html[data-reduce-motion="true"] *::after,
-.theme-reduce-motion *,
-.theme-reduce-motion *::before,
-.theme-reduce-motion *::after {
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+/* Reduced Motion Mode: never disables functional spinners or progress bars */
+html[data-reduce-motion="true"] *:not(.animate-spin):not([class*="animate-spin"]):not([class*="transition-all"]):not([style*="width"]),
+.theme-reduce-motion *:not(.animate-spin):not([class*="animate-spin"]):not([class*="transition-all"]):not([style*="width"]) {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;

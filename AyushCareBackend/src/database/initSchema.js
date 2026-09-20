@@ -172,6 +172,7 @@ export const initializeSchema = async () => {
         await addColumn(client, 'uploaded_documents', 'processing_error', 'TEXT');
         await addColumn(client, 'uploaded_documents', 'source_mime_type', 'VARCHAR(100)');
         await addColumn(client, 'uploaded_documents', 'total_pages', 'INT');
+        await addColumn(client, 'uploaded_documents', 'document_url', 'TEXT');
         await addColumn(client, 'uploaded_documents', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
         await addColumn(client, 'clinical_summaries', 'medications', "JSONB DEFAULT '[]'");
         await addColumn(client, 'clinical_summaries', 'ai_payload', "JSONB DEFAULT '{}'");

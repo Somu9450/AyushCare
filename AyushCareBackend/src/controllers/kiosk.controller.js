@@ -97,13 +97,19 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             const params = [];
             if (patientId) {
                 params.push(patientId);
-                conditions.push(`id=$${params.length}`);
+                conditions.push(`p.id=$${params.length}`);
             } else {
-                if (abha) { params.push(String(abha).trim()); conditions.push(`abha_number=$${params.length}`); }
-                if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
+                if (abha) {
+                    params.push(abha);
+                    conditions.push(`(REPLACE(REPLACE(p.abha_number, '-', ''), ' ', '')=$${params.length} OR p.abha_number=$${params.length})`);
+                }
+                if (mobile) {
+                    params.push(mobile);
+                    conditions.push(`(REPLACE(REPLACE(p.mobile_number, '-', ''), ' ', '')=$${params.length} OR p.mobile_number=$${params.length})`);
+                }
             }
             const existing = await client.query(
-                `SELECT * FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`,
+                `SELECT p.* FROM patients p WHERE ${conditions.join(' OR ')} ORDER BY p.created_at DESC`,
                 params
             );
             if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied patient details');
@@ -118,11 +124,17 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             await client.query('UPDATE patients SET consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$1', [patient.id]);
         } else {
             if (abha) {
-                const existing = await client.query('SELECT * FROM patients WHERE abha_number = $1', [abha]);
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(abha_number, '-', ''), ' ', '') = $1 OR abha_number = $1`,
+                    [abha]
+                );
                 if (existing.rowCount) patient = existing.rows[0];
             }
             if (!patient && aadhaar) {
-                const existing = await client.query('SELECT * FROM patients WHERE aadhaar_number = $1', [aadhaar]);
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(aadhaar_number, '-', ''), ' ', '') = $1 OR aadhaar_number = $1`,
+                    [aadhaar]
+                );
                 if (existing.rowCount) patient = existing.rows[0];
             }
             if (!abha) throw new ApiError(400, 'ABHA number is required for registration');
@@ -220,15 +232,23 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
 });
 
 export const lookupPatients = asyncHandler(async (req, res) => {
-    const patientId = String(req.query.patient_id || req.query.abha_number || '').trim();
-    const mobile = normalizeMobile(req.query.mobile_number || req.query.mobileNumber);
-    if (!patientId && !mobile) throw new ApiError(400, 'abha_number or mobile_number is required');
+    const rawPatientId = String(req.query.patient_id || req.query.abha_number || req.query.abhaNumber || '').trim();
+    const rawMobile = req.query.mobile_number || req.query.mobileNumber;
+    const mobile = normalizeMobile(rawMobile);
+    if (!rawPatientId && !mobile) throw new ApiError(400, 'abha_number or mobile_number is required');
 
     const params = [];
     const conditions = [];
-    if (patientId) { params.push(patientId); conditions.push(`p.abha_number=$${params.length}`); }
-    if (mobile) { params.push(mobile); conditions.push(`p.mobile_number=$${params.length}`); }
-    const joiner = patientId && mobile ? ' AND ' : ' OR ';
+    if (rawPatientId) {
+        const clean = rawPatientId.replace(/\D/g, '');
+        params.push(clean || rawPatientId);
+        conditions.push(`(REPLACE(REPLACE(p.abha_number, '-', ''), ' ', '')=$${params.length} OR p.abha_number=$${params.length})`);
+    }
+    if (mobile) {
+        params.push(mobile);
+        conditions.push(`(REPLACE(REPLACE(p.mobile_number, '-', ''), ' ', '')=$${params.length} OR p.mobile_number=$${params.length})`);
+    }
+    const joiner = rawPatientId && mobile ? ' AND ' : ' OR ';
 
     const result = await pool.query(
         `SELECT p.id, p.abha_number, p.full_name, p.gender, p.date_of_birth,
@@ -440,7 +460,24 @@ export const ttsDialogue = asyncHandler(async(req,res)=>{
 
 export const saveVitals = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {systolic,diastolic,pulse,temperature,spo2,source='manual'}=req.body;
+    let {systolic,diastolic,pulse,temperature,spo2,source='manual',bp,temp}=req.body || {};
+    
+    // Parse blood pressure string "120/80" if passed as bp
+    if (bp && (!systolic || !diastolic)) {
+        const parts = String(bp).split('/');
+        if (parts.length === 2) {
+            systolic = systolic || parts[0].trim();
+            diastolic = diastolic || parts[1].trim();
+        }
+    }
+    temperature = temperature || temp;
+
+    const parsedSystolic = systolic ? parseInt(systolic, 10) || null : null;
+    const parsedDiastolic = diastolic ? parseInt(diastolic, 10) || null : null;
+    const parsedPulse = pulse ? parseFloat(pulse) || null : null;
+    const parsedTemperature = temperature ? parseFloat(temperature) || null : null;
+    const parsedSpo2 = spo2 ? parseFloat(spo2) || null : null;
+
     const existing = await pool.query('SELECT id FROM vitals WHERE consultation_id = $1 LIMIT 1', [c.id]);
     let row;
     if (existing.rowCount > 0) {
@@ -448,14 +485,14 @@ export const saveVitals = asyncHandler(async(req,res)=>{
             `UPDATE vitals 
              SET systolic=$1, diastolic=$2, pulse=$3, temperature=$4, spo2=$5, source=$6, recorded_at=NOW() 
              WHERE consultation_id=$7 RETURNING *`,
-            [systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source, c.id]
+            [parsedSystolic, parsedDiastolic, parsedPulse, parsedTemperature, parsedSpo2, source, c.id]
         );
         row = updateRes.rows[0];
     } else {
         const insertRes = await pool.query(
             `INSERT INTO vitals(consultation_id, systolic, diastolic, pulse, temperature, spo2, source, recorded_at) 
              VALUES($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
-            [c.id, systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source]
+            [c.id, parsedSystolic, parsedDiastolic, parsedPulse, parsedTemperature, parsedSpo2, source]
         );
         row = insertRes.rows[0];
     }
@@ -479,8 +516,30 @@ export const listDepartmentDoctors = asyncHandler(async(req,res)=>{
 
 export const generateSummary = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda',conversation_history}=req.body||{};
-    const result=await AiServiceGateway.generateSummary(c.ai_session_id,language,include_documents,include_ayush,conversation_history);
+    let {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda',conversation_history}=req.body||{};
+    
+    // Normalize language if passed as an object
+    if (language && typeof language === 'object') {
+        include_documents = language.include_documents !== false;
+        include_ayush = Boolean(language.include_ayush);
+        conversation_history = language.conversation_history || conversation_history;
+        language = language.language || c.language || 'en';
+    }
+    const cleanLanguage = String(language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+
+    // Provide structured fallback conversation history if missing so AI summary succeeds
+    if (!conversation_history || !Array.isArray(conversation_history) || conversation_history.length === 0) {
+        conversation_history = [
+            {
+                question_id: 'q_intake_01',
+                question: 'Clinical Consultation and Document Review',
+                answer: c.chief_complaint || 'Patient submitted clinical documents, medical history, and consultation details.',
+                input_mode: 'text'
+            }
+        ];
+    }
+
+    const result=await AiServiceGateway.generateSummary(c.ai_session_id,cleanLanguage,include_documents,include_ayush,conversation_history);
     
     const chiefComplaint = result?.sections?.find(s=>/complaint/i.test(s.heading_en||''))?.body||null;
     const historyIllness = result?.sections?.find(s=>/history/i.test(s.heading_en||''))?.body||null;

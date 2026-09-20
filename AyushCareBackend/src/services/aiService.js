@@ -103,8 +103,19 @@ const AiServiceGateway = {
     },
     tts: (sessionId, text, language = 'en') => json(`/api/v1/sessions/${sessionId}/conversation/tts`, { text, language }),
     uploadDocument: async (sessionId, buffer, mimeType, fileName, documentType = 'medical_document') => {
+        let safeName = String(fileName || 'document.jpg');
+        const lowerMime = String(mimeType || '').toLowerCase();
+        if (lowerMime.includes('pdf') && !safeName.toLowerCase().endsWith('.pdf')) {
+            safeName += '.pdf';
+        } else if (lowerMime.includes('png') && !safeName.toLowerCase().endsWith('.png')) {
+            safeName += '.png';
+        } else if (lowerMime.includes('webp') && !safeName.toLowerCase().endsWith('.webp')) {
+            safeName += '.webp';
+        } else if ((lowerMime.includes('jpeg') || lowerMime.includes('jpg')) && !safeName.toLowerCase().match(/\.jpe?g$/)) {
+            safeName += '.jpg';
+        }
         const form = new FormData();
-        form.append('file', new Blob([buffer], { type: mimeType }), fileName);
+        form.append('file', new Blob([buffer], { type: mimeType }), safeName);
         form.append('document_type', documentType);
         return request(`/api/v1/sessions/${sessionId}/documents/upload`, {
             method: 'POST',
@@ -115,7 +126,13 @@ const AiServiceGateway = {
     listDocuments: (sessionId) => request(`/api/v1/sessions/${sessionId}/documents`),
     verifyDocumentEntity: (sessionId, documentId, entityId, status = 'verified') => request(`/api/v1/sessions/${sessionId}/documents/${documentId}/entities/${entityId}/verify?status=${encodeURIComponent(status)}`, { method: 'PUT' }),
     generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false, conversationHistory = null) => {
-        const payload = { language, include_documents: includeDocuments, include_ayush: includeAyush };
+        let langStr = 'en';
+        if (typeof language === 'string') {
+            langStr = language.toLowerCase().includes('hi') ? 'hi' : 'en';
+        } else if (language && typeof language === 'object') {
+            langStr = String(language.language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+        }
+        const payload = { language: langStr, include_documents: includeDocuments !== false, include_ayush: Boolean(includeAyush) };
         if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
             payload.conversation_history = conversationHistory;
         }

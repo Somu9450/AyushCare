@@ -59,11 +59,21 @@ class OCRService:
         self.bhashini_client = bhashini_client
         self._azure = AzureDocumentIntelligence(settings)
         self._groq_client: Any = None
+        if self._provider == "azure":
+            logger.info("ocr_provider_initialized", provider="azure", configured=self._azure.is_configured)
+        elif self._provider == "bhashini":
+            logger.info("ocr_provider_initialized", provider="bhashini", configured=bool(self.bhashini_client))
+        elif self._provider == "tesseract":
+            logger.info("ocr_provider_initialized", provider="tesseract")
+
         if settings.groq_api_key:
             try:
                 from groq import AsyncGroq
                 self._groq_client = AsyncGroq(api_key=settings.groq_api_key)
-                logger.info("ocr_provider_initialized", provider="groq_vision")
+                if self._provider == "groq_vision":
+                    logger.info("ocr_provider_initialized", provider="groq_vision")
+                else:
+                    logger.debug("ocr_groq_fallback_available")
             except Exception as e:
                 logger.warning("ocr_groq_init_failed", error=str(e))
 
@@ -162,12 +172,14 @@ class OCRService:
     ) -> dict:
         if not content_type:
             lower = filename.lower()
-            if lower.endswith(".pdf"):
+            if lower.endswith(".pdf") or image_bytes.startswith(b"%PDF"):
                 content_type = "application/pdf"
-            elif lower.endswith(".png"):
+            elif lower.endswith(".png") or image_bytes.startswith(b"\x89PNG"):
                 content_type = "image/png"
-            elif lower.endswith((".jpg", ".jpeg")):
+            elif lower.endswith((".jpg", ".jpeg")) or image_bytes.startswith(b"\xff\xd8\xff"):
                 content_type = "image/jpeg"
+            elif lower.endswith(".webp") or (image_bytes.startswith(b"RIFF") and b"WEBP" in image_bytes[:16]):
+                content_type = "image/webp"
             elif lower.endswith(".tif") or lower.endswith(".tiff"):
                 content_type = "image/tiff"
             else:
