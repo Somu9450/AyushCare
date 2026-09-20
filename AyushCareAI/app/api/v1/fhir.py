@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from AyushCareAILatest_UPDATED.app.dependencies import get_fhir_mapper
-from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
-from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
-from AyushCareAILatest_UPDATED.app.models.document import ExtractedEntity
-from AyushCareAILatest_UPDATED.app.models.fhir import FHIRPreviewResponse
-from AyushCareAILatest_UPDATED.app.models.summary import PhysicianSummaryResponse
-from AyushCareAILatest_UPDATED.app.services.fhir_mapper import FHIRMapper
+from app.dependencies import get_fhir_mapper
+from app.infrastructure import redis_client
+from app.infrastructure.audit_log import AuditEventType, log_audit_event
+from app.models.document import ExtractedEntity
+from app.models.fhir import FHIRPreviewResponse
+from app.models.summary import PhysicianSummaryResponse
+from app.services.fhir_mapper import FHIRMapper
 
 router = APIRouter(prefix="/sessions/{session_id}/fhir", tags=["FHIR"])
 

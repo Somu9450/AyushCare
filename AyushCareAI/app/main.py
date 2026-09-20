@@ -12,12 +12,12 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from AyushCareAILatest_UPDATED.app.api.middleware import AuditMiddleware, RateLimitMiddleware
-from AyushCareAILatest_UPDATED.app.api.v1.router import api_v1_router
-from AyushCareAILatest_UPDATED.app.config import get_settings
-from AyushCareAILatest_UPDATED.app.infrastructure.database import init_db, close_db
-from AyushCareAILatest_UPDATED.app.infrastructure.redis_client import init_redis, close_redis
-from AyushCareAILatest_UPDATED.app.infrastructure.storage import init_storage
+from app.api.middleware import AuditMiddleware, RateLimitMiddleware
+from app.api.v1.router import api_v1_router
+from app.config import get_settings
+from app.infrastructure.database import init_db, close_db
+from app.infrastructure.redis_client import init_redis, close_redis
+from app.infrastructure.storage import init_storage
 
 logger = structlog.get_logger(__name__)
 
@@ -82,7 +82,7 @@ def create_app() -> FastAPI:
 
     @app.api_route("/health", methods=["GET", "HEAD"])
     async def root_health():
-        from AyushCareAILatest_UPDATED.app.api.v1.health import health_check
+        from app.api.v1.health import health_check
         return await health_check()
 
     @app.api_route("/", methods=["GET", "HEAD"])

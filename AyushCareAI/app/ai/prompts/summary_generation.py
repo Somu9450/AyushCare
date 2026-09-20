@@ -6,7 +6,7 @@ from the collected history and document data.
 
 from __future__ import annotations
 
-from AyushCareAILatest_UPDATED.app.domain.clinical_protocol import SECTION_LABELS, ClinicalSection
+from app.domain.clinical_protocol import SECTION_LABELS, ClinicalSection
 
 
 SUMMARY_SYSTEM_PROMPT = """\

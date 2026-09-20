@@ -7,11 +7,11 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from AyushCareAILatest_UPDATED.app.config import Settings, get_settings
-from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
-from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
-from AyushCareAILatest_UPDATED.app.infrastructure.storage import delete_session_files
-from AyushCareAILatest_UPDATED.app.models.session import (
+from app.config import Settings, get_settings
+from app.infrastructure import redis_client
+from app.infrastructure.audit_log import AuditEventType, log_audit_event
+from app.infrastructure.storage import delete_session_files
+from app.models.session import (
     CreateSessionRequest,
     SessionResponse,
     SessionStatus,

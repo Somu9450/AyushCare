@@ -17,23 +17,23 @@ from typing import Any, Optional
 
 import structlog
 
-from AyushCareAILatest_UPDATED.app.ai.asr_service import ASRService
-from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
-from AyushCareAILatest_UPDATED.app.ai.tts_service import TTSService
-from AyushCareAILatest_UPDATED.app.ai.prompts.history_taking import (
+from app.ai.asr_service import ASRService
+from app.ai.llm_service import LLMService
+from app.ai.tts_service import TTSService
+from app.ai.prompts.history_taking import (
     build_system_prompt,
     build_next_question_prompt,
     build_emergency_screen_prompt,
 )
-from AyushCareAILatest_UPDATED.app.domain.clinical_protocol import (
+from app.domain.clinical_protocol import (
     CORE_INTAKE_SECTIONS,
     ClinicalSection,
     STANDARD_SECTIONS,
     AYUSH_EXTENSION_SECTIONS,
     SECTION_PROTOCOLS,
 )
-from AyushCareAILatest_UPDATED.app.domain.red_flags import evaluate_all_rules
-from AyushCareAILatest_UPDATED.app.models.conversation import (
+from app.domain.red_flags import evaluate_all_rules
+from app.models.conversation import (
     AIQuestion,
     Choice,
     ConversationPhase,
@@ -389,7 +389,7 @@ class ConversationEngine:
         Returns:
             dict with 'audio_base64', 'encoding'.
         """
-        from AyushCareAILatest_UPDATED.app.ai.tts_service import TTSError
+        from app.ai.tts_service import TTSError
         try:
             return await self._tts.synthesize(text, language)
         except TTSError:

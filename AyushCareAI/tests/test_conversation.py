@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 import pytest_asyncio
 
-from AyushCareAILatest_UPDATED.app.models.conversation import ConversationPhase, ConversationState
-from AyushCareAILatest_UPDATED.app.services.conversation_engine import ConversationEngine
+from app.models.conversation import ConversationPhase, ConversationState
+from app.services.conversation_engine import ConversationEngine
 
 
 @pytest.mark.asyncio

@@ -18,21 +18,21 @@ from typing import Optional
 
 import structlog
 
-from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
-from AyushCareAILatest_UPDATED.app.ai.azure_health_service import AzureHealthNLP
-from AyushCareAILatest_UPDATED.app.ai.ocr_service import OCRService
-from AyushCareAILatest_UPDATED.app.ai.prompts.entity_extraction import (
+from app.ai.llm_service import LLMService
+from app.ai.azure_health_service import AzureHealthNLP
+from app.ai.ocr_service import OCRService
+from app.ai.prompts.entity_extraction import (
     ABNORMAL_VALUE_ANALYSIS_SYSTEM,
     ENTITY_EXTRACTION_SYSTEM,
     build_abnormal_analysis_prompt,
     build_entity_extraction_prompt,
 )
-from AyushCareAILatest_UPDATED.app.domain.medical_reference import (
+from app.domain.medical_reference import (
     check_drug_interactions,
     classify_lab_value,
     find_lab_range,
 )
-from AyushCareAILatest_UPDATED.app.models.document import (
+from app.models.document import (
     AbnormalFlag,
     DocumentType,
     DocumentUploadResponse,

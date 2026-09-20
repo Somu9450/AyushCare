@@ -11,8 +11,8 @@ from typing import Any, Optional
 
 import structlog
 
-from AyushCareAILatest_UPDATED.app.config import Settings
-from AyushCareAILatest_UPDATED.app.domain.languages import get_bhashini_code
+from app.config import Settings
+from app.domain.languages import get_bhashini_code
 
 logger = structlog.get_logger(__name__)
 

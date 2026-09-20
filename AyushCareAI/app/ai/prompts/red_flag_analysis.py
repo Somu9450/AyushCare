@@ -6,7 +6,7 @@ clinical patterns that deterministic rules miss.
 
 from __future__ import annotations
 
-from AyushCareAILatest_UPDATED.app.domain.red_flags import LLM_RED_FLAG_CATEGORIES
+from app.domain.red_flags import LLM_RED_FLAG_CATEGORIES
 
 
 RED_FLAG_ANALYSIS_SYSTEM = """\

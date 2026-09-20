@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from AyushCareAILatest_UPDATED.app.dependencies import get_consent_manager
-from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
-from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
-from AyushCareAILatest_UPDATED.app.models.consent import (
+from app.dependencies import get_consent_manager
+from app.infrastructure import redis_client
+from app.infrastructure.audit_log import AuditEventType, log_audit_event
+from app.models.consent import (
     ConsentReceipt,
     ConsentResponse,
     ConsentScopeId,
     ConsentSelectionsRequest,
     ConsentWithdrawRequest,
 )
-from AyushCareAILatest_UPDATED.app.services.consent_manager import ConsentManager
+from app.services.consent_manager import ConsentManager
 
 router = APIRouter(prefix="/sessions/{session_id}/consent", tags=["Consent"])
 
