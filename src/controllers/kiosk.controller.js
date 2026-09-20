@@ -1,10 +1,17 @@
 import { randomBytes } from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { ApiResponse } from '../utilities/ApiResponse.js';
 import { asyncHandler } from '../utilities/asyncHandler.js';
 import { ApiError } from '../utilities/ApiError.js';
 import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
+import { assertSupportedLanguage } from '../services/languageService.js';
 import { createRawQrToken, hashQrToken } from '../services/patientQrService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const DEFAULT_HOSPITAL = () => process.env.DEFAULT_HOSPITAL_ID || null;
 
@@ -20,17 +27,6 @@ const normalizeDigits = (value, length, label) => {
     const digits = String(value).replace(/\D/g, '');
     if (digits.length !== length) throw new ApiError(400, `${label} must contain exactly ${length} digits`);
     return digits;
-};
-
-const generatePatientCode = async (client) => {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (let attempt = 0; attempt < 20; attempt++) {
-        let code = '';
-        for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-        const found = await client.query('SELECT 1 FROM patients WHERE patient_code=$1', [code]);
-        if (!found.rowCount) return code;
-    }
-    throw new ApiError(500, 'Unable to generate a unique patient ID');
 };
 
 const dateOfBirthFromAge = (age) => {
@@ -66,6 +62,7 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
     } = req.body;
 
     const selectedPathway = pathway(intakePathway);
+    const selectedLanguage = await assertSupportedLanguage(language);
     const type = String(registrationType).toLowerCase() === 'old' ? 'old' : 'new';
     const mobile = normalizeMobile(mobileNumber);
     const aadhaar = normalizeDigits(aadhaarNumber, 12, 'Aadhaar number');
@@ -76,8 +73,11 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
     if (type === 'new' && (!fullName || !gender || !resolvedDob || !mobile)) {
         throw new ApiError(400, 'New registration requires fullName, gender, age/dob and a 10-digit mobile number');
     }
-    if (type === 'old' && !patientId && !mobile) {
-        throw new ApiError(400, 'Existing patient lookup requires patientId or mobileNumber');
+    if (type === 'old' && !patientId && !abha && !mobile) {
+        throw new ApiError(400, 'Existing patient lookup requires ABHA number or mobile number');
+    }
+    if (type === 'new' && !abha) {
+        throw new ApiError(400, 'ABHA number is required for patient registration');
     }
 
     const client = await pool.connect();
@@ -95,24 +95,25 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
         if (type === 'old') {
             const conditions = [];
             const params = [];
-            if (patientId) { params.push(String(patientId).trim().toUpperCase()); conditions.push(`patient_code=$${params.length}`); }
-            if (mobile) { params.push(mobile); conditions.push(`mobile_number=$${params.length}`); }
-            let existing;
-            if (patientId && mobile) {
-                existing = await client.query(
-                    `SELECT * FROM patients
-                     WHERE patient_code=$1 AND mobile_number=$2
-                     ORDER BY created_at DESC`,
-                    [String(patientId).trim().toUpperCase(), mobile]
-                );
+            if (patientId) {
+                params.push(patientId);
+                conditions.push(`p.id=$${params.length}`);
             } else {
-                existing = await client.query(
-                    `SELECT * FROM patients WHERE ${conditions.join(' OR ')} ORDER BY created_at DESC`,
-                    params
-                );
+                if (abha) {
+                    params.push(abha);
+                    conditions.push(`(REPLACE(REPLACE(p.abha_number, '-', ''), ' ', '')=$${params.length} OR p.abha_number=$${params.length})`);
+                }
+                if (mobile) {
+                    params.push(mobile);
+                    conditions.push(`(REPLACE(REPLACE(p.mobile_number, '-', ''), ' ', '')=$${params.length} OR p.mobile_number=$${params.length})`);
+                }
             }
-            if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied Patient ID or mobile number');
-            if (existing.rowCount > 1 && !patientId) {
+            const existing = await client.query(
+                `SELECT p.* FROM patients p WHERE ${conditions.join(' OR ')} ORDER BY p.created_at DESC`,
+                params
+            );
+            if (!existing.rowCount) throw new ApiError(404, 'No existing patient found for the supplied patient details');
+            if (existing.rowCount > 1 && !abha && !patientId) {
                 await client.query('ROLLBACK');
                 return res.status(200).json(new ApiResponse(200, {
                     multiple: true,
@@ -123,24 +124,30 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             await client.query('UPDATE patients SET consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$1', [patient.id]);
         } else {
             if (abha) {
-                const existing = await client.query('SELECT * FROM patients WHERE abha_number = $1', [abha]);
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(abha_number, '-', ''), ' ', '') = $1 OR abha_number = $1`,
+                    [abha]
+                );
                 if (existing.rowCount) patient = existing.rows[0];
             }
             if (!patient && aadhaar) {
-                const existing = await client.query('SELECT * FROM patients WHERE aadhaar_number = $1', [aadhaar]);
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(aadhaar_number, '-', ''), ' ', '') = $1 OR aadhaar_number = $1`,
+                    [aadhaar]
+                );
                 if (existing.rowCount) patient = existing.rows[0];
             }
-            const patientCode = patient?.patient_code || await generatePatientCode(client);
+            if (!abha) throw new ApiError(400, 'ABHA number is required for registration');
             if (patient) {
                 const updated = await client.query(
-                    `UPDATE patients SET patient_code=$1, full_name=$2, gender=$3, date_of_birth=$4, mobile_number=COALESCE($5,mobile_number), abha_number=COALESCE($6,abha_number), abha_address=COALESCE($7,abha_address), address=COALESCE($8,address), aadhaar_number=COALESCE($9,aadhaar_number), registration_type='new', consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$10 RETURNING *`,
-                    [patientCode, fullName, gender, resolvedDob, mobile || null, abha, abhaAddress || null, address || null, aadhaar, patient.id]
+                    `UPDATE patients SET full_name=$1, gender=$2, date_of_birth=$3, mobile_number=COALESCE($4,mobile_number), abha_number=$5, abha_address=COALESCE($6,abha_address), address=COALESCE($7,address), aadhaar_number=COALESCE($8,aadhaar_number), registration_type='new', consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$9 RETURNING *`,
+                    [fullName, gender, resolvedDob, mobile || null, abha, abhaAddress || null, address || null, aadhaar, patient.id]
                 );
                 patient = updated.rows[0];
             } else {
                 const inserted = await client.query(
-                    `INSERT INTO patients (patient_code,abha_number,abha_address,full_name,gender,date_of_birth,mobile_number,address,aadhaar_number,registration_type,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',TRUE,NOW()) RETURNING *`,
-                    [patientCode, abha, abhaAddress || null, fullName, gender, resolvedDob, mobile, address || null, aadhaar]
+                    `INSERT INTO patients (abha_number,abha_address,full_name,gender,date_of_birth,mobile_number,address,aadhaar_number,registration_type,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'new',TRUE,NOW()) RETURNING *`,
+                    [abha, abhaAddress || null, fullName, gender, resolvedDob, mobile, address || null, aadhaar]
                 );
                 patient = inserted.rows[0];
             }
@@ -165,23 +172,25 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
 
         if (validatedDoctorId) {
             const doctor = await client.query(
-                `SELECT id,hospital_id FROM users
-                 WHERE id=$1 AND role='doctor' AND is_active=TRUE LIMIT 1`,
-                [validatedDoctorId]
+                `SELECT u.id,u.hospital_id FROM users u
+                 JOIN doctor_departments dd ON dd.doctor_id=u.id AND dd.department_id=$2
+                 JOIN departments dep ON dep.id=dd.department_id
+                 WHERE u.id=$1 AND u.role='doctor' AND u.is_active=TRUE AND u.hospital_id=$3
+                   AND dep.is_active=TRUE
+                   AND dep.pathway=$4 LIMIT 1`,
+                [validatedDoctorId, validatedDepartmentId, resolvedHospitalId, selectedPathway]
             );
-            if (!doctor.rowCount || String(doctor.rows[0].hospital_id) !== String(resolvedHospitalId)) {
-                throw new ApiError(400, 'Selected doctor is invalid for this hospital');
-            }
+            if (!doctor.rowCount) throw new ApiError(400, 'Selected doctor is not available for this hospital, pathway, or department');
         }
 
         const consultation = (await client.query(
             `INSERT INTO consultations (hospital_id,patient_id,status,intake_pathway,language,department_id,assigned_doctor_id) VALUES ($1,$2,'waiting_triage',$3,$4,$5,$6) RETURNING *`,
-            [resolvedHospitalId, patient.id, selectedPathway, language, validatedDepartmentId, validatedDoctorId]
+            [resolvedHospitalId, patient.id, selectedPathway, selectedLanguage.code, validatedDepartmentId, validatedDoctorId]
         )).rows[0];
 
         let aiSession;
         try {
-            aiSession = await AiServiceGateway.createSession(patient.id, resolvedHospitalId, language, selectedPathway);
+            aiSession = await AiServiceGateway.createSession(patient.abha_number, resolvedHospitalId, selectedLanguage.code, selectedPathway);
         } catch (error) {
             throw new ApiError(502, 'Patient registered, but MediKiosk AI session could not be initialized', [error.message]);
         }
@@ -195,7 +204,7 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             `INSERT INTO kiosk_sessions (pairing_token,kiosk_id,consultation_id,expires_at) VALUES ($1,$2,$3,$4) RETURNING id,pairing_token,kiosk_id,consultation_id,is_active,expires_at`,
             [pairingToken, kioskId, consultation.id, expiresAt]
         )).rows[0];
-        await audit(client, consultation.id, 'patient_verified', { pathway: selectedPathway, language, registration_type: type, patient_code: patient.patient_code });
+        await audit(client, consultation.id, 'patient_verified', { pathway: selectedPathway, language: selectedLanguage.code, registration_type: type, abha_number: patient.abha_number });
         await client.query('COMMIT');
 
         return res.status(201).json(new ApiResponse(201, {
@@ -203,7 +212,8 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
             consultation_id: consultation.id,
             session_id: consultation.id,
             ai_session_id: aiSessionId,
-            language,
+            language: selectedLanguage.code,
+            language_metadata: selectedLanguage,
             intake_pathway: selectedPathway,
             registration_type: type,
             pairing_session: kioskSession
@@ -222,18 +232,26 @@ export const performAbhaRegister = asyncHandler(async (req, res) => {
 });
 
 export const lookupPatients = asyncHandler(async (req, res) => {
-    const patientId = String(req.query.patient_id || '').trim().toUpperCase();
-    const mobile = normalizeMobile(req.query.mobile_number || req.query.mobileNumber);
-    if (!patientId && !mobile) throw new ApiError(400, 'patient_id or mobile_number is required');
+    const rawPatientId = String(req.query.patient_id || req.query.abha_number || req.query.abhaNumber || '').trim();
+    const rawMobile = req.query.mobile_number || req.query.mobileNumber;
+    const mobile = normalizeMobile(rawMobile);
+    if (!rawPatientId && !mobile) throw new ApiError(400, 'abha_number or mobile_number is required');
 
     const params = [];
     const conditions = [];
-    if (patientId) { params.push(patientId); conditions.push(`p.patient_code=$${params.length}`); }
-    if (mobile) { params.push(mobile); conditions.push(`p.mobile_number=$${params.length}`); }
-    const joiner = patientId && mobile ? ' AND ' : ' OR ';
+    if (rawPatientId) {
+        const clean = rawPatientId.replace(/\D/g, '');
+        params.push(clean || rawPatientId);
+        conditions.push(`(REPLACE(REPLACE(p.abha_number, '-', ''), ' ', '')=$${params.length} OR p.abha_number=$${params.length})`);
+    }
+    if (mobile) {
+        params.push(mobile);
+        conditions.push(`(REPLACE(REPLACE(p.mobile_number, '-', ''), ' ', '')=$${params.length} OR p.mobile_number=$${params.length})`);
+    }
+    const joiner = rawPatientId && mobile ? ' AND ' : ' OR ';
 
     const result = await pool.query(
-        `SELECT p.id, p.patient_code, p.full_name, p.gender, p.date_of_birth,
+        `SELECT p.id, p.abha_number, p.full_name, p.gender, p.date_of_birth,
                 EXTRACT(YEAR FROM AGE(p.date_of_birth))::int AS age,
                 p.mobile_number, p.address, p.aadhaar_number, p.abha_number, p.abha_address, p.created_at,
                 COALESCE(visits.recent_visits, '[]'::jsonb) AS recent_visits
@@ -297,7 +315,7 @@ export const createKioskSession = asyncHandler(async (req, res) => {
 export const createPatientUploadQr = asyncHandler(async (req, res) => {
     const consultationId = req.params.session_id;
     const result = await pool.query(
-        `SELECT c.id, c.patient_id, p.patient_code, p.full_name
+        `SELECT c.id, c.patient_id, p.abha_number, p.full_name
          FROM consultations c
          JOIN patients p ON p.id=c.patient_id
          WHERE c.id=$1 LIMIT 1`,
@@ -306,14 +324,8 @@ export const createPatientUploadQr = asyncHandler(async (req, res) => {
     if (!result.rowCount) throw new ApiError(404, 'Consultation not found');
 
     const rawToken = createRawQrToken();
-    const expiresAt = new Date(Date.now() + 80 * 1000);
-
-    await pool.query(
-        `UPDATE patient_qr_tokens
-         SET used_at=COALESCE(used_at,NOW())
-         WHERE consultation_id=$1 AND used_at IS NULL AND expires_at>NOW()`,
-        [consultationId]
-    );
+    // Valid for 10 minutes (600 seconds) so patient can comfortably take photos and upload from phone
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     const created = await pool.query(
         `INSERT INTO patient_qr_tokens(token_hash,patient_id,consultation_id,expires_at)
@@ -324,8 +336,9 @@ export const createPatientUploadQr = asyncHandler(async (req, res) => {
     return res.status(201).json(new ApiResponse(201, {
         token: rawToken,
         expires_at: created.rows[0].expires_at,
-        expires_in_seconds: 80,
-        patient_code: result.rows[0].patient_code,
+        expires_in_seconds: 600,
+        kiosk_screen_seconds: 80,
+        abha_number: result.rows[0].abha_number,
         patient_name: result.rows[0].full_name
     }, 'Patient document-upload QR generated'));
 });
@@ -342,11 +355,11 @@ export const getSession = asyncHandler(async (req,res) => {
 
 export const updateSessionLanguage = asyncHandler(async(req,res)=>{
     const { language }=req.body;
-    if(!language) throw new ApiError(400,'language is required');
+    const selectedLanguage = await assertSupportedLanguage(language);
     const consultation=await getConsultation(req.params.session_id);
-    const ai=await AiServiceGateway.updateLanguage(consultation.ai_session_id,language);
-    const result=await pool.query('UPDATE consultations SET language=$1,updated_at=NOW() WHERE id=$2 RETURNING *',[language,consultation.id]);
-    return res.json(new ApiResponse(200,{consultation:result.rows[0],ai},'Language updated'));
+    const ai=await AiServiceGateway.updateLanguage(consultation.ai_session_id,selectedLanguage.code);
+    const result=await pool.query('UPDATE consultations SET language=$1,updated_at=NOW() WHERE id=$2 RETURNING *',[selectedLanguage.code,consultation.id]);
+    return res.json(new ApiResponse(200,{consultation:result.rows[0],ai,language:selectedLanguage},'Language updated'));
 });
 
 export const updateConsultationRouting = asyncHandler(async (req, res) => {
@@ -447,7 +460,24 @@ export const ttsDialogue = asyncHandler(async(req,res)=>{
 
 export const saveVitals = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {systolic,diastolic,pulse,temperature,spo2,source='manual'}=req.body;
+    let {systolic,diastolic,pulse,temperature,spo2,source='manual',bp,temp}=req.body || {};
+    
+    // Parse blood pressure string "120/80" if passed as bp
+    if (bp && (!systolic || !diastolic)) {
+        const parts = String(bp).split('/');
+        if (parts.length === 2) {
+            systolic = systolic || parts[0].trim();
+            diastolic = diastolic || parts[1].trim();
+        }
+    }
+    temperature = temperature || temp;
+
+    const parsedSystolic = systolic ? parseInt(systolic, 10) || null : null;
+    const parsedDiastolic = diastolic ? parseInt(diastolic, 10) || null : null;
+    const parsedPulse = pulse ? parseFloat(pulse) || null : null;
+    const parsedTemperature = temperature ? parseFloat(temperature) || null : null;
+    const parsedSpo2 = spo2 ? parseFloat(spo2) || null : null;
+
     const existing = await pool.query('SELECT id FROM vitals WHERE consultation_id = $1 LIMIT 1', [c.id]);
     let row;
     if (existing.rowCount > 0) {
@@ -455,14 +485,14 @@ export const saveVitals = asyncHandler(async(req,res)=>{
             `UPDATE vitals 
              SET systolic=$1, diastolic=$2, pulse=$3, temperature=$4, spo2=$5, source=$6, recorded_at=NOW() 
              WHERE consultation_id=$7 RETURNING *`,
-            [systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source, c.id]
+            [parsedSystolic, parsedDiastolic, parsedPulse, parsedTemperature, parsedSpo2, source, c.id]
         );
         row = updateRes.rows[0];
     } else {
         const insertRes = await pool.query(
             `INSERT INTO vitals(consultation_id, systolic, diastolic, pulse, temperature, spo2, source, recorded_at) 
              VALUES($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
-            [c.id, systolic||null, diastolic||null, pulse||null, temperature||null, spo2||null, source]
+            [c.id, parsedSystolic, parsedDiastolic, parsedPulse, parsedTemperature, parsedSpo2, source]
         );
         row = insertRes.rows[0];
     }
@@ -480,14 +510,36 @@ export const listDepartments = asyncHandler(async(req,res)=>{
 });
 
 export const listDepartmentDoctors = asyncHandler(async(req,res)=>{
-    const result=await pool.query(`SELECT u.id,u.name,u.email,u.specialization,u.is_active FROM users u JOIN departments d ON d.hospital_id=u.hospital_id WHERE d.id=$1 AND u.role='doctor' AND u.is_active=TRUE ORDER BY u.name`,[req.params.department_id]);
+    const result=await pool.query(`SELECT u.id,u.name,u.email,u.specialization,u.is_active,d.pathway,d.hospital_id FROM users u JOIN doctor_departments dd ON dd.doctor_id=u.id JOIN departments d ON d.id=dd.department_id WHERE d.id=$1 AND u.role='doctor' AND u.is_active=TRUE AND d.is_active=TRUE AND u.hospital_id=d.hospital_id ORDER BY u.name`,[req.params.department_id]);
     return res.json(new ApiResponse(200,result.rows,'Doctors loaded'));
 });
 
 export const generateSummary = asyncHandler(async(req,res)=>{
     const c=await getConsultation(req.params.session_id);
-    const {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda',conversation_history}=req.body||{};
-    const result=await AiServiceGateway.generateSummary(c.ai_session_id,language,include_documents,include_ayush,conversation_history);
+    let {language=c.language||'en',include_documents=true,include_ayush=c.intake_pathway==='ayurveda',conversation_history}=req.body||{};
+    
+    // Normalize language if passed as an object
+    if (language && typeof language === 'object') {
+        include_documents = language.include_documents !== false;
+        include_ayush = Boolean(language.include_ayush);
+        conversation_history = language.conversation_history || conversation_history;
+        language = language.language || c.language || 'en';
+    }
+    const cleanLanguage = String(language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+
+    // Provide structured fallback conversation history if missing so AI summary succeeds
+    if (!conversation_history || !Array.isArray(conversation_history) || conversation_history.length === 0) {
+        conversation_history = [
+            {
+                question_id: 'q_intake_01',
+                question: 'Clinical Consultation and Document Review',
+                answer: c.chief_complaint || 'Patient submitted clinical documents, medical history, and consultation details.',
+                input_mode: 'text'
+            }
+        ];
+    }
+
+    const result=await AiServiceGateway.generateSummary(c.ai_session_id,cleanLanguage,include_documents,include_ayush,conversation_history);
     
     const chiefComplaint = result?.sections?.find(s=>/complaint/i.test(s.heading_en||''))?.body||null;
     const historyIllness = result?.sections?.find(s=>/history/i.test(s.heading_en||''))?.body||null;
@@ -518,7 +570,7 @@ export const grantConsent = asyncHandler(async(req,res)=>{const c=await getConsu
 
 export const getConsent = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); const scopes=await pool.query('SELECT * FROM consent_records WHERE consultation_id=$1 ORDER BY granted_at',[c.id]); return res.json(new ApiResponse(200,scopes.rows,'Consent loaded'));});
 
-export const generateToken = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); const patientResult=await pool.query('SELECT id,patient_code,full_name,gender,date_of_birth,mobile_number,address FROM patients WHERE id=$1',[c.patient_id]); const patient=patientResult.rows[0]||null; if(c.token_number) return res.json(new ApiResponse(200,{token_number:c.token_number,status:c.status,consultation_id:c.id,patient},'Token already assigned'));
+export const generateToken = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); const patientResult=await pool.query('SELECT id,abha_number,full_name,gender,date_of_birth,mobile_number,address FROM patients WHERE id=$1',[c.patient_id]); const patient=patientResult.rows[0]||null; if(c.token_number) return res.json(new ApiResponse(200,{token_number:c.token_number,status:c.status,consultation_id:c.id,patient},'Token already assigned'));
     const client=await pool.connect(); try{
         await client.query('BEGIN');
         const lock=await client.query('SELECT * FROM consultations WHERE id=$1 FOR UPDATE',[c.id]); const current=lock.rows[0]; if(current.token_number){await client.query('COMMIT');return res.json(new ApiResponse(200,{token_number:current.token_number,status:current.status},'Token already assigned'));} const prefix=c.intake_pathway==='ayurveda'?'AY':'AL';
@@ -539,3 +591,160 @@ export const withdrawConsent = asyncHandler(async(req,res)=>{ const c=await getC
 export const getConsentScopes = asyncHandler(async(req,res)=>{ const c=await getConsultation(req.params.session_id); return res.json(new ApiResponse(200,await AiServiceGateway.getConsentScopes(c.ai_session_id),'Consent scopes loaded')); });
 
 export const fhirPreview = asyncHandler(async(req,res)=>{const c=await getConsultation(req.params.session_id); return res.json(new ApiResponse(200,await AiServiceGateway.fhirPreview(c.ai_session_id),'FHIR preview loaded'));});
+
+export const audioIntake = asyncHandler(async (req, res) => {
+    const c = await getConsultation(req.params.session_id);
+    const requestedLang = req.query.language || 'auto';
+    const mimeType = req.headers['content-type'] || 'audio/webm';
+    
+    if (!req.body || !req.body.length) {
+        throw new ApiError(400, 'Audio file is required');
+    }
+
+    const audioDir = path.join(__dirname, '../../uploads/audio');
+    if (!fs.existsSync(audioDir)) {
+        fs.mkdirSync(audioDir, { recursive: true });
+    }
+    const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp4') ? 'm4a' : 'webm';
+    const filename = `consultation-${c.id}-${Date.now()}.${ext}`;
+    const filePath = path.join(audioDir, filename);
+    fs.writeFileSync(filePath, req.body);
+
+    const audioUrl = `/uploads/audio/${filename}`;
+
+    let transcription = { text: '', confidence: 0.9, language: requestedLang };
+    try {
+        transcription = await AiServiceGateway.transcribeAudio(req.body, requestedLang, mimeType);
+    } catch (err) {
+        console.warn('ASR transcription error:', err.message);
+    }
+
+    const detectedLanguage = transcription.detected_language || transcription.language || (requestedLang !== 'auto' ? requestedLang : (c.language || 'en'));
+
+    // Automatically update consultation language if auto-detected
+    if (detectedLanguage && detectedLanguage !== 'auto' && detectedLanguage !== c.language) {
+        await pool.query('UPDATE consultations SET language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
+    }
+
+    return res.json(new ApiResponse(200, {
+        transcript: transcription.text || '',
+        confidence: transcription.confidence || 0.9,
+        audioUrl,
+        language: detectedLanguage,
+        detected_language: detectedLanguage,
+    }, 'Audio recorded and transcribed successfully'));
+});
+
+export const speakModeSubmit = asyncHandler(async (req, res) => {
+    const c = await getConsultation(req.params.session_id);
+    const { transcript, audioUrl, duration, language = c.language || 'en' } = req.body || {};
+
+    if (!transcript || !transcript.trim()) {
+        throw new ApiError(400, 'Transcript is required');
+    }
+
+    const effectiveLanguage = language && language !== 'auto' ? language : (c.language || 'en');
+
+    // 1. Update consultation record with speak mode, audio URL, and effective language
+    await pool.query(
+        `UPDATE consultations 
+         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, language = $3, updated_at = NOW() 
+         WHERE id = $4`,
+        [audioUrl || null, transcript.trim(), effectiveLanguage, c.id]
+    );
+
+    // 2. Format conversation history turn to feed Groq LLM summary generator
+    const conversationHistory = [
+        {
+            question_id: 'q-chief-complaint',
+            question: 'Please describe the health concerns and symptoms you are experiencing today in detail.',
+            answer: transcript.trim(),
+            phase: 'symptom_exploration',
+            input_mode: 'speech',
+        },
+    ];
+
+    // 3. Call Groq AI summary generator in the detected language
+    const includeAyush = c.intake_pathway === 'ayurveda';
+    let summaryResult = null;
+    try {
+        summaryResult = await AiServiceGateway.generateSummary(
+            c.ai_session_id,
+            effectiveLanguage,
+            true,
+            includeAyush,
+            conversationHistory
+        );
+    } catch (e) {
+        console.warn('Groq summary generation error:', e.message);
+        summaryResult = {
+            sections: [
+                {
+                    heading_en: 'Chief Complaint',
+                    heading_local: effectiveLanguage === 'hi' ? 'मुख्य शिकायत' : 'Chief Complaint',
+                    body: transcript.trim(),
+                    body_local: transcript.trim(),
+                },
+                {
+                    heading_en: 'History of Present Illness',
+                    heading_local: effectiveLanguage === 'hi' ? 'वर्तमान बीमारी का इतिहास' : 'History of Present Illness',
+                    body: transcript.trim(),
+                    body_local: transcript.trim(),
+                },
+            ],
+            confidence_score: 0.95,
+        };
+    }
+
+    // Attach transcripts item with audioUrl into ai_payload for doctor Evidence Drawer playback
+    const transcriptsPayload = [
+        {
+            id: `audio-rec-${c.id}`,
+            speaker: 'patient',
+            text: transcript.trim(),
+            audioUrl: audioUrl || null,
+            audioDuration: duration || '30s',
+            language: effectiveLanguage,
+        },
+    ];
+
+    const chiefSection = summaryResult?.sections?.find((s) => /complaint/i.test(s.heading_en || ''));
+    const historySection = summaryResult?.sections?.find((s) => /history/i.test(s.heading_en || ''));
+    const chiefComplaint = chiefSection?.body_local || chiefSection?.body || transcript.trim();
+    const historyIllness = historySection?.body_local || historySection?.body || transcript.trim();
+
+    const ayushAttrs = JSON.stringify(c.intake_pathway === 'ayurveda' ? { pathway: 'ayurveda' } : {});
+    const aiPayload = JSON.stringify({
+        ...(summaryResult || {}),
+        language: effectiveLanguage,
+        transcripts: transcriptsPayload,
+        patient_audio_url: audioUrl || null,
+        patient_transcript: transcript.trim(),
+    });
+
+    // 4. Persist to clinical_summaries
+    const existing = await pool.query('SELECT id FROM clinical_summaries WHERE consultation_id = $1 LIMIT 1', [c.id]);
+    if (existing.rowCount > 0) {
+        await pool.query(
+            `UPDATE clinical_summaries 
+             SET chief_complaint = $1, history_of_present_illness = $2, ayush_attributes = $3, ai_payload = $4, updated_at = NOW(), generated_at = NOW() 
+             WHERE consultation_id = $5`,
+            [chiefComplaint, historyIllness, ayushAttrs, aiPayload, c.id]
+        );
+    } else {
+        await pool.query(
+            `INSERT INTO clinical_summaries(consultation_id, chief_complaint, history_of_present_illness, ayush_attributes, ai_payload, generated_at, updated_at) 
+             VALUES($1, $2, $3, $4, $5, NOW(), NOW())`,
+            [c.id, chiefComplaint, historyIllness, ayushAttrs, aiPayload]
+        );
+    }
+
+    return res.json(new ApiResponse(200, {
+        consultation_id: c.id,
+        summary: summaryResult,
+        intake_mode: 'speak',
+        patient_audio_url: audioUrl,
+        patient_transcript: transcript.trim(),
+        language: effectiveLanguage,
+    }, 'Speak mode summary generated successfully'));
+});

@@ -4,13 +4,13 @@ const normalizeAiPathway = (value) => String(value || 'general').toLowerCase() =
 
 const baseUrl = () => {
     const configured = String(process.env.MEDIKIOSK_AI_BASE_URL || '').replace(/\/$/, '');
-    if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+    if (!configured) return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || '').replace(/\/$/, '');
     try {
         const parsed = new URL(configured);
         const backendPort = String(process.env.PORT || '8001');
         const sameBackend = ['localhost', '127.0.0.1'].includes(parsed.hostname) && (parsed.port || '80') === backendPort;
         if (sameBackend) {
-            return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || 'https://medikiosk-ai-ypoi.onrender.com').replace(/\/$/, '');
+            return String(process.env.MEDIKIOSK_AI_FALLBACK_URL || '').replace(/\/$/, '');
         }
     } catch {}
     return configured;
@@ -63,6 +63,14 @@ const AiServiceGateway = {
     getSession: (sessionId) => request(`/api/v1/sessions/${sessionId}`),
     deleteSession: (sessionId) => request(`/api/v1/sessions/${sessionId}`, { method: 'DELETE' }),
     updateLanguage: (sessionId, language) => json(`/api/v1/sessions/${sessionId}/language`, { language }, 'PUT'),
+    getSupportedLanguages: () => request('/api/v1/languages'),
+    translate: (text, sourceLanguage, targetLanguage) =>
+        json('/api/v1/translate', {
+            text,
+            source_language: sourceLanguage,
+            target_language: targetLanguage
+        }),
+
     startConversation: (sessionId, intakePathway) => json(`/api/v1/sessions/${sessionId}/conversation/start`, { intake_pathway: normalizeAiPathway(intakePathway) }),
     getConversationState: (sessionId) => request(`/api/v1/sessions/${sessionId}/conversation/state`),
     submitConversationAnswer: (sessionId, questionId, answer, inputMode = 'text', confidence = 1) =>
@@ -78,10 +86,36 @@ const AiServiceGateway = {
         form.append('audio', new Blob([buffer], { type: cleanMime }), `speech.${extension}`);
         return request(`/api/v1/sessions/${sessionId}/conversation/speech?question_id=${encodeURIComponent(questionId)}&language=${encodeURIComponent(language)}`, { method: 'POST', body: form });
     },
+    transcribeAudio: async (buffer, language = 'auto', mimeType = 'audio/webm') => {
+        const cleanMime = String(mimeType || 'audio/webm').split(';')[0].trim().toLowerCase();
+        const extension = cleanMime.includes('webm') ? 'webm'
+            : cleanMime.includes('ogg') ? 'ogg'
+            : cleanMime.includes('mp4') ? 'm4a'
+            : cleanMime.includes('wav') ? 'wav'
+            : 'webm';
+        const form = new FormData();
+        form.append('audio', new Blob([buffer], { type: cleanMime }), `audio.${extension}`);
+        return request(`/api/v1/transcribe?language=${encodeURIComponent(language || 'auto')}`, {
+            method: 'POST',
+            body: form,
+            timeoutMs: 60000,
+        });
+    },
     tts: (sessionId, text, language = 'en') => json(`/api/v1/sessions/${sessionId}/conversation/tts`, { text, language }),
     uploadDocument: async (sessionId, buffer, mimeType, fileName, documentType = 'medical_document') => {
+        let safeName = String(fileName || 'document.jpg');
+        const lowerMime = String(mimeType || '').toLowerCase();
+        if (lowerMime.includes('pdf') && !safeName.toLowerCase().endsWith('.pdf')) {
+            safeName += '.pdf';
+        } else if (lowerMime.includes('png') && !safeName.toLowerCase().endsWith('.png')) {
+            safeName += '.png';
+        } else if (lowerMime.includes('webp') && !safeName.toLowerCase().endsWith('.webp')) {
+            safeName += '.webp';
+        } else if ((lowerMime.includes('jpeg') || lowerMime.includes('jpg')) && !safeName.toLowerCase().match(/\.jpe?g$/)) {
+            safeName += '.jpg';
+        }
         const form = new FormData();
-        form.append('file', new Blob([buffer], { type: mimeType }), fileName);
+        form.append('file', new Blob([buffer], { type: mimeType }), safeName);
         form.append('document_type', documentType);
         return request(`/api/v1/sessions/${sessionId}/documents/upload`, {
             method: 'POST',
@@ -92,7 +126,13 @@ const AiServiceGateway = {
     listDocuments: (sessionId) => request(`/api/v1/sessions/${sessionId}/documents`),
     verifyDocumentEntity: (sessionId, documentId, entityId, status = 'verified') => request(`/api/v1/sessions/${sessionId}/documents/${documentId}/entities/${entityId}/verify?status=${encodeURIComponent(status)}`, { method: 'PUT' }),
     generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false, conversationHistory = null) => {
-        const payload = { language, include_documents: includeDocuments, include_ayush: includeAyush };
+        let langStr = 'en';
+        if (typeof language === 'string') {
+            langStr = language.toLowerCase().includes('hi') ? 'hi' : 'en';
+        } else if (language && typeof language === 'object') {
+            langStr = String(language.language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+        }
+        const payload = { language: langStr, include_documents: includeDocuments !== false, include_ayush: Boolean(includeAyush) };
         if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
             payload.conversation_history = conversationHistory;
         }

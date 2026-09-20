@@ -26,7 +26,7 @@ export const initializeSchema = async () => {
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS patients (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), abha_number VARCHAR(17) UNIQUE, abha_address VARCHAR(100) UNIQUE,
-            patient_code VARCHAR(6) UNIQUE, full_name VARCHAR(255) NOT NULL, gender VARCHAR(20) NOT NULL, date_of_birth DATE NOT NULL, mobile_number VARCHAR(15), address TEXT, aadhaar_number VARCHAR(12), registration_type VARCHAR(20) DEFAULT 'new',
+            full_name VARCHAR(255) NOT NULL, gender VARCHAR(20) NOT NULL, date_of_birth DATE NOT NULL, mobile_number VARCHAR(15), address TEXT, aadhaar_number VARCHAR(12), registration_type VARCHAR(20) DEFAULT 'new',
             consent_granted BOOLEAN DEFAULT FALSE, consent_timestamp TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS departments (
@@ -34,6 +34,13 @@ export const initializeSchema = async () => {
             name VARCHAR(255) NOT NULL, pathway VARCHAR(30) NOT NULL DEFAULT 'allopathy', is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, UNIQUE(hospital_id,name)
         );`);
+        await client.query(`CREATE TABLE IF NOT EXISTS doctor_departments (
+            doctor_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (doctor_id, department_id)
+        );`);
+
         await client.query(`CREATE TABLE IF NOT EXISTS consultations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), hospital_id UUID REFERENCES hospitals(id) ON DELETE CASCADE,
             patient_id UUID REFERENCES patients(id) ON DELETE CASCADE, department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
@@ -77,6 +84,24 @@ export const initializeSchema = async () => {
             scope_id VARCHAR(100) NOT NULL, title TEXT NOT NULL, purpose TEXT, required BOOLEAN DEFAULT FALSE,
             status VARCHAR(30) NOT NULL DEFAULT 'granted', granted_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, withdrawn_at TIMESTAMPTZ
         );`);
+        await client.query(`CREATE TABLE IF NOT EXISTS patient_privacy_rules (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+            scope_type VARCHAR(20) NOT NULL CHECK (scope_type IN ('hospital','visit','document')),
+            hospital_id UUID REFERENCES hospitals(id) ON DELETE CASCADE,
+            consultation_id UUID REFERENCES consultations(id) ON DELETE CASCADE,
+            document_id UUID REFERENCES uploaded_documents(id) ON DELETE CASCADE,
+            allow_doctor_access BOOLEAN NOT NULL DEFAULT TRUE,
+            reason TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT patient_privacy_scope_target CHECK (
+                (scope_type='hospital' AND hospital_id IS NOT NULL AND consultation_id IS NULL AND document_id IS NULL) OR
+                (scope_type='visit' AND consultation_id IS NOT NULL AND document_id IS NULL) OR
+                (scope_type='document' AND document_id IS NOT NULL)
+            )
+        );`);
+
         await client.query(`CREATE TABLE IF NOT EXISTS audit_events (
             id BIGSERIAL PRIMARY KEY, consultation_id UUID REFERENCES consultations(id) ON DELETE SET NULL, actor_type VARCHAR(30) NOT NULL,
             actor_id UUID, event_type VARCHAR(100) NOT NULL, metadata JSONB DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -126,16 +151,17 @@ export const initializeSchema = async () => {
         await addColumn(client, 'kiosk_sessions', 'is_active', 'BOOLEAN DEFAULT TRUE');
         await addColumn(client, 'kiosk_sessions', 'expires_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
 
-        await addColumn(client, 'patients', 'patient_code', 'VARCHAR(6) UNIQUE');
         await addColumn(client, 'patients', 'address', 'TEXT');
         await addColumn(client, 'patients', 'aadhaar_number', 'VARCHAR(12)');
         await addColumn(client, 'patients', 'registration_type', "VARCHAR(20) DEFAULT 'new'");
-        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_patient_code ON patients(patient_code) WHERE patient_code IS NOT NULL;`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_mobile ON patients(mobile_number);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_aadhaar ON patients(aadhaar_number);`);
 
         await addColumn(client, 'consultations', 'department_id', 'UUID REFERENCES departments(id) ON DELETE SET NULL');
         await addColumn(client, 'consultations', 'intake_pathway', "VARCHAR(30) NOT NULL DEFAULT 'general'");
+        await addColumn(client, 'consultations', 'intake_mode', "VARCHAR(30) DEFAULT 'interview'");
+        await addColumn(client, 'consultations', 'patient_audio_url', 'TEXT');
+        await addColumn(client, 'consultations', 'patient_transcript', 'TEXT');
         await addColumn(client, 'consultations', 'language', "VARCHAR(20) DEFAULT 'en'");
         await addColumn(client, 'consultations', 'ai_session_id', 'VARCHAR(100)');
         await addColumn(client, 'consultations', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
@@ -146,6 +172,7 @@ export const initializeSchema = async () => {
         await addColumn(client, 'uploaded_documents', 'processing_error', 'TEXT');
         await addColumn(client, 'uploaded_documents', 'source_mime_type', 'VARCHAR(100)');
         await addColumn(client, 'uploaded_documents', 'total_pages', 'INT');
+        await addColumn(client, 'uploaded_documents', 'document_url', 'TEXT');
         await addColumn(client, 'uploaded_documents', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
         await addColumn(client, 'clinical_summaries', 'medications', "JSONB DEFAULT '[]'");
         await addColumn(client, 'clinical_summaries', 'ai_payload', "JSONB DEFAULT '{}'");
@@ -156,6 +183,19 @@ export const initializeSchema = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_documents_consultation ON uploaded_documents(consultation_id,created_at);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_kiosk_pairing ON kiosk_sessions(pairing_token) WHERE is_active = TRUE;`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_privacy_patient ON privacy_settings(patient_id);`);
+        await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_abha_number ON patients(abha_number) WHERE abha_number IS NOT NULL;`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_doctor_departments_department ON doctor_departments(department_id,doctor_id);`);
+        // Preserve sensible legacy routing by auto-linking doctors to departments whose names match their specialization.
+        await client.query(`INSERT INTO doctor_departments(doctor_id,department_id)
+            SELECT u.id,d.id FROM users u JOIN departments d ON d.hospital_id=u.hospital_id
+            WHERE u.role='doctor' AND u.is_active=TRUE AND d.is_active=TRUE AND u.specialization IS NOT NULL
+              AND (LOWER(d.name)=LOWER(u.specialization) OR LOWER(d.name) LIKE '%'||LOWER(u.specialization)||'%' OR LOWER(u.specialization) LIKE '%'||LOWER(d.name)||'%')
+            ON CONFLICT DO NOTHING`);
+
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patient_privacy_rules_patient ON patient_privacy_rules(patient_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patient_privacy_rules_hospital ON patient_privacy_rules(patient_id,hospital_id) WHERE scope_type='hospital';`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patient_privacy_rules_visit ON patient_privacy_rules(patient_id,consultation_id) WHERE scope_type='visit';`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_patient_privacy_rules_document ON patient_privacy_rules(patient_id,document_id) WHERE scope_type='document';`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_clinical_summaries_consultation ON clinical_summaries(consultation_id);`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_vitals_consultation ON vitals(consultation_id);`);
         await client.query('COMMIT');
