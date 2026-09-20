@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from AyushCareAILatest_UPDATED.app.domain.red_flags import evaluate_all_rules, evaluate_rule, RULE_REGISTRY, Severity
+from app.domain.red_flags import evaluate_all_rules, evaluate_rule, RULE_REGISTRY, Severity
 
 
 class TestDeterministicRedFlags:

@@ -10,7 +10,7 @@ from typing import Any
 
 import structlog
 
-from AyushCareAILatest_UPDATED.app.config import Settings
+from app.config import Settings
 
 logger = structlog.get_logger(__name__)
 

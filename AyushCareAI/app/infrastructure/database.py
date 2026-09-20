@@ -13,7 +13,7 @@ from sqlalchemy import Column, DateTime, String, Text, Integer, Boolean, JSON, f
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from AyushCareAILatest_UPDATED.app.config import Settings
+from app.config import Settings
 
 logger = structlog.get_logger(__name__)
 

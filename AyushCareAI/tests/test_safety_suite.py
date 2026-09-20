@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from AyushCareAILatest_UPDATED.app.domain.red_flags import evaluate_all_rules
-from AyushCareAILatest_UPDATED.app.services.clinical_safety_suite import (
+from app.domain.red_flags import evaluate_all_rules
+from app.services.clinical_safety_suite import (
     SAFETY_SCENARIOS,
     evaluate_scenario,
     get_scenario,

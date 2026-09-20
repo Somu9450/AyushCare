@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from AyushCareAILatest_UPDATED.app.dependencies import (
+from app.dependencies import (
     get_asr_service,
     get_clinical_summary_service,
     get_conversation_engine,
@@ -15,8 +15,8 @@ from AyushCareAILatest_UPDATED.app.dependencies import (
     get_ocr_service,
     get_tts_service,
 )
-from AyushCareAILatest_UPDATED.app.main import app
-from AyushCareAILatest_UPDATED.app.services.conversation_engine import ConversationEngine
+from app.main import app
+from app.services.conversation_engine import ConversationEngine
 
 
 @pytest_asyncio.fixture
@@ -39,8 +39,8 @@ async def async_client(
     app.dependency_overrides[get_tts_service] = lambda: mock_tts_service
     app.dependency_overrides[get_conversation_engine] = lambda: test_engine
 
-    from AyushCareAILatest_UPDATED.app.config import get_settings
-    from AyushCareAILatest_UPDATED.app.infrastructure.storage import init_storage
+    from app.config import get_settings
+    from app.infrastructure.storage import init_storage
     await init_storage(get_settings())
 
     transport = ASGITransport(app=app)

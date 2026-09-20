@@ -10,8 +10,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from AyushCareAILatest_UPDATED.app.config import get_settings
-from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
+from app.config import get_settings
+from app.infrastructure import redis_client
 
 logger = structlog.get_logger(__name__)
 

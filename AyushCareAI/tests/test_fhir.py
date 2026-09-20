@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from AyushCareAILatest_UPDATED.app.models.document import AbnormalFlag, EntityKind, ExtractedEntity
-from AyushCareAILatest_UPDATED.app.models.summary import PhysicianSummaryResponse, SummaryLanguage, SummarySection
-from AyushCareAILatest_UPDATED.app.services.fhir_mapper import FHIRMapper
+from app.models.document import AbnormalFlag, EntityKind, ExtractedEntity
+from app.models.summary import PhysicianSummaryResponse, SummaryLanguage, SummarySection
+from app.services.fhir_mapper import FHIRMapper
 
 
 class TestFHIRMapper:

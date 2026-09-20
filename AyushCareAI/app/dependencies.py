@@ -7,21 +7,21 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from AyushCareAILatest_UPDATED.app.ai.asr_service import ASRService
-from AyushCareAILatest_UPDATED.app.ai.azure_health_service import AzureHealthNLP
-from AyushCareAILatest_UPDATED.app.ai.bhashini_client import BhashiniClient
-from AyushCareAILatest_UPDATED.app.ai.language_detection_service import LanguageDetectionService
-from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
-from AyushCareAILatest_UPDATED.app.ai.ocr_service import OCRService
-from AyushCareAILatest_UPDATED.app.ai.translation_service import TranslationService
-from AyushCareAILatest_UPDATED.app.ai.tts_service import TTSService
-from AyushCareAILatest_UPDATED.app.config import Settings, get_settings
-from AyushCareAILatest_UPDATED.app.services.clinical_summary import ClinicalSummaryService
-from AyushCareAILatest_UPDATED.app.services.consent_manager import ConsentManager
-from AyushCareAILatest_UPDATED.app.services.conversation_engine import ConversationEngine
-from AyushCareAILatest_UPDATED.app.services.document_intelligence import DocumentIntelligenceService
-from AyushCareAILatest_UPDATED.app.services.fhir_mapper import FHIRMapper
-from AyushCareAILatest_UPDATED.app.services.red_flag_detector import RedFlagDetector
+from app.ai.asr_service import ASRService
+from app.ai.azure_health_service import AzureHealthNLP
+from app.ai.bhashini_client import BhashiniClient
+from app.ai.language_detection_service import LanguageDetectionService
+from app.ai.llm_service import LLMService
+from app.ai.ocr_service import OCRService
+from app.ai.translation_service import TranslationService
+from app.ai.tts_service import TTSService
+from app.config import Settings, get_settings
+from app.services.clinical_summary import ClinicalSummaryService
+from app.services.consent_manager import ConsentManager
+from app.services.conversation_engine import ConversationEngine
+from app.services.document_intelligence import DocumentIntelligenceService
+from app.services.fhir_mapper import FHIRMapper
+from app.services.red_flag_detector import RedFlagDetector
 
 
 # ── Settings ─────────────────────────────────────────────────────────────

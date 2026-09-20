@@ -15,8 +15,8 @@ from typing import Any, Optional
 import structlog
 from PIL import Image
 
-from AyushCareAILatest_UPDATED.app.config import Settings
-from AyushCareAILatest_UPDATED.app.ai.azure_document_intelligence import AzureDocumentIntelligence
+from app.config import Settings
+from app.ai.azure_document_intelligence import AzureDocumentIntelligence
 
 logger = structlog.get_logger(__name__)
 
