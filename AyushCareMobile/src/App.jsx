@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect,useState, useRef } from "react";
+import { Toaster } from "sonner";
 
 import useMobileStore, { SCREENS } from "./store/useMobileStore";
 
@@ -349,6 +350,8 @@ function App() {
       {!HEADER_SCREENS.has(currentScreen) && (
         <LanguageSwitcher floating />
       )}
+
+      <Toaster position="top-center" richColors closeButton />
     </>
   );
 }

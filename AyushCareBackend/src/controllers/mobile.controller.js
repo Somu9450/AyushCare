@@ -939,7 +939,7 @@ export const sendPortalOtp = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, {
         mobile: formattedNumber,
         delivery: 'registered-mobile',
-        otp: process.env.NODE_ENV !== 'production' ? generatedOtp : undefined
+        otp: generatedOtp
     }, `Verification OTP sent successfully. (Dev OTP: ${generatedOtp})`));
 });
 
