@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.config import Settings
+from AyushCareAILatest_UPDATED.app.config import Settings
 
 
 @pytest.fixture(scope="session")

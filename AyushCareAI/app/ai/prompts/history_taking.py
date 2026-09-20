@@ -7,7 +7,7 @@ and supports multilingual interaction.
 
 from __future__ import annotations
 
-from app.domain.clinical_protocol import (
+from AyushCareAILatest_UPDATED.app.domain.clinical_protocol import (
     SECTION_LABELS,
     SOCRATES_FRAMEWORK,
     EMERGENCY_SYMPTOMS,

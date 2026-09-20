@@ -18,20 +18,21 @@ from typing import Optional
 
 import structlog
 
-from app.ai.llm_service import LLMService
-from app.ai.ocr_service import OCRService
-from app.ai.prompts.entity_extraction import (
+from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
+from AyushCareAILatest_UPDATED.app.ai.azure_health_service import AzureHealthNLP
+from AyushCareAILatest_UPDATED.app.ai.ocr_service import OCRService
+from AyushCareAILatest_UPDATED.app.ai.prompts.entity_extraction import (
     ABNORMAL_VALUE_ANALYSIS_SYSTEM,
     ENTITY_EXTRACTION_SYSTEM,
     build_abnormal_analysis_prompt,
     build_entity_extraction_prompt,
 )
-from app.domain.medical_reference import (
+from AyushCareAILatest_UPDATED.app.domain.medical_reference import (
     check_drug_interactions,
     classify_lab_value,
     find_lab_range,
 )
-from app.models.document import (
+from AyushCareAILatest_UPDATED.app.models.document import (
     AbnormalFlag,
     DocumentType,
     DocumentUploadResponse,
@@ -52,9 +53,15 @@ class DocumentIntelligenceError(Exception):
 class DocumentIntelligenceService:
     """Full pipeline for medical document digitization and intelligence."""
 
-    def __init__(self, ocr: OCRService, llm: LLMService) -> None:
+    def __init__(
+        self,
+        ocr: OCRService,
+        llm: LLMService,
+        medical_nlp: Optional[AzureHealthNLP] = None,
+    ) -> None:
         self._ocr = ocr
         self._llm = llm
+        self._medical_nlp = medical_nlp
 
     async def process_document(
         self,
@@ -84,27 +91,40 @@ class DocumentIntelligenceService:
             filename=filename,
         )
 
-        # Step 1: Image quality assessment
-        quality = self._ocr.assess_image_quality(image_bytes)
-        image_quality = ImageQualityReport(
-            width=quality.width,
-            height=quality.height,
-            status=quality.status,
-            issues=quality.issues,
-        )
-
-        if quality.status == "needs-rescan" and quality.width == 0:
-            return DocumentUploadResponse(
-                document_id=document_id,
-                filename=filename,
-                document_type=DocumentType.OTHER,
-                processing_status="failed",
-                image_quality=image_quality,
+        # Step 1: Image quality assessment. PDFs are valid inputs for Azure
+        # Document Intelligence and cannot be inspected reliably by PIL.
+        if filename.lower().endswith(".pdf"):
+            image_quality = ImageQualityReport(
+                width=0,
+                height=0,
+                status="acceptable",
+                issues=[],
             )
+        else:
+            quality = self._ocr.assess_image_quality(image_bytes)
+            image_quality = ImageQualityReport(
+                width=quality.width,
+                height=quality.height,
+                status=quality.status,
+                issues=quality.issues,
+            )
+
+            if quality.status == "needs-rescan" and quality.width == 0:
+                return DocumentUploadResponse(
+                    document_id=document_id,
+                    filename=filename,
+                    document_type=DocumentType.OTHER,
+                    processing_status="failed",
+                    image_quality=image_quality,
+                )
 
         # Step 2: OCR text extraction
         try:
-            ocr_result = await self._ocr.extract_text(image_bytes, language_hints)
+            ocr_result = await self._ocr.extract_text(
+                image_bytes,
+                language_hints,
+                filename=filename,
+            )
             ocr_text = re.sub(r"<think>.*?</think>", "", ocr_result["text"], flags=re.DOTALL).strip()
             detected_language = ocr_result.get("language", "en")
         except Exception as e:
@@ -127,7 +147,30 @@ class DocumentIntelligenceService:
                 detected_language=detected_language,
             )
 
-        # Step 3: LLM-powered entity extraction
+        # Step 3: Specialist medical NLP signal. Azure Health currently has
+        # limited hosted-language coverage, so only send directly supported
+        # languages; unsupported Indian-language OCR remains available to the
+        # existing LLM extraction path rather than being mislabeled.
+        health_entities: list[dict] = []
+        if self._medical_nlp is not None:
+            health_language = (detected_language or "en").split("-")[0].lower()
+            supported_health_languages = {
+                "en", "es", "fr", "de", "it", "pt", "he",
+            }
+            if health_language in supported_health_languages:
+                try:
+                    health_result = await self._medical_nlp.analyze(
+                        ocr_text, language=health_language
+                    )
+                    health_entities = health_result.get("entities", [])
+                except Exception as e:
+                    logger.warning(
+                        "azure_health_nlp_failed_continuing_with_llm",
+                        document_id=document_id,
+                        error=str(e),
+                    )
+
+        # Step 4: LLM-powered entity extraction
         entities: list[ExtractedEntity] = []
         doc_type = DocumentType.OTHER
 
@@ -159,10 +202,13 @@ class DocumentIntelligenceService:
                 error=str(e),
             )
 
-        # Step 4: Abnormal value detection — use reference ranges + LLM
+        # Merge Azure Health entities as a supporting extraction signal before abnormal-value detection.
+        self._merge_health_entities(health_entities, entities, document_id)
+
+        # Step 5: Abnormal value detection — use reference ranges + LLM
         abnormal_entities = self._flag_abnormal_values(entities)
 
-        # Step 5: Drug interaction checking
+        # Step 6: Drug interaction checking
         medications = [
             e.label for e in entities if e.kind == EntityKind.MEDICINE
         ]
@@ -233,6 +279,57 @@ class DocumentIntelligenceService:
         return events
 
     # ── Internal Helpers ─────────────────────────────────────────────────
+
+    def _merge_health_entities(
+        self,
+        health_entities: list[dict],
+        entities: list[ExtractedEntity],
+        document_id: str,
+    ) -> None:
+        """Merge Azure Health entities without overwriting richer LLM fields."""
+        kind_map = {
+            "Diagnosis": EntityKind.CONDITION,
+            "SymptomOrSign": EntityKind.SYMPTOM,
+            "MedicationName": EntityKind.MEDICINE,
+            "MedicationClass": EntityKind.MEDICINE,
+            "Procedure": EntityKind.PROCEDURE,
+            "Allergen": EntityKind.ALLERGY,
+            "AnatomicalStructure": EntityKind.CONDITION,
+        }
+
+        for raw in health_entities:
+            text = (raw.get("text") or "").strip()
+            if not text:
+                continue
+            kind = kind_map.get(raw.get("category"))
+            if kind is None:
+                continue
+
+            confidence = float(raw.get("confidence", 0.0) or 0.0)
+            existing = next(
+                (
+                    e for e in entities
+                    if e.label.strip().lower() == text.lower()
+                    and e.kind == kind
+                ),
+                None,
+            )
+            if existing:
+                existing.confidence = max(existing.confidence, confidence)
+                if not existing.source_text:
+                    existing.source_text = text
+                continue
+
+            entities.append(
+                ExtractedEntity(
+                    id=f"ent_{uuid.uuid4().hex[:8]}",
+                    kind=kind,
+                    label=text,
+                    confidence=max(0.0, min(1.0, confidence)),
+                    verification_status="needs-review",
+                    source_text=text,
+                )
+            )
 
     def _parse_entity(self, raw: dict, document_id: str) -> ExtractedEntity:
         """Parse a raw entity dict from LLM into ExtractedEntity."""

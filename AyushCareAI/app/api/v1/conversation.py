@@ -10,10 +10,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from app.dependencies import get_conversation_engine
-from app.infrastructure import redis_client
-from app.infrastructure.audit_log import AuditEventType, log_audit_event
-from app.models.conversation import (
+from AyushCareAILatest_UPDATED.app.dependencies import get_conversation_engine
+from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
+from AyushCareAILatest_UPDATED.app.infrastructure.audit_log import AuditEventType, log_audit_event
+from AyushCareAILatest_UPDATED.app.models.conversation import (
     ConversationPhase,
     ConversationStartRequest,
     ConversationState,
@@ -22,7 +22,7 @@ from app.models.conversation import (
     SpeechInput,
     TTSRequest,
 )
-from app.services.conversation_engine import ConversationEngine
+from AyushCareAILatest_UPDATED.app.services.conversation_engine import ConversationEngine
 
 router = APIRouter(prefix="/sessions/{session_id}/conversation", tags=["Conversation"])
 

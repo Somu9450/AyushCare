@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.medical_reference import (
+from AyushCareAILatest_UPDATED.app.domain.medical_reference import (
     classify_lab_value,
     check_drug_interactions,
     find_lab_range,

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.config import get_settings
-from app.infrastructure import redis_client
-from app.models import HealthResponse
+from AyushCareAILatest_UPDATED.app.config import get_settings
+from AyushCareAILatest_UPDATED.app.infrastructure import redis_client
+from AyushCareAILatest_UPDATED.app.models import HealthResponse
 
 router = APIRouter(tags=["Health"])
 
@@ -21,7 +21,7 @@ async def health_check() -> HealthResponse:
     # Check database connectivity
     db_ok = False
     try:
-        from app.infrastructure.database import _engine
+        from AyushCareAILatest_UPDATED.app.infrastructure.database import _engine
         if _engine:
             db_ok = True
     except Exception:

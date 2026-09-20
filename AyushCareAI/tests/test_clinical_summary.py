@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 import pytest_asyncio
 
-from app.models.summary import PhysicianSummaryResponse, SummaryDecision, SummaryLanguage, SummarySection
-from app.services.clinical_summary import ClinicalSummaryService
+from AyushCareAILatest_UPDATED.app.models.summary import PhysicianSummaryResponse, SummaryDecision, SummaryLanguage, SummarySection
+from AyushCareAILatest_UPDATED.app.services.clinical_summary import ClinicalSummaryService
 
 
 class TestClinicalSummary:

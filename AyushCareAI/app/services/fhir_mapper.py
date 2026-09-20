@@ -19,8 +19,8 @@ from typing import Any, Optional
 
 import structlog
 
-from app.models.document import ExtractedEntity, EntityKind
-from app.models.fhir import (
+from AyushCareAILatest_UPDATED.app.models.document import ExtractedEntity, EntityKind
+from AyushCareAILatest_UPDATED.app.models.fhir import (
     FHIRBundle,
     FHIRCodeableConcept,
     FHIRCoding,
@@ -32,7 +32,7 @@ from app.models.fhir import (
     FHIRQuestionnaireResponse,
     FHIRReference,
 )
-from app.models.summary import PhysicianSummaryResponse
+from AyushCareAILatest_UPDATED.app.models.summary import PhysicianSummaryResponse
 
 logger = structlog.get_logger(__name__)
 

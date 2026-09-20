@@ -1,8 +1,8 @@
-"""OCR service — Groq Vision (primary) + Tesseract (local fallback).
+"""Unified OCR service with explicit provider selection.
 
-Handles medical document image processing with quality assessment,
-multi-language text extraction, and structured output.
-Gemini Vision has been removed — Bhashini OCR will be added in Phase 5.
+Azure Document Intelligence is the production default. Bhashini OCR,
+Groq Vision and Tesseract remain available as explicit providers/fallbacks.
+No provider is selected implicitly merely because its client is configured.
 """
 
 from __future__ import annotations
@@ -15,7 +15,8 @@ from typing import Any, Optional
 import structlog
 from PIL import Image
 
-from app.config import Settings
+from AyushCareAILatest_UPDATED.app.config import Settings
+from AyushCareAILatest_UPDATED.app.ai.azure_document_intelligence import AzureDocumentIntelligence
 
 logger = structlog.get_logger(__name__)
 
@@ -54,8 +55,9 @@ class OCRService:
 
     def __init__(self, settings: Settings, bhashini_client: Optional[Any] = None) -> None:
         self._settings = settings
-        self._provider = settings.ocr_provider
+        self._provider = settings.ocr_provider.strip().lower()
         self.bhashini_client = bhashini_client
+        self._azure = AzureDocumentIntelligence(settings)
         self._groq_client: Any = None
         if settings.groq_api_key:
             try:
@@ -67,11 +69,15 @@ class OCRService:
 
     @property
     def is_available(self) -> bool:
-        if self.bhashini_client is not None:
-            return True
-        if self._provider in ("groq_vision", "bhashini"):
+        if self._provider == "azure":
+            return self._azure.is_configured
+        if self._provider == "bhashini":
+            return self.bhashini_client is not None
+        if self._provider == "groq_vision":
             return self._groq_client is not None
-        return self._provider == "tesseract"
+        if self._provider == "tesseract":
+            return True
+        return False
 
     def assess_image_quality(self, image_bytes: bytes) -> ImageQuality:
         """Check image dimensions, size, and readability."""
@@ -114,41 +120,63 @@ class OCRService:
         self,
         image_bytes: bytes,
         language_hints: Optional[list[str]] = None,
+        *,
+        filename: str = "document",
+        content_type: Optional[str] = None,
     ) -> dict:
-        """Extract text from a medical document image.
+        """Extract text using the explicitly configured OCR provider."""
+        provider = self._provider
 
-        Priority order:
-        1. Bhashini OCR (if bhashini_client provided)
-        2. Groq Vision (cloud fallback)
-        3. Tesseract OCR (local fallback)
-        """
-        errors = []
-
-        # Try Bhashini OCR if client is available
-        if self.bhashini_client:
+        if provider == "azure":
             try:
-                lang = language_hints[0] if language_hints else "hi"
-                return await self._extract_bhashini(image_bytes, lang)
+                return await self._extract_azure(
+                    image_bytes, filename=filename, content_type=content_type
+                )
             except Exception as e:
-                logger.warning("bhashini_ocr_failed", error=str(e))
-                errors.append(f"Bhashini OCR: {e}")
+                logger.error("azure_document_intelligence_failed", error=str(e))
+                raise OCRError(f"Azure Document Intelligence OCR failed: {e}") from e
 
-        # Try Groq Vision
-        if self._groq_client:
-            try:
-                return await self._extract_groq_vision(image_bytes, language_hints)
-            except Exception as e:
-                logger.warning("groq_vision_ocr_failed", error=str(e))
-                errors.append(f"Groq: {e}")
+        if provider == "bhashini":
+            if not self.bhashini_client:
+                raise OCRError("OCR_PROVIDER=bhashini but Bhashini is not configured.")
+            lang = language_hints[0] if language_hints else "hi"
+            return await self._extract_bhashini(image_bytes, lang)
 
-        # Local tesseract fallback if installed
-        try:
+        if provider == "groq_vision":
+            return await self._extract_groq_vision(image_bytes, language_hints)
+
+        if provider == "tesseract":
             return await self._extract_tesseract(image_bytes, language_hints)
-        except Exception as e:
-            logger.warning("tesseract_ocr_failed", error=str(e))
-            errors.append(f"Tesseract: {e}")
 
-        raise OCRError(f"All OCR providers failed: {'; '.join(errors)}")
+        raise OCRError(
+            f"Unsupported OCR_PROVIDER={provider!r}. "
+            "Use azure, bhashini, groq_vision, or tesseract."
+        )
+
+    async def _extract_azure(
+        self,
+        image_bytes: bytes,
+        *,
+        filename: str,
+        content_type: Optional[str],
+    ) -> dict:
+        if not content_type:
+            lower = filename.lower()
+            if lower.endswith(".pdf"):
+                content_type = "application/pdf"
+            elif lower.endswith(".png"):
+                content_type = "image/png"
+            elif lower.endswith((".jpg", ".jpeg")):
+                content_type = "image/jpeg"
+            elif lower.endswith(".tif") or lower.endswith(".tiff"):
+                content_type = "image/tiff"
+            else:
+                content_type = "application/octet-stream"
+
+        return await self._azure.analyze(
+            image_bytes,
+            content_type=content_type,
+        )
 
     async def _extract_bhashini(
         self,

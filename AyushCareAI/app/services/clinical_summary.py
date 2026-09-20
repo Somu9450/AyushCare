@@ -13,12 +13,12 @@ from typing import Optional
 
 import structlog
 
-from app.ai.llm_service import LLMService
-from app.ai.prompts.summary_generation import (
+from AyushCareAILatest_UPDATED.app.ai.llm_service import LLMService
+from AyushCareAILatest_UPDATED.app.ai.prompts.summary_generation import (
     build_summary_generation_prompt,
     build_summary_system_prompt,
 )
-from app.models.summary import (
+from AyushCareAILatest_UPDATED.app.models.summary import (
     PhysicianSummaryResponse,
     SummaryDecision,
     SummaryLanguage,
