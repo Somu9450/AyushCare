@@ -97,12 +97,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-[url('/KioskScreenBg.png')] bg-center bg-cover bg-no-repeat bg-[#f1f8f7] flex items-center justify-center p-4 sm:p-6 lg:p-10 relative overflow-y-auto">
+    <div className="min-h-screen w-full bg-[url('/KioskScreenBg.png')] bg-center bg-cover bg-no-repeat bg-[#f1f8f7] flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 relative overflow-y-auto">
       {/* Subtle Frosted Background Overlay */}
       <div className="absolute inset-0 bg-white/45 backdrop-blur-[2px] pointer-events-none" />
 
       {/* Centered 2-Column Responsive Split Container */}
-      <div className="w-full max-w-5xl flex flex-col md:flex-row items-stretch justify-center gap-6 lg:gap-8 z-10 my-auto py-6">
+      <div className="w-full max-w-5xl flex flex-col md:flex-row items-stretch justify-center gap-6 lg:gap-8 z-10 my-auto">
         
         {/* ============================================================ */}
         {/* LEFT / SIDE PANEL: SIH Evaluation & Demo Quick-Fill Card    */}
