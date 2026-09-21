@@ -12,6 +12,8 @@ const request = async (config) => unwrap(await api(config));
 export const kioskApi = {
   verifyPatient: (payload) => request({ method: 'POST', url: '/intake/auth/abha', data: payload }),
   lookupPatients: ({ abhaNumber, mobileNumber }) => request({ method: 'GET', url: '/intake/patients/lookup', params: { ...(abhaNumber ? { abha_number: abhaNumber } : {}), ...(mobileNumber ? { mobile_number: mobileNumber } : {}) } }),
+  sendSosOtp: (payload) => request({ method: 'POST', url: '/intake/sos/send-otp', data: payload }),
+  verifySosOtp: (payload) => request({ method: 'POST', url: '/intake/sos/verify-otp', data: payload }),
   systemHealth: () => request({ method: 'GET', url: '/intake/system/health', timeout: 10000 }),
   languages: () => request({ method: 'GET', url: '/language/languages', timeout: 15000 }),
   translate: (text, sourceLanguage, targetLanguage) => request({ method: 'POST', url: '/language/translate', data: { text, source_language: sourceLanguage, target_language: targetLanguage }, timeout: 20000 }),

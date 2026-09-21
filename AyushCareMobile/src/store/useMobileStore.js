@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { analyzeDocumentOCR } from "../services/documentService.js";
 import { sendSummaryToDoctor } from "../services/summaryService.js";
-import { getPortalPrivacySettings, updatePortalPrivacySettings, updatePortalProfile, normalizePortalDocument } from "../services/portalService.js";
+import { getPortalDashboard, getPortalVisits, getPortalDocuments, getPortalPrivacySettings, updatePortalPrivacySettings, updatePortalProfile, normalizePortalDocument } from "../services/portalService.js";
 
 /* ========================================================================== */
 /* SCREEN DEFINITIONS                                                         */
@@ -1994,10 +1994,33 @@ export const useMobileStore = create((set, get) => ({
         getPortalVisits().catch((err) => { console.warn("[Portal Data] Visits error:", err?.message || err); return []; }),
         getPortalDocuments().catch((err) => { console.warn("[Portal Data] Documents error:", err?.message || err); return []; }),
       ]);
-      const normalizedVisits = Array.isArray(visits) ? visits : [];
-      const normalizedDocuments = Array.isArray(documents)
-        ? documents.map(normalizePortalDocument)
-        : [];
+      const normalizedVisits = Array.isArray(visits)
+        ? visits
+        : Array.isArray(visits?.visits)
+          ? visits.visits
+          : Array.isArray(visits?.data)
+            ? visits.data
+            : [];
+      const normalizedAppointments = normalizedVisits.map((visit) => ({
+        ...visit,
+        appointmentId: visit.id,
+        date: visit.created_at || visit.date,
+        appointmentDate: visit.created_at || visit.date,
+        tokenNumber: visit.token_number || visit.tokenNumber || null,
+        doctorName: visit.doctor_name || visit.doctorName || 'AyushCare Medical Officer',
+        departmentName: visit.department_name || visit.departmentName || 'General Medicine',
+        specialty: visit.department_name || visit.departmentName || 'General Medicine',
+        hospitalName: visit.hospital_name || visit.hospitalName || 'AyushCare Center',
+      }));
+      const documentList = Array.isArray(documents)
+        ? documents
+        : Array.isArray(documents?.documents)
+          ? documents.documents
+          : Array.isArray(documents?.data)
+            ? documents.data
+            : [];
+      const normalizedDocuments = documentList
+        .map(normalizePortalDocument)
 
       let mergedPatient = null;
       if (dashboard?.patient) {
@@ -2035,7 +2058,7 @@ export const useMobileStore = create((set, get) => ({
         vitals: dashboard?.vitals || state.vitals,
         latestVisit: dashboard?.latest_visit || state.latestVisit,
         visits: normalizedVisits,
-        appointments: normalizedVisits.filter((visit) => visit.status !== "complete" && visit.status !== "cancelled"),
+        appointments: normalizedAppointments,
         medicalRecords: normalizedDocuments,
       }));
       return { dashboard, visits: normalizedVisits, documents: normalizedDocuments };

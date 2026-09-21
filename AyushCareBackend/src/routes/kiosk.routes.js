@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { performAbhaRegister, lookupPatients, createKioskSession, createPatientUploadQr, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth, audioIntake, speakModeSubmit } from '../controllers/kiosk.controller.js';
+import { performAbhaRegister, lookupPatients, sendSosOtp, verifySosOtp, createKioskSession, createPatientUploadQr, getSession, updateSessionLanguage, startDialogue, getDialogueState, answerDialogue, speechDialogue, ttsDialogue, saveVitals, listDepartments, listDepartmentDoctors, generateSummary, getSummary, editSummarySection, grantConsent, getConsent, getConsentScopes, getConsentReceipt, withdrawConsent, updateConsultationRouting, generateToken, completeSession, cancelSession, deleteAiSession, listAiDocuments, verifyAiDocumentEntity, fhirPreview, integrationHealth, audioIntake, speakModeSubmit } from '../controllers/kiosk.controller.js';
 import { rawAudio } from '../middleware/rawAudio.middleware.js';
 
 const router = Router();
 router.post('/auth/abha', performAbhaRegister);
 router.get('/patients/lookup', lookupPatients);
+router.post('/sos/send-otp', sendSosOtp);
+router.post('/sos/verify-otp', verifySosOtp);
 router.get('/system/health', integrationHealth);
 router.post('/session', createKioskSession);
 router.get('/session/:session_id', getSession);

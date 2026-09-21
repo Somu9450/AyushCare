@@ -21,6 +21,7 @@ const Screen6_HealthHistory = lazy(() => import('./pages/Screen6_HealthHistory')
 const Screen8_QRUpload = lazy(() => import('./pages/Screen8_QRUpload'));
 const Screen9_ReviewSubmission = lazy(() => import('./pages/Screen9_ReviewSubmission'));
 const Screen10_TokenSuccess = lazy(() => import('./pages/Screen10_TokenSuccess'));
+const Screen11_Sos = lazy(() => import('./pages/Screen11_Sos'));
 
 function ScreenLoader() {
   return <div className="screen-loading" role="status"><div className="loading-spinner" /><span>Loading</span></div>;
@@ -74,6 +75,7 @@ export default function App() {
     8: <Screen8_QRUpload />,
     9: <Screen9_ReviewSubmission />,
     10: <Screen10_TokenSuccess />,
+    11: <Screen11_Sos />,
   }[currentScreen] || <Screen1_Welcome />;
 
   return (
