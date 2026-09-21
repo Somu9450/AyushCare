@@ -29,6 +29,11 @@ export const initializeSchema = async () => {
             full_name VARCHAR(255) NOT NULL, gender VARCHAR(20) NOT NULL, date_of_birth DATE NOT NULL, mobile_number VARCHAR(15), address TEXT, aadhaar_number VARCHAR(12), registration_type VARCHAR(20) DEFAULT 'new',
             consent_granted BOOLEAN DEFAULT FALSE, consent_timestamp TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
+        await client.query(`CREATE TABLE IF NOT EXISTS sos_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+            kiosk_id VARCHAR(100) NOT NULL DEFAULT 'KIOSK-MAIN-01', invoked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            verification_method VARCHAR(20) NOT NULL, metadata JSONB DEFAULT '{}'
+        );`);
         await client.query(`CREATE TABLE IF NOT EXISTS departments (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), hospital_id UUID REFERENCES hospitals(id) ON DELETE CASCADE,
             name VARCHAR(255) NOT NULL, pathway VARCHAR(30) NOT NULL DEFAULT 'allopathy', is_active BOOLEAN DEFAULT TRUE,
@@ -45,7 +50,7 @@ export const initializeSchema = async () => {
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), hospital_id UUID REFERENCES hospitals(id) ON DELETE CASCADE,
             patient_id UUID REFERENCES patients(id) ON DELETE CASCADE, department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
             assigned_doctor_id UUID REFERENCES users(id) ON DELETE SET NULL, token_number VARCHAR(20), status consultation_status DEFAULT 'waiting_triage',
-            risk_level risk_level DEFAULT 'routine', intake_pathway VARCHAR(30) NOT NULL DEFAULT 'general', language VARCHAR(20) DEFAULT 'en',
+            risk_level risk_level DEFAULT 'routine', intake_pathway VARCHAR(30) NOT NULL DEFAULT 'general', language VARCHAR(20) DEFAULT 'en', speech_language VARCHAR(20),
             ai_session_id VARCHAR(100), remarks TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS clinical_summaries (
@@ -156,6 +161,7 @@ export const initializeSchema = async () => {
         await addColumn(client, 'patients', 'registration_type', "VARCHAR(20) DEFAULT 'new'");
         await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_mobile ON patients(mobile_number);`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_patients_aadhaar ON patients(aadhaar_number);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_sos_events_patient_time ON sos_events(patient_id, invoked_at DESC);`);
 
         await addColumn(client, 'consultations', 'department_id', 'UUID REFERENCES departments(id) ON DELETE SET NULL');
         await addColumn(client, 'consultations', 'intake_pathway', "VARCHAR(30) NOT NULL DEFAULT 'general'");
@@ -163,6 +169,7 @@ export const initializeSchema = async () => {
         await addColumn(client, 'consultations', 'patient_audio_url', 'TEXT');
         await addColumn(client, 'consultations', 'patient_transcript', 'TEXT');
         await addColumn(client, 'consultations', 'language', "VARCHAR(20) DEFAULT 'en'");
+        await addColumn(client, 'consultations', 'speech_language', 'VARCHAR(20)');
         await addColumn(client, 'consultations', 'ai_session_id', 'VARCHAR(100)');
         await addColumn(client, 'consultations', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
         await addColumn(client, 'consultations', 'token_number', 'VARCHAR(20)');

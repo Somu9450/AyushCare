@@ -9,6 +9,7 @@ import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
 import { assertSupportedLanguage } from '../services/languageService.js';
 import { createRawQrToken, hashQrToken } from '../services/patientQrService.js';
+import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -274,6 +275,72 @@ export const lookupPatients = asyncHandler(async (req, res) => {
         params
     );
     return res.json(new ApiResponse(200, { multiple: result.rowCount > 1, patients: result.rows }, 'Patient lookup completed'));
+});
+
+const normalizeSosMobile = (value) => normalizeMobile(value);
+
+export const sendSosOtp = asyncHandler(async (req, res) => {
+    const mobile = normalizeSosMobile(req.body?.mobileNumber);
+    if (!mobile) throw new ApiError(400, 'A valid 10-digit mobile number is required for SOS verification');
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    saveOTP(mobile, otp, 300);
+    console.log(`[AYUSHCARE SOS OTP] mobile=${mobile} otp=${otp}`);
+    return res.json(new ApiResponse(200, { mobile, otp, expires_in_seconds: 300 }, 'SOS verification OTP sent'));
+});
+
+export const verifySosOtp = asyncHandler(async (req, res) => {
+    const {
+        otp, patientId, abhaNumber, mobileNumber, fullName, gender, age, dob, address,
+        aadhaarNumber, kioskId = 'KIOSK-MAIN-01'
+    } = req.body || {};
+    const mobile = normalizeSosMobile(mobileNumber);
+    if (!mobile || !otp) throw new ApiError(400, 'Mobile number and OTP are required');
+    if (!verifyOTP(mobile, String(otp))) throw new ApiError(401, 'Invalid or expired verification OTP');
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        let patient;
+        if (patientId) {
+            const existing = await client.query('SELECT * FROM patients WHERE id=$1 LIMIT 1', [patientId]);
+            if (!existing.rowCount) throw new ApiError(404, 'Patient record not found');
+            patient = existing.rows[0];
+        } else {
+            const cleanAbha = normalizeDigits(abhaNumber, 14, 'ABHA number');
+            const resolvedDob = dob || dateOfBirthFromAge(age);
+            if (!fullName || !gender || !resolvedDob || !mobile) throw new ApiError(400, 'Name, gender, age/dob and mobile number are required');
+            if (cleanAbha) {
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(abha_number, '-', ''), ' ', '')=$1 OR abha_number=$1 LIMIT 1`,
+                    [cleanAbha]
+                );
+                patient = existing.rows[0];
+            }
+            if (patient) {
+                const updated = await client.query(
+                    `UPDATE patients SET full_name=$1, gender=$2, date_of_birth=$3, mobile_number=$4, address=COALESCE($5,address), aadhaar_number=COALESCE($6,aadhaar_number), consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$7 RETURNING *`,
+                    [fullName, gender, resolvedDob, mobile, address || null, normalizeDigits(aadhaarNumber, 12, 'Aadhaar number'), patient.id]
+                );
+                patient = updated.rows[0];
+            } else {
+                const inserted = await client.query(
+                    `INSERT INTO patients (abha_number,full_name,gender,date_of_birth,mobile_number,address,aadhaar_number,registration_type,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,'sos',TRUE,NOW()) RETURNING *`,
+                    [cleanAbha, fullName, gender, resolvedDob, mobile, address || null, normalizeDigits(aadhaarNumber, 12, 'Aadhaar number')]
+                );
+                patient = inserted.rows[0];
+            }
+        }
+
+        const event = await client.query(
+            `INSERT INTO sos_events (patient_id,kiosk_id,verification_method,metadata) VALUES ($1,$2,$3,$4) RETURNING id,invoked_at`,
+            [patient.id, kioskId, abhaNumber ? 'abha' : 'mobile', JSON.stringify({ source: 'kiosk_sos' })]
+        );
+        await client.query('COMMIT');
+        return res.status(201).json(new ApiResponse(201, { patient, sos_event: event.rows[0] }, 'SOS request verified and recorded'));
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally { client.release(); }
 });
 
 export const integrationHealth = asyncHandler(async (req, res) => {
@@ -621,9 +688,9 @@ export const audioIntake = asyncHandler(async (req, res) => {
 
     const detectedLanguage = transcription.detected_language || transcription.language || (requestedLang !== 'auto' ? requestedLang : (c.language || 'en'));
 
-    // Automatically update consultation language if auto-detected
+    // Speech language is separate from the navbar-selected kiosk UI language.
     if (detectedLanguage && detectedLanguage !== 'auto' && detectedLanguage !== c.language) {
-        await pool.query('UPDATE consultations SET language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
+        await pool.query('UPDATE consultations SET speech_language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
     }
 
     return res.json(new ApiResponse(200, {
@@ -632,33 +699,46 @@ export const audioIntake = asyncHandler(async (req, res) => {
         audioUrl,
         language: detectedLanguage,
         detected_language: detectedLanguage,
+        speech_language: detectedLanguage,
     }, 'Audio recorded and transcribed successfully'));
 });
 
 export const speakModeSubmit = asyncHandler(async (req, res) => {
     const c = await getConsultation(req.params.session_id);
-    const { transcript, audioUrl, duration, language = c.language || 'en' } = req.body || {};
+    const { transcript, audioUrl, duration, language, speech_language: speechLanguage } = req.body || {};
 
     if (!transcript || !transcript.trim()) {
         throw new ApiError(400, 'Transcript is required');
     }
 
-    const effectiveLanguage = language && language !== 'auto' ? language : (c.language || 'en');
+    const effectiveLanguage = (speechLanguage || language) && (speechLanguage || language) !== 'auto'
+        ? (speechLanguage || language)
+        : (c.speech_language || c.language || 'en');
 
     // 1. Update consultation record with speak mode, audio URL, and effective language
     await pool.query(
         `UPDATE consultations 
-         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, language = $3, updated_at = NOW() 
+         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, speech_language = $3, updated_at = NOW()
          WHERE id = $4`,
         [audioUrl || null, transcript.trim(), effectiveLanguage, c.id]
     );
 
-    // 2. Format conversation history turn to feed Groq LLM summary generator
+    let transcriptForAi = transcript.trim();
+    if (effectiveLanguage !== 'en') {
+        try {
+            const translated = await AiServiceGateway.translate(transcriptForAi, effectiveLanguage, 'en');
+            transcriptForAi = translated?.text || translated?.translated_text || transcriptForAi;
+        } catch (error) {
+            console.warn('Speech-to-English translation fallback:', error?.message || error);
+        }
+    }
+
+    // 2. Format English conversation history to feed Groq LLM summary generator
     const conversationHistory = [
         {
             question_id: 'q-chief-complaint',
             question: 'Please describe the health concerns and symptoms you are experiencing today in detail.',
-            answer: transcript.trim(),
+            answer: transcriptForAi,
             phase: 'symptom_exploration',
             input_mode: 'speech',
         },
@@ -670,7 +750,7 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
     try {
         summaryResult = await AiServiceGateway.generateSummary(
             c.ai_session_id,
-            effectiveLanguage,
+            'en',
             true,
             includeAyush,
             conversationHistory
@@ -696,6 +776,21 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
         };
     }
 
+    if (effectiveLanguage !== 'en' && Array.isArray(summaryResult?.sections)) {
+        const sections = summaryResult.sections;
+        const sourceTexts = sections.flatMap((section) => [section.heading_en || '', section.body || '']);
+        const translated = await AiServiceGateway.translateBatch(sourceTexts, 'en', effectiveLanguage).catch(() => sourceTexts);
+        summaryResult = {
+            ...summaryResult,
+            sections: sections.map((section, index) => ({
+                ...section,
+                heading_local: translated[index * 2] || section.heading_local || section.heading_en,
+                body_local: translated[index * 2 + 1] || section.body_local || section.body,
+            })),
+            language: effectiveLanguage,
+        };
+    }
+
     // Attach transcripts item with audioUrl into ai_payload for doctor Evidence Drawer playback
     const transcriptsPayload = [
         {
@@ -717,6 +812,7 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
     const aiPayload = JSON.stringify({
         ...(summaryResult || {}),
         language: effectiveLanguage,
+        speech_language: effectiveLanguage,
         transcripts: transcriptsPayload,
         patient_audio_url: audioUrl || null,
         patient_transcript: transcript.trim(),
@@ -746,5 +842,6 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
         patient_audio_url: audioUrl,
         patient_transcript: transcript.trim(),
         language: effectiveLanguage,
+        speech_language: effectiveLanguage,
     }, 'Speak mode summary generated successfully'));
 });

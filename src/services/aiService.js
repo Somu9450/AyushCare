@@ -70,6 +70,12 @@ const AiServiceGateway = {
             source_language: sourceLanguage,
             target_language: targetLanguage
         }),
+    translateBatch: (texts, sourceLanguage, targetLanguage) =>
+        json('/api/v1/translate-batch', {
+            texts,
+            source_language: sourceLanguage,
+            target_language: targetLanguage
+        }),
 
     startConversation: (sessionId, intakePathway) => json(`/api/v1/sessions/${sessionId}/conversation/start`, { intake_pathway: normalizeAiPathway(intakePathway) }),
     getConversationState: (sessionId) => request(`/api/v1/sessions/${sessionId}/conversation/state`),
@@ -128,9 +134,9 @@ const AiServiceGateway = {
     generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false, conversationHistory = null) => {
         let langStr = 'en';
         if (typeof language === 'string') {
-            langStr = language.toLowerCase().includes('hi') ? 'hi' : 'en';
+            langStr = language.toLowerCase().split('-')[0] || 'en';
         } else if (language && typeof language === 'object') {
-            langStr = String(language.language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+            langStr = String(language.language || 'en').toLowerCase().split('-')[0] || 'en';
         }
         const payload = { language: langStr, include_documents: includeDocuments !== false, include_ayush: Boolean(includeAyush) };
         if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
