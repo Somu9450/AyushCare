@@ -1,9 +1,12 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL =
+const rawSocketUrl =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, '') ||
-  'http://localhost:8000';
+  process.env.VITE_SOCKET_URL ||
+  'http://localhost:8001';
+
+const SOCKET_URL = rawSocketUrl.replace(/\/+$/, '');
 
 let socket: Socket | null = null;
 let hasLoggedConnectWarning = false;
@@ -17,13 +20,14 @@ export const getSocket = (): Socket => {
     try {
       socket = io(SOCKET_URL, {
         path: '/socket.io',
-        autoConnect: true,
-        withCredentials: true,
         transports: ['websocket', 'polling'],
+        withCredentials: true,
+        reconnection: true,
         reconnectionAttempts: 5,
-        reconnectionDelay: 2000,
+        reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 10000,
+        autoConnect: true,
       });
 
       socket.on('connect', () => {
@@ -33,20 +37,23 @@ export const getSocket = (): Socket => {
       socket.on('connect_error', (err) => {
         if (!hasLoggedConnectWarning) {
           console.warn(
-            `[Socket.io] Connection warning (${SOCKET_URL}): ${err.message}. Retrying via polling/websocket fallback.`
+            `[Socket.io] Backend socket connection notice (${SOCKET_URL}): ${err.message}. Retrying via polling/websocket.`
           );
           hasLoggedConnectWarning = true;
         }
       });
 
       socket.on('reconnect_failed', () => {
-        console.warn(
-          `[Socket.io] Reconnection attempts exhausted (${SOCKET_URL}). Check backend server status.`
-        );
+        if (!hasLoggedConnectWarning) {
+          console.warn(
+            `[Socket.io] Reconnection attempts exhausted (${SOCKET_URL}). Backend socket service may be offline.`
+          );
+          hasLoggedConnectWarning = true;
+        }
       });
 
       socket.on('error', (err) => {
-        console.warn('[Socket.io] Diagnostic error:', err);
+        console.warn('[Socket.io] Error event:', err);
       });
     } catch (err) {
       console.warn('[Socket.io] Initialization exception:', err);
@@ -80,6 +87,7 @@ export const subscribeToQueueEvents = (
 
 export const disconnectSocket = () => {
   if (socket && typeof socket.disconnect === 'function') {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
     hasLoggedConnectWarning = false;

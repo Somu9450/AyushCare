@@ -22,6 +22,7 @@ import {
   Sparkles,
   Lock,
   ShieldAlert,
+  Pill,
 } from 'lucide-react';
 
 interface EvidenceDrawerProps {
@@ -291,8 +292,16 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                 </div>
 
                 {patient.extractions.length === 0 ? (
-                  <div className="p-4 border border-dashed border-slate-200 rounded-lg text-center text-xs text-slate-400">
-                    No medication extraction records found.
+                  <div className="p-4 bg-slate-50/80 border border-slate-200/90 rounded-xl text-center space-y-2">
+                    <div className="w-8 h-8 rounded-full bg-teal-50 border border-teal-200/70 text-teal-700 flex items-center justify-center mx-auto">
+                      <Pill className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">No Physical Rx Extracted</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5 max-w-xs mx-auto">
+                        Prescription photos uploaded at Kiosk or via Mobile are parsed by Doc-Intelligence OCR to surface historical medications.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
