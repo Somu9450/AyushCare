@@ -6,7 +6,7 @@ import { useKioskStore } from '../store/useKioskStore';
 import { useTranslation } from '../hooks/useTranslation';
 
 export default function Screen3b_LanguageSelect() {
-  const { sessionData, language, setLanguage, updateSession, setScreen } = useKioskStore();
+  const { sessionData, language, updateSession, setScreen } = useKioskStore();
   const { t } = useTranslation();
   const [languages, setLanguages] = useState([]);
   const [selected, setSelected] = useState(language || 'en');
@@ -34,10 +34,8 @@ export default function Screen3b_LanguageSelect() {
     setSaving(true);
     setError('');
     try {
-      setLanguage(selected);
       updateSession({ interviewLanguage: selected });
       if (!sessionData.consultationId) throw new Error('Consultation session is not available.');
-      await kioskApi.updateLanguage(sessionData.consultationId, selected);
       setScreen(6);
     } catch (e) {
       setError(getErrorMessage(e));

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Delete, RotateCcw, Check } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 
@@ -7,7 +6,7 @@ export const VirtualKeypad = ({ onKeyPress, onBackspace, onClear, onSubmit, subm
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   return (
-    <div className="bg-slate-100/90 p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-inner max-w-[280px] sm:max-w-[310px] w-full mx-auto select-none">
+    <div className="bg-slate-100/90 p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-inner max-w-70 sm:max-w-77.5 w-full mx-auto select-none">
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {keys.map((num) => (
           <button

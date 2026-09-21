@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Loader2, RefreshCw, Smartphone, Clock3, ShieldCheck } from 'lucide-react';
 import { kioskApi, getErrorMessage } from '../services/api';
 import { useKioskStore } from '../store/useKioskStore';
@@ -20,7 +20,7 @@ export default function Screen8_QRUpload() {
 
   useEffect(() => { docsRef.current = docs; }, [docs]);
 
-  const makeQr = async () => {
+  const makeQr = useCallback(async () => {
     if (!sessionData.consultationId) {
       setError('Clinical session is unavailable.');
       return;
@@ -35,14 +35,17 @@ export default function Screen8_QRUpload() {
     } catch (e) {
       setError(getErrorMessage(e));
     } finally { setLoading(false); }
-  };
+  }, [sessionData.consultationId, updateSession]);
 
-  useEffect(() => { if (!qr) void makeQr(); }, []);
+  // QR creation is intentionally triggered after the first render.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (!qr) void makeQr(); }, [makeQr, qr]);
 
-  const refreshDocs = async () => {
+  const refreshDocs = useCallback(async () => {
     if (!sessionData.consultationId) return;
     try {
       const state = await kioskApi.getSession(sessionData.consultationId);
+      setError('');
       const list = Array.isArray(state?.documents) ? state.documents : [];
       setDocs(list);
       docsRef.current = list;
@@ -65,14 +68,16 @@ export default function Screen8_QRUpload() {
           updateSession({ documents: list, liveDocumentSummary: summary });
         } catch { updateSession({ documents: list }); }
       }
-    } catch {}
-  };
+    } catch (e) {
+      setError(`Document status unavailable: ${getErrorMessage(e)}`);
+    }
+  }, [sessionData.consultationId, sessionData.language, sessionData.pathway, sessionData.questionHistory, updateSession]);
 
   useEffect(() => {
     if (!sessionData.consultationId) return;
     const timer = setInterval(refreshDocs, 2500);
     return () => clearInterval(timer);
-  }, [sessionData.consultationId]);
+  }, [refreshDocs, sessionData.consultationId]);
 
   useEffect(() => {
     if (!qr) return;

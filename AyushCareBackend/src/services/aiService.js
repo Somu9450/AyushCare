@@ -128,9 +128,9 @@ const AiServiceGateway = {
     generateSummary: (sessionId, language = 'en', includeDocuments = true, includeAyush = false, conversationHistory = null) => {
         let langStr = 'en';
         if (typeof language === 'string') {
-            langStr = language.toLowerCase().includes('hi') ? 'hi' : 'en';
+            langStr = language.toLowerCase().split('-')[0] || 'en';
         } else if (language && typeof language === 'object') {
-            langStr = String(language.language || 'en').toLowerCase().includes('hi') ? 'hi' : 'en';
+            langStr = String(language.language || 'en').toLowerCase().split('-')[0] || 'en';
         }
         const payload = { language: langStr, include_documents: includeDocuments !== false, include_ayush: Boolean(includeAyush) };
         if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
