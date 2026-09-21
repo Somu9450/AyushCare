@@ -70,6 +70,12 @@ const AiServiceGateway = {
             source_language: sourceLanguage,
             target_language: targetLanguage
         }),
+    translateBatch: (texts, sourceLanguage, targetLanguage) =>
+        json('/api/v1/translate-batch', {
+            texts,
+            source_language: sourceLanguage,
+            target_language: targetLanguage
+        }),
 
     startConversation: (sessionId, intakePathway) => json(`/api/v1/sessions/${sessionId}/conversation/start`, { intake_pathway: normalizeAiPathway(intakePathway) }),
     getConversationState: (sessionId) => request(`/api/v1/sessions/${sessionId}/conversation/state`),

@@ -130,6 +130,78 @@ class TranslationService:
             return text
         return await self.translate(text, source_lang, "en")
 
+    async def translate_batch(
+        self,
+        texts: list[str],
+        source_lang: str,
+        target_lang: str,
+    ) -> list[str]:
+        """Translate multiple strings in one provider request with one-call fallback."""
+        if not texts or source_lang == target_lang:
+            return texts
+
+        if self._bhashini is not None:
+            try:
+                translated = await self._bhashini.translate_batch(
+                    texts=texts,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    service_id=self._settings.bhashini_nmt_model,
+                )
+                if len(translated) == len(texts) and all(item.strip() for item in translated):
+                    logger.info(
+                        "translation_batch_complete",
+                        provider="bhashini",
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        item_count=len(texts),
+                    )
+                    return [item.strip() for item in translated]
+            except Exception as error:
+                logger.warning(
+                    "bhashini_translation_batch_failed_trying_llm",
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    item_count=len(texts),
+                    error=str(error),
+                )
+
+        if self._llm is not None and self._llm.is_available:
+            try:
+                numbered = "\n".join(f"[{index}] {text}" for index, text in enumerate(texts))
+                prompt = (
+                    f"Translate each numbered healthcare text from {source_lang} to {target_lang}. "
+                    "Return the same numbered lines and only the translations. Do not merge or omit lines:\n\n"
+                    f"{numbered}"
+                )
+                translated = await self._llm.generate(
+                    system_prompt="You are a professional medical and multilingual translation assistant for healthcare kiosks.",
+                    user_prompt=prompt,
+                    temperature=0.1,
+                    max_tokens=max(1000, len(texts) * 400),
+                )
+                result = {}
+                for line in (translated or "").splitlines():
+                    if line.startswith("[") and "]" in line:
+                        index_text, value = line.split("]", 1)
+                        try:
+                            result[int(index_text[1:])] = value.strip()
+                        except ValueError:
+                            continue
+                if len(result) == len(texts):
+                    logger.info(
+                        "translation_batch_complete",
+                        provider="llm_groq",
+                        source_lang=source_lang,
+                        target_lang=target_lang,
+                        item_count=len(texts),
+                    )
+                    return [result[index] for index in range(len(texts))]
+            except Exception as error:
+                logger.warning("llm_translation_batch_failed", error=str(error))
+
+        return texts
+
     async def translate_from_english(self, text: str, target_lang: str) -> str:
         """Translate English text to the target language.
 
