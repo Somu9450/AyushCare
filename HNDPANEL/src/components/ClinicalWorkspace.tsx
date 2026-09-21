@@ -1723,13 +1723,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           </div>
 
           {/* Right Primary Action: Prominent Emerald Sign-Off Button */}
-          <button
-            onClick={onConfirmContinue}
-            className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition-all text-center cursor-pointer flex items-center justify-center gap-2"
-          >
-            <Check className="w-4 h-4 text-white" />
-            <span>Confirm & Sign Off Rx</span>
-          </button>
+          {patient.priority === 'Completed' || patient.status === 'completed' ? (
+            <div className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-lg shadow-2xs text-center flex items-center justify-center gap-2 select-none">
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>Signed Off & Finalized</span>
+            </div>
+          ) : (
+            <button
+              onClick={onConfirmContinue}
+              className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition-all text-center cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4 text-white" />
+              <span>Confirm & Sign Off Rx</span>
+            </button>
+          )}
         </div>
       </div>
 

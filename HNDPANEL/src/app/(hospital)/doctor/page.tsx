@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { doctorService } from '../../../services/doctor.service';
 import { ConsultationQueueItem, ClinicalSummary, UploadedDocument } from '../../../types/api';
-import { Patient } from '../../../types/clinical';
+import { Patient, PrescriptionItem } from '../../../types/clinical';
 import { mapQueueItemToPatient } from '../../../lib/adapters';
 import { subscribeToQueueEvents } from '../../../lib/socket';
 import { TopNavbar } from '../../../components/TopNavbar';
@@ -89,6 +89,42 @@ const ClinicalWorkspaceSkeleton = () => (
   </div>
 );
 
+const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+const SIGNED_OFF_STORAGE_KEY = 'ayushcare_signed_off_patients';
+
+function getStoredSignedOffPatients(): Patient[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(SIGNED_OFF_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: Patient[] = JSON.parse(raw);
+    const now = Date.now();
+    const valid = parsed.filter((p) => {
+      if (!p.signedOffAt) return false;
+      const signedTime = new Date(p.signedOffAt).getTime();
+      return now - signedTime <= FORTY_EIGHT_HOURS_MS;
+    });
+    if (valid.length !== parsed.length) {
+      localStorage.setItem(SIGNED_OFF_STORAGE_KEY, JSON.stringify(valid));
+    }
+    return valid;
+  } catch {
+    return [];
+  }
+}
+
+function saveSignedOffPatientToStorage(patient: Patient): Patient[] {
+  if (typeof window === 'undefined') return [patient];
+  try {
+    const existing = getStoredSignedOffPatients().filter((p) => p.id !== patient.id);
+    const updated = [patient, ...existing];
+    localStorage.setItem(SIGNED_OFF_STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [patient];
+  }
+}
+
 export default function DoctorWorkspacePage() {
   const [rawQueue, setRawQueue] = useState<ConsultationQueueItem[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
@@ -106,10 +142,16 @@ export default function DoctorWorkspacePage() {
   const [isQueueSidebarOpen, setIsQueueSidebarOpen] = useState(false);
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [signedOffPatients, setSignedOffPatients] = useState<Patient[]>([]);
   const isMountedRef = useRef(true);
+
+  // Persistent decoupled refs to prevent background polling from resetting doctor's active drafts
+  const rxDraftsRef = useRef<Record<string, PrescriptionItem[]>>({});
+  const customEditsRef = useRef<Record<string, Partial<Patient>>>({});
 
   useEffect(() => {
     isMountedRef.current = true;
+    setSignedOffPatients(getStoredSignedOffPatients());
     return () => {
       isMountedRef.current = false;
     };
@@ -136,13 +178,11 @@ export default function DoctorWorkspacePage() {
         });
       } else {
         setSelectedConsultationId(null);
-        setPatients([]);
       }
     } catch (err: any) {
       if (!isMountedRef.current) return;
       setQueueError(err.message || 'Failed to load OPD queue. Please check server connectivity.');
       setRawQueue([]);
-      setPatients([]);
       setSelectedConsultationId(null);
     } finally {
       if (isMountedRef.current) {
@@ -279,19 +319,41 @@ export default function DoctorWorkspacePage() {
     };
   }, [selectedConsultationId]);
 
-  // 4. Map raw queue items to frontend Patient UI models
+  // 4. Map raw queue items to frontend Patient UI models with decoupled draft preservation & 48h signed-off retention
   useEffect(() => {
-    if (rawQueue.length > 0) {
-      const mapped = rawQueue.map((item) =>
+    const now = Date.now();
+
+    // Map active queue items
+    const activeMapped: Patient[] = rawQueue.map((item) => {
+      const p =
         item.id === selectedConsultationId
           ? mapQueueItemToPatient(item, activeSummary, activeReports, activeSessionDocs)
-          : mapQueueItemToPatient(item)
-      );
-      setPatients(mapped);
-    } else {
-      setPatients([]);
-    }
-  }, [rawQueue, selectedConsultationId, activeSummary, activeReports, activeSessionDocs]);
+          : mapQueueItemToPatient(item);
+
+      // Decouple & preserve local prescription drafts
+      if (rxDraftsRef.current[item.id]) {
+        p.prescriptions = rxDraftsRef.current[item.id];
+      }
+      if (customEditsRef.current[item.id]) {
+        Object.assign(p, customEditsRef.current[item.id]);
+      }
+      return p;
+    });
+
+    // Exclude any active queue item that has already been signed off locally
+    const signedOffIds = new Set(signedOffPatients.map((sp) => sp.id));
+    const activeFiltered = activeMapped.filter((p) => !signedOffIds.has(p.id));
+
+    // Filter signed-off patients ensuring strict 48-hour retention window
+    const validSignedOff = signedOffPatients.filter((sp) => {
+      if (!sp.signedOffAt) return true;
+      return now - new Date(sp.signedOffAt).getTime() <= FORTY_EIGHT_HOURS_MS;
+    });
+
+    // Combine active patients + 48h completed patients
+    const combined = [...activeFiltered, ...validSignedOff];
+    setPatients(combined);
+  }, [rawQueue, selectedConsultationId, activeSummary, activeReports, activeSessionDocs, signedOffPatients]);
 
   // Active selected patient
   const selectedPatient = useMemo(() => {
@@ -312,8 +374,16 @@ export default function DoctorWorkspacePage() {
     }
   }, [selectedPatient?.id, selectedPatient?.documents?.length, selectedPatient?.transcripts?.length]);
 
-  // Update patient status & clinical notes in backend
+  // Update patient status & clinical notes in backend, while preserving local draft state
   const handleUpdatePatient = async (updated: Patient) => {
+    // 1. Preserve local prescription list & edits in persistent refs
+    rxDraftsRef.current[updated.id] = updated.prescriptions || [];
+    customEditsRef.current[updated.id] = {
+      chiefComplaint: updated.chiefComplaint,
+      historyOfPresentIllness: updated.historyOfPresentIllness,
+      socrates: updated.socrates,
+    };
+
     setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     try {
       await doctorService.updateConsultationStatus(updated.id, 'in_queue');
@@ -322,12 +392,12 @@ export default function DoctorWorkspacePage() {
     }
   };
 
-  // Sign off & confirm consultation
+  // Sign off & confirm consultation: marks completed & retains patient in queue for 48 hours
   const handleConfirmContinue = async () => {
-    if (!selectedConsultationId) return;
+    if (!selectedConsultationId || !selectedPatient) return;
 
     try {
-      const remarksText = selectedPatient?.prescriptions?.length
+      const remarksText = selectedPatient.prescriptions?.length
         ? `Prescribed: ${selectedPatient.prescriptions.map((p) => `${p.drugName} (${p.dosage}, ${p.frequency})`).join('; ')}`
         : 'Consultation completed and prescription sign-off verified.';
 
@@ -336,8 +406,23 @@ export default function DoctorWorkspacePage() {
       // Local state fallback
     }
 
-    // Refresh queue from server to remove completed token
-    await fetchQueue(true);
+    // Mark as completed & retain for 48 hours in queue
+    const now = new Date().toISOString();
+    const finalizedPatient: Patient = {
+      ...selectedPatient,
+      priority: 'Completed',
+      status: 'completed',
+      signedOffAt: now,
+    };
+
+    const updatedStored = saveSignedOffPatientToStorage(finalizedPatient);
+    setSignedOffPatients(updatedStored);
+
+    delete rxDraftsRef.current[selectedConsultationId];
+    delete customEditsRef.current[selectedConsultationId];
+
+    // Refresh queue from server without immediately deselecting
+    await fetchQueue(false);
   };
 
   return (
