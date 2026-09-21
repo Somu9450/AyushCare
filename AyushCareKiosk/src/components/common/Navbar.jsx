@@ -1,12 +1,11 @@
-import React from "react";
-import { Volume2, VolumeX, ChevronDown } from "lucide-react";
+import { Volume2, VolumeX, Siren } from "lucide-react";
 import { useKioskStore } from "../../store/useKioskStore";
 import LanguageToggle from "./LanguageToggle";
 import { audioService } from '../../services/audioService';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export default function Navbar() {
-  const { audioEnabled, toggleAudio } = useKioskStore();
+  const { audioEnabled, toggleAudio, setScreen } = useKioskStore();
   const { t } = useTranslation();
 
   return (
@@ -36,6 +35,16 @@ export default function Navbar() {
 
 {/* Top Right: Language Toggle, Audio Toggle, and Ayushman Bharat Brand */}
       <div className="nav-actions">
+        <button
+          type="button"
+          className="sos-button"
+          onClick={() => setScreen(11)}
+          aria-label="SOS emergency assistance"
+          title="SOS emergency assistance"
+        >
+          <Siren size={17} />
+          <span>SOS</span>
+        </button>
         <LanguageToggle />
         <button
         type="button"

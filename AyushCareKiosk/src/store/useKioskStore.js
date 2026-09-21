@@ -36,7 +36,7 @@ export const useKioskStore = create((set) => ({
   emergencyModalOpen: false,
   sessionData: freshSession(),
 
-  setScreen: (screen) => set({ currentScreen: Math.max(1, Math.min(10, screen)) }),
+  setScreen: (screen) => set({ currentScreen: Math.max(1, Math.min(11, screen)) }),
   nextScreen: () => set((s) => ({ currentScreen: Math.min(10, s.currentScreen + 1) })),
   prevScreen: () => set((s) => ({ currentScreen: s.currentScreen === 6 ? 5 : Math.max(1, s.currentScreen - 1) })),
   setLanguage: (language) => set({ language }),

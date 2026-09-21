@@ -9,6 +9,7 @@ import pool from '../database/dbConnection.js';
 import AiServiceGateway from '../services/aiService.js';
 import { assertSupportedLanguage } from '../services/languageService.js';
 import { createRawQrToken, hashQrToken } from '../services/patientQrService.js';
+import { saveOTP, verifyOTP } from '../utilities/otpStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -274,6 +275,72 @@ export const lookupPatients = asyncHandler(async (req, res) => {
         params
     );
     return res.json(new ApiResponse(200, { multiple: result.rowCount > 1, patients: result.rows }, 'Patient lookup completed'));
+});
+
+const normalizeSosMobile = (value) => normalizeMobile(value);
+
+export const sendSosOtp = asyncHandler(async (req, res) => {
+    const mobile = normalizeSosMobile(req.body?.mobileNumber);
+    if (!mobile) throw new ApiError(400, 'A valid 10-digit mobile number is required for SOS verification');
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    saveOTP(mobile, otp, 300);
+    console.log(`[AYUSHCARE SOS OTP] mobile=${mobile} otp=${otp}`);
+    return res.json(new ApiResponse(200, { mobile, otp, expires_in_seconds: 300 }, 'SOS verification OTP sent'));
+});
+
+export const verifySosOtp = asyncHandler(async (req, res) => {
+    const {
+        otp, patientId, abhaNumber, mobileNumber, fullName, gender, age, dob, address,
+        aadhaarNumber, kioskId = 'KIOSK-MAIN-01'
+    } = req.body || {};
+    const mobile = normalizeSosMobile(mobileNumber);
+    if (!mobile || !otp) throw new ApiError(400, 'Mobile number and OTP are required');
+    if (!verifyOTP(mobile, String(otp))) throw new ApiError(401, 'Invalid or expired verification OTP');
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        let patient;
+        if (patientId) {
+            const existing = await client.query('SELECT * FROM patients WHERE id=$1 LIMIT 1', [patientId]);
+            if (!existing.rowCount) throw new ApiError(404, 'Patient record not found');
+            patient = existing.rows[0];
+        } else {
+            const cleanAbha = normalizeDigits(abhaNumber, 14, 'ABHA number');
+            const resolvedDob = dob || dateOfBirthFromAge(age);
+            if (!fullName || !gender || !resolvedDob || !mobile) throw new ApiError(400, 'Name, gender, age/dob and mobile number are required');
+            if (cleanAbha) {
+                const existing = await client.query(
+                    `SELECT * FROM patients WHERE REPLACE(REPLACE(abha_number, '-', ''), ' ', '')=$1 OR abha_number=$1 LIMIT 1`,
+                    [cleanAbha]
+                );
+                patient = existing.rows[0];
+            }
+            if (patient) {
+                const updated = await client.query(
+                    `UPDATE patients SET full_name=$1, gender=$2, date_of_birth=$3, mobile_number=$4, address=COALESCE($5,address), aadhaar_number=COALESCE($6,aadhaar_number), consent_granted=TRUE, consent_timestamp=NOW() WHERE id=$7 RETURNING *`,
+                    [fullName, gender, resolvedDob, mobile, address || null, normalizeDigits(aadhaarNumber, 12, 'Aadhaar number'), patient.id]
+                );
+                patient = updated.rows[0];
+            } else {
+                const inserted = await client.query(
+                    `INSERT INTO patients (abha_number,full_name,gender,date_of_birth,mobile_number,address,aadhaar_number,registration_type,consent_granted,consent_timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,'sos',TRUE,NOW()) RETURNING *`,
+                    [cleanAbha, fullName, gender, resolvedDob, mobile, address || null, normalizeDigits(aadhaarNumber, 12, 'Aadhaar number')]
+                );
+                patient = inserted.rows[0];
+            }
+        }
+
+        const event = await client.query(
+            `INSERT INTO sos_events (patient_id,kiosk_id,verification_method,metadata) VALUES ($1,$2,$3,$4) RETURNING id,invoked_at`,
+            [patient.id, kioskId, abhaNumber ? 'abha' : 'mobile', JSON.stringify({ source: 'kiosk_sos' })]
+        );
+        await client.query('COMMIT');
+        return res.status(201).json(new ApiResponse(201, { patient, sos_event: event.rows[0] }, 'SOS request verified and recorded'));
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally { client.release(); }
 });
 
 export const integrationHealth = asyncHandler(async (req, res) => {

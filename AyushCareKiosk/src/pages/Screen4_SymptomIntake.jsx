@@ -39,6 +39,7 @@ export default function Screen4_SymptomIntake({ onSwitchToSpeak }){
 
  useEffect(()=>{
    if(!sessionData.consultationId)return;
+   if(complete || sessionData.isComplete)return;
    if(question)return;
    if(startingRef.current)return;
 
@@ -66,7 +67,7 @@ export default function Screen4_SymptomIntake({ onSwitchToSpeak }){
        setLoading(false);
        startingRef.current=false;
      });
- },[sessionData.consultationId,sessionData.consent?.clinical_intake,question,updateSession]);
+ },[sessionData.consultationId,sessionData.consent?.clinical_intake,sessionData.isComplete,question,complete,updateSession]);
 
  const isMultiSelect=Boolean(question?.multiple || question?.multi_select || question?.multiSelect || question?.selection_mode==='multiple' || question?.answer_type==='multi_select' || question?.input_mode==='multi_select');
  const applyResult=useCallback((r,answerText,inputMode)=>{
