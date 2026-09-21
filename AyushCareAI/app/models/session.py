@@ -17,7 +17,7 @@ class SessionStatus(str, Enum):
 
 
 class CreateSessionRequest(BaseModel):
-    patient_id: str = Field(..., min_length=1, max_length=128, description="Canonical patient identifier: ABHA number")
+    patient_id: str = Field(..., min_length=1, max_length=128)
     facility_id: str = Field(default="unassigned", max_length=128)
     language: str = Field(default="en", max_length=5)
     intake_pathway: str = Field(

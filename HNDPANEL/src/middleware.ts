@@ -7,9 +7,9 @@ export function middleware(request: NextRequest) {
   const accessToken = request.cookies.get('accessToken')?.value;
   const userRole = request.cookies.get('userRole')?.value;
 
-  const isAuthenticated = !!accessToken;
+  const isAuthenticated = Boolean(accessToken && accessToken.trim().length > 10);
 
-  // Static assets, public files, api routes
+  // 1. Ignore static assets, public files, and api routes
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
@@ -19,52 +19,55 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Alias /doctor/opd or /doctor/dashboard to /doctor
+  // 2. Allow /login page to render without auto-redirect to avoid stale-cookie redirect loops
+  if (pathname === '/login') {
+    return NextResponse.next();
+  }
+
+  // 3. Alias /doctor/opd or /doctor/dashboard to /doctor
   if (pathname === '/doctor/opd' || pathname === '/doctor/dashboard') {
     return NextResponse.redirect(new URL('/doctor', request.url));
   }
 
-  // Redirect root path '/' to role landing page or login
+  // 4. Redirect root path '/' to role landing page or login
   if (pathname === '/') {
     if (!isAuthenticated) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('accessToken');
+      response.cookies.delete('userRole');
+      return response;
     }
     if (userRole === 'hospital_admin') {
-      return NextResponse.redirect(new URL('/admin/queue', request.url));
+      return NextResponse.redirect(new URL('/admin/doctors', request.url));
     }
     return NextResponse.redirect(new URL('/doctor', request.url));
   }
 
-  // If visiting login page while authenticated, redirect to role home
-  if (pathname === '/login') {
-    if (isAuthenticated) {
-      if (userRole === 'hospital_admin') {
-        return NextResponse.redirect(new URL('/admin/queue', request.url));
-      }
-      return NextResponse.redirect(new URL('/doctor', request.url));
-    }
-    return NextResponse.next();
-  }
-
-  // Protect Admin routes (/admin/*)
+  // 5. Protect Admin routes (/admin/*)
   if (pathname.startsWith('/admin')) {
     if (!isAuthenticated) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('accessToken');
+      response.cookies.delete('userRole');
+      return response;
     }
-    if (userRole !== 'hospital_admin') {
+    if (userRole && userRole !== 'hospital_admin') {
       // Doctor attempting to access admin route
       return NextResponse.redirect(new URL('/doctor', request.url));
     }
   }
 
-  // Protect Doctor routes (/doctor/* or /doctor)
+  // 6. Protect Doctor routes (/doctor/* or /doctor)
   if (pathname.startsWith('/doctor')) {
     if (!isAuthenticated) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('accessToken');
+      response.cookies.delete('userRole');
+      return response;
     }
-    if (userRole === 'hospital_admin') {
+    if (userRole && userRole === 'hospital_admin') {
       // Admin attempting to access doctor route
-      return NextResponse.redirect(new URL('/admin/queue', request.url));
+      return NextResponse.redirect(new URL('/admin/doctors', request.url));
     }
   }
 

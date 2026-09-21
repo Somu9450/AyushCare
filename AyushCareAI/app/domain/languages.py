@@ -78,9 +78,7 @@ def list_supported_languages() -> list[dict]:
     return [
         {
             "code": loc.code,
-            "name": loc.name_en,
             "name_en": loc.name_en,
-            "native": loc.name_native,
             "name_native": loc.name_native,
             "status": loc.status,
             "voice_capture": loc.voice_capture,

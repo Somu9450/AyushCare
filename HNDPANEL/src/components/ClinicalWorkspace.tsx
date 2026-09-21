@@ -71,17 +71,22 @@ export const hasValue = (val: string | undefined | null): boolean => {
   return !invalidValues.includes(lower);
 };
 
-// Bilingual text renderer for cards/headers
+// Bilingual text renderer for cards/headers with Markdown parsing support
 export const BilingualBlock: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
   if (!text) return null;
   if (text.includes('---')) {
     const parts = text.split(/\s*---\s*/);
     return (
       <div className={`space-y-0.5 ${className}`}>
-        <p className="text-slate-900 font-semibold text-xs leading-normal">{parts[0].trim()}</p>
+        <div className="text-slate-900 font-semibold text-xs leading-normal">
+          <MarkdownContent content={parts[0].trim()} />
+        </div>
         <p className="text-[11px] text-slate-500 font-normal italic leading-normal">{parts.slice(1).join(' - ').trim()}</p>
       </div>
     );
+  }
+  if (/[*_#`\[\]-]/.test(text)) {
+    return <MarkdownContent content={text} className={className} />;
   }
   return <span className={className}>{text}</span>;
 };
@@ -1251,12 +1256,22 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
             </div>
           )}
 
-          {/* History of Present Illness · SOCRATES Framework Grid with Bilingual Support */}
-          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-slate-900">
-                History of Present Illness · SOCRATES
-              </h3>
+          {/* History of Present Illness · SOCRATES Framework Grid with Full Markdown Support */}
+          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200/90 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-teal-100 text-[#064e4b] flex items-center justify-center font-bold text-[11px]">
+                  S
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    History of Present Illness • SOCRATES Assessment
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Systematic symptom evaluation structured via AI clinical intake dialogue.
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setIsEditing(!isEditing)}
                 className="text-[#064e4b] hover:underline font-semibold text-xs cursor-pointer"
@@ -1270,17 +1285,17 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 {SOCRATES_CONFIG.map(({ key, label }) => (
                   <div
                     key={`soc-edit-${key}`}
-                    className="p-3 bg-[#f8fafc] rounded-lg border border-slate-100 flex items-center justify-between"
+                    className="p-3 bg-[#f8fafc] rounded-xl border border-slate-200/80 flex items-center justify-between"
                   >
                     <div className="flex-1 mr-2">
-                      <span className="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">
+                      <span className="text-[10px] font-bold text-slate-500 block tracking-wider uppercase mb-1">
                         {label}
                       </span>
                       <input
                         type="text"
                         value={editedSocrates[key]?.value || ''}
                         onChange={(e) => updateSocratesField(key, e.target.value)}
-                        className="text-xs font-semibold text-slate-900 bg-white border px-1.5 py-0.5 rounded w-full mt-0.5"
+                        className="text-xs font-semibold text-slate-900 bg-white border border-slate-300 px-2 py-1 rounded-lg w-full focus:ring-1 focus:ring-teal-700"
                       />
                     </div>
                     <div>{renderConfidenceDot(editedSocrates[key]?.confidence || 'Verify')}</div>
@@ -1288,25 +1303,29 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
                 ))}
               </div>
             ) : validSocratesList.length === 0 ? (
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 text-slate-500 text-xs text-center font-medium">
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-slate-500 text-xs text-center font-medium">
                 No detailed SOCRATES symptoms logged for this consultation.
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {validSocratesList.map(({ key, label }) => (
                   <div
                     key={`soc-view-${key}`}
-                    className="p-3 bg-[#f8fafc] rounded-lg border border-slate-100 flex items-center justify-between"
+                    className="p-3.5 bg-[#f8fafc] rounded-xl border border-slate-200/90 flex items-start justify-between gap-2 shadow-2xs hover:bg-slate-50/80 transition-colors"
                   >
-                    <div className="flex-1 mr-2 min-w-0">
-                      <span className="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">
-                        {label}
-                      </span>
-                      <div className="text-xs font-semibold text-slate-900 mt-0.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md font-bold text-[10px] uppercase tracking-wider bg-teal-50 text-teal-900 border border-teal-200/80 shadow-2xs">
+                          {label}
+                        </span>
+                      </div>
+                      <div className="text-xs font-medium text-slate-800 leading-relaxed">
                         <BilingualBlock text={patient.socrates[key].value} />
                       </div>
                     </div>
-                    <div>{renderConfidenceDot(patient.socrates[key].confidence)}</div>
+                    <div className="shrink-0 pt-0.5">
+                      {renderConfidenceDot(patient.socrates[key].confidence)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1704,13 +1723,20 @@ export const ClinicalWorkspace: React.FC<ClinicalWorkspaceProps> = ({
           </div>
 
           {/* Right Primary Action: Prominent Emerald Sign-Off Button */}
-          <button
-            onClick={onConfirmContinue}
-            className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition-all text-center cursor-pointer flex items-center justify-center gap-2"
-          >
-            <Check className="w-4 h-4 text-white" />
-            <span>Confirm & Sign Off Rx</span>
-          </button>
+          {patient.priority === 'Completed' || patient.status === 'completed' ? (
+            <div className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs rounded-lg shadow-2xs text-center flex items-center justify-center gap-2 select-none">
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>Signed Off & Finalized</span>
+            </div>
+          ) : (
+            <button
+              onClick={onConfirmContinue}
+              className="flex-1 sm:flex-initial sm:min-w-[220px] px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs rounded-lg shadow-sm hover:shadow transition-all text-center cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4 text-white" />
+              <span>Confirm & Sign Off Rx</span>
+            </button>
+          )}
         </div>
       </div>
 

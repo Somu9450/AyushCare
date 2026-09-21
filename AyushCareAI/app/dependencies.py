@@ -55,7 +55,6 @@ def get_translation_service() -> TranslationService:
     return TranslationService(
         bhashini_client=get_bhashini_client(),
         settings=get_settings(),
-        llm_service=get_llm_service(),
     )
 
 
@@ -113,7 +112,6 @@ def get_document_intelligence() -> DocumentIntelligenceService:
         ocr=get_ocr_service(),
         llm=get_llm_service(),
         medical_nlp=get_medical_nlp_service(),
-        translation=get_translation_service(),
     )
 
 

@@ -96,14 +96,6 @@ class DocumentUploadResponse(BaseModel):
         description="Entities with out-of-range values",
     )
     drug_interactions: list[DrugInteraction] = Field(default_factory=list)
-    summary: Optional[str] = Field(
-        default=None,
-        description="Clinical review and summary of the document",
-    )
-    health_info: Optional[str] = Field(
-        default=None,
-        description="Patient health guidance and precautions based on document",
-    )
     processed_at: datetime = Field(default_factory=datetime.utcnow)
 
 

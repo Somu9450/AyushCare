@@ -39,23 +39,7 @@ async def generate_summary(
     if not conversation_history and body.conversation_history:
         conversation_history = body.conversation_history
     if not conversation_history:
-        doc_entities = data.get("document_entities", [])
-        if doc_entities or data.get("documents_count", 0) > 0:
-            conversation_history = [
-                {
-                    "question_id": "doc_intake_01",
-                    "question": "Uploaded Medical Documents & History",
-                    "answer": "Patient uploaded clinical documents, test reports, or prescriptions for medical analysis.",
-                }
-            ]
-        else:
-            conversation_history = [
-                {
-                    "question_id": "initial_intake_01",
-                    "question": "Initial Consultation Intake",
-                    "answer": "Patient registered for consultation and clinical assessment.",
-                }
-            ]
+        raise HTTPException(status_code=400, detail="No conversation history. Complete the interview first.")
 
     document_entities = data.get("document_entities", []) if body.include_documents else None
     red_flags = data.get("red_flags", [])

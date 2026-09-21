@@ -153,9 +153,6 @@ class LLMService:
         }
         if response_format == "json":
             kwargs["response_format"] = {"type": "json_object"}
-            combined = f"{system_prompt} {user_prompt}".lower()
-            if "json" not in combined:
-                kwargs["messages"][0]["content"] = f"{system_prompt}\nReturn response in valid JSON format."
 
         response = await self._groq_client.chat.completions.create(**kwargs)
         text = response.choices[0].message.content
