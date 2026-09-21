@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { doctorService } from '../../../services/doctor.service';
 import { ConsultationQueueItem, ClinicalSummary, UploadedDocument } from '../../../types/api';
 import { Patient } from '../../../types/clinical';
@@ -106,14 +106,25 @@ export default function DoctorWorkspacePage() {
   const [isQueueSidebarOpen, setIsQueueSidebarOpen] = useState(false);
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // 1. Fetch initial queue from backend
   const fetchQueue = useCallback(async (selectFirst = true) => {
+    if (!isMountedRef.current) return;
     setLoadingQueue(true);
     setQueueError(null);
     try {
       const queueItems = await doctorService.getQueue();
       const validItems = Array.isArray(queueItems) ? queueItems : [];
+      if (!isMountedRef.current) return;
+
       setRawQueue(validItems);
 
       if (validItems.length > 0) {
@@ -128,12 +139,15 @@ export default function DoctorWorkspacePage() {
         setPatients([]);
       }
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       setQueueError(err.message || 'Failed to load OPD queue. Please check server connectivity.');
       setRawQueue([]);
       setPatients([]);
       setSelectedConsultationId(null);
     } finally {
-      setLoadingQueue(false);
+      if (isMountedRef.current) {
+        setLoadingQueue(false);
+      }
     }
   }, []);
 
@@ -148,7 +162,9 @@ export default function DoctorWorkspacePage() {
       () => fetchQueue(false)
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, [fetchQueue]);
 
   // Synchronous, instant patient selection handler to eliminate stale state lag
@@ -177,7 +193,7 @@ export default function DoctorWorkspacePage() {
       return;
     }
 
-    let isMounted = true;
+    let isEffectActive = true;
     setLoadingDetails(true);
 
     const loadDetails = async () => {
@@ -188,19 +204,19 @@ export default function DoctorWorkspacePage() {
           doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
         ]);
 
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setActiveSummary(summary);
           setActiveReports(Array.isArray(reports) ? reports : []);
           setActiveSessionDocs(session?.documents || []);
         }
       } catch {
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setActiveSummary(null);
           setActiveReports([]);
           setActiveSessionDocs([]);
         }
       } finally {
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setLoadingDetails(false);
         }
       }
@@ -208,8 +224,10 @@ export default function DoctorWorkspacePage() {
 
     loadDetails();
 
-    // Live Real-Time Sync Polling: Synchronize with AyushCare Mobile privacy toggles every 2.5s
+    // Live Real-Time Sync Polling: Synchronize with Mobile privacy toggles every 4s
     const pollTimer = setInterval(async () => {
+      if (!isEffectActive || !isMountedRef.current || document.hidden) return;
+
       try {
         const [summary, reports, session] = await Promise.all([
           doctorService.getPatientSummary(selectedConsultationId).catch(() => null),
@@ -217,16 +235,22 @@ export default function DoctorWorkspacePage() {
           doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
         ]);
 
+        if (!isEffectActive || !isMountedRef.current) return;
+
         const validReports = Array.isArray(reports) ? reports : [];
         const sessionDocs = session?.documents || [];
 
         setActiveReports((prev) => {
           if (validReports.length > prev.length) {
             setLiveConsentNotification('🔓 Patient granted access via AyushCare Mobile! Document unlocked in real-time.');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           } else if (validReports.length < prev.length) {
             setLiveConsentNotification('🔒 Patient locked report access via AyushCare Mobile privacy controls.');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           }
           return validReports;
         });
@@ -234,7 +258,9 @@ export default function DoctorWorkspacePage() {
         setActiveSummary((prev) => {
           if (prev?.restricted && !summary?.restricted) {
             setLiveConsentNotification('🔓 Patient unlocked visit sharing via AyushCare Mobile!');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           }
           return summary;
         });
@@ -243,12 +269,12 @@ export default function DoctorWorkspacePage() {
           setActiveSessionDocs(sessionDocs);
         }
       } catch {
-        // Silent sync
+        // Silent sync catch
       }
-    }, 2500);
+    }, 4000);
 
     return () => {
-      isMounted = false;
+      isEffectActive = false;
       clearInterval(pollTimer);
     };
   }, [selectedConsultationId]);
@@ -273,7 +299,7 @@ export default function DoctorWorkspacePage() {
     return patients.find((p) => p.id === selectedConsultationId) || patients[0] || null;
   }, [patients, selectedConsultationId]);
 
-  // Auto-collapse right evidence drawer if there are zero documents and zero transcripts to maximize central workspace
+  // Auto-collapse right evidence drawer if there are zero documents and zero transcripts
   useEffect(() => {
     if (selectedPatient) {
       const hasDocs = selectedPatient.documents && selectedPatient.documents.length > 0;

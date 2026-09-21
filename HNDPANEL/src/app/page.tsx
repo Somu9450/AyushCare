@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../store/useAuthStore';
 
 export default function RootPage() {
   const router = useRouter();
-  const { hydrate, isAuthenticated, role, isLoading } = useAuthStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const role = useAuthStore((s) => s.role);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const hydrate = useAuthStore((s) => s.hydrate);
+  const hasHydrated = useRef(false);
 
   useEffect(() => {
-    hydrate();
+    if (!hasHydrated.current) {
+      hasHydrated.current = true;
+      hydrate();
+    }
   }, [hydrate]);
 
   useEffect(() => {
@@ -17,7 +24,7 @@ export default function RootPage() {
       if (!isAuthenticated) {
         router.replace('/login');
       } else if (role === 'hospital_admin') {
-        router.replace('/admin/queue');
+        router.replace('/admin/doctors');
       } else {
         router.replace('/doctor');
       }

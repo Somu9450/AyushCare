@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import Cookies from 'js-cookie';
 import { User, UserRole } from '../types/api';
 import { authService } from '../services/auth.service';
+import { disconnectSocket } from '../lib/socket';
 
 interface AuthState {
   user: User | null;
@@ -30,11 +31,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: (user: User | null, token?: string) => {
     if (user) {
-      const activeToken = token || Cookies.get('accessToken') || null;
+      const activeToken =
+        token ||
+        Cookies.get('accessToken') ||
+        (typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null) ||
+        null;
+
       if (activeToken) {
-        Cookies.set('accessToken', activeToken, { expires: 7, sameSite: 'lax' });
+        Cookies.set('accessToken', activeToken, { expires: 7, path: '/', sameSite: 'lax' });
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('accessToken', activeToken);
+        }
       }
-      Cookies.set('userRole', user.role, { expires: 7, sameSite: 'lax' });
+      Cookies.set('userRole', user.role, { expires: 7, path: '/', sameSite: 'lax' });
+
       set({
         user,
         token: activeToken,
@@ -46,11 +56,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
       });
     } else {
-      Cookies.remove('accessToken');
-      Cookies.remove('userRole');
+      // Clean up all auth state and cookies
+      Cookies.remove('accessToken', { path: '/' });
+      Cookies.remove('userRole', { path: '/' });
+
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('accessToken');
+        try {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('userRole');
+          sessionStorage.clear();
+        } catch {
+          // ignore
+        }
       }
+
+      disconnectSocket();
+
       set({
         user: null,
         token: null,
@@ -69,9 +90,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const data = await authService.login(credentials);
       const { user, accessToken } = data;
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('accessToken', accessToken);
+        sessionStorage.setItem('accessToken', accessToken);
       }
+
       get().setUser(user, accessToken);
       return user;
     } catch (err: any) {
@@ -87,21 +111,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      await authService.logout();
+      // Fire-and-forget backend session revocation
+      await Promise.race([
+        authService.logout(),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
     } catch {
-      // Ignore API logout failures during cleanup
+      // Ignore API logout failures during local cleanup
     } finally {
-      get().setUser(null);
-    }
-  },
+      // Disconnect socket and clear storage
+      disconnectSocket();
 
-  hydrate: async () => {
-    set({ isLoading: true });
-    const token =
-      Cookies.get('accessToken') ||
-      (typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null);
+      Cookies.remove('accessToken', { path: '/' });
+      Cookies.remove('userRole', { path: '/' });
 
-    if (!token) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('userRole');
+          sessionStorage.clear();
+        } catch {
+          // ignore
+        }
+      }
+
       set({
         user: null,
         token: null,
@@ -110,13 +143,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         doctorId: null,
         isAuthenticated: false,
         isLoading: false,
+        error: null,
       });
+    }
+  },
+
+  hydrate: async () => {
+    set({ isLoading: true });
+    const token =
+      Cookies.get('accessToken') ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+        : null);
+
+    if (!token) {
+      get().setUser(null);
       return;
     }
 
     try {
       const user = await authService.getMe();
-      get().setUser(user, token);
+      if (user && user.id) {
+        get().setUser(user, token);
+      } else {
+        get().setUser(null);
+      }
     } catch {
       get().setUser(null);
     }
