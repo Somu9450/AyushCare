@@ -27,6 +27,17 @@ export default function Screen9_ReviewSubmission(){
       answer: item.answer || '',
       input_mode: item.input_mode || 'text',
     }));
+    if (!conversationHistory.length && sessionData.intakeMode === 'speak') {
+      const speechTranscript = sessionData.transcripts?.[0]?.text || sessionData.patientTranscript || '';
+      if (speechTranscript.trim()) {
+        conversationHistory.push({
+          question_id: 'q-chief-complaint',
+          question: 'Please describe the health concerns and symptoms you are experiencing today in detail.',
+          answer: speechTranscript.trim(),
+          input_mode: 'speech',
+        });
+      }
+    }
 
     setLoading(true);
     setError('');
@@ -46,8 +57,12 @@ export default function Screen9_ReviewSubmission(){
   };
 
   useEffect(()=>{
+    if (sessionData.intakeMode === 'speak' && sessionData.summary?.sections?.length) {
+      setSummary(sessionData.summary);
+      return;
+    }
     generateSummary();
-  },[sessionData.consultationId,sessionData.consent?.clinical_intake,language,sessionData.pathway]);
+  },[sessionData.consultationId,sessionData.consent?.clinical_intake,language,sessionData.pathway,sessionData.intakeMode,sessionData.summary]);
 
   const confirm=async()=>{
     if(!sessionData.consent?.clinical_intake)return;

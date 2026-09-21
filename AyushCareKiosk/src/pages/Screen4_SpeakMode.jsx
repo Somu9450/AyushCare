@@ -432,6 +432,7 @@ export default function Screen4_SpeakMode({ onSwitchToInterview }) {
             audioDuration: `${recordingSeconds || 30}s`,
           },
         ],
+        patientTranscript: finalText,
         progress: 100,
         isComplete: true,
       });

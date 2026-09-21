@@ -777,18 +777,15 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
     }
 
     if (effectiveLanguage !== 'en' && Array.isArray(summaryResult?.sections)) {
+        const sections = summaryResult.sections;
+        const sourceTexts = sections.flatMap((section) => [section.heading_en || '', section.body || '']);
+        const translated = await AiServiceGateway.translateBatch(sourceTexts, 'en', effectiveLanguage).catch(() => sourceTexts);
         summaryResult = {
             ...summaryResult,
-            sections: await Promise.all(summaryResult.sections.map(async (section) => {
-                const [heading, body] = await Promise.all([
-                    AiServiceGateway.translate(section.heading_en || '', 'en', effectiveLanguage).catch(() => null),
-                    AiServiceGateway.translate(section.body || '', 'en', effectiveLanguage).catch(() => null),
-                ]);
-                return {
-                    ...section,
-                    heading_local: heading?.text || heading?.translated_text || section.heading_local || section.heading_en,
-                    body_local: body?.text || body?.translated_text || section.body_local || section.body,
-                };
+            sections: sections.map((section, index) => ({
+                ...section,
+                heading_local: translated[index * 2] || section.heading_local || section.heading_en,
+                body_local: translated[index * 2 + 1] || section.body_local || section.body,
             })),
             language: effectiveLanguage,
         };

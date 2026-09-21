@@ -39,6 +39,7 @@ class BhashiniClient:
         # Cache keyed by (task_type, source_lang, target_lang)
         # Values are (callback_url, inference_api_key)
         self._config_cache: Dict[Tuple[str, str, Optional[str]], Tuple[str, str]] = {}
+        self._config_inflight: Dict[Tuple[str, str, Optional[str]], Any] = {}
 
     def _invalidate_cache(self) -> None:
         """Invalidate the pipeline configuration cache."""
@@ -62,6 +63,9 @@ class BhashiniClient:
         cache_key = (task_type, source_lang, target_lang)
         if cache_key in self._config_cache:
             return self._config_cache[cache_key]
+        existing_request = self._config_inflight.get(cache_key)
+        if existing_request is not None:
+            return await existing_request
 
         headers = {
             "ulcaApiKey": self.udyat_key,
@@ -90,6 +94,9 @@ class BhashiniClient:
         }
 
         logger.debug("bhashini_client.get_pipeline_config", task_type=task_type, source_lang=source_lang, target_lang=target_lang)
+        import asyncio
+        config_request = asyncio.current_task()
+        self._config_inflight[cache_key] = config_request
         try:
             response = await self.client.post(self.pipeline_url, headers=headers, json=payload)
             response.raise_for_status()
@@ -111,6 +118,9 @@ class BhashiniClient:
         except Exception as e:
             logger.error("bhashini_client.pipeline_config_error", error=str(e))
             raise
+        finally:
+            if self._config_inflight.get(cache_key) is config_request:
+                self._config_inflight.pop(cache_key, None)
 
     @retry(
         stop=stop_after_attempt(3),
@@ -255,6 +265,27 @@ class BhashiniClient:
         except (KeyError, IndexError) as e:
             logger.error("bhashini_client.translate.parse_error", response=response)
             raise BhashiniError("Failed to parse Translation response") from e
+
+    async def translate_batch(
+        self, texts: list[str], source_lang: str, target_lang: str, service_id: Optional[str] = None
+    ) -> list[str]:
+        """Translate multiple strings with one Bhashini pipeline request."""
+        if not texts:
+            return []
+        input_data = {"input": [{"source": text} for text in texts]}
+        response = await self._compute(
+            task_type="translation",
+            source_lang=source_lang,
+            target_lang=target_lang,
+            service_id=service_id,
+            input_data=input_data,
+        )
+        try:
+            outputs = response["pipelineResponse"][0]["output"]
+            return [item.get("target", "") for item in outputs]
+        except (KeyError, IndexError, TypeError) as e:
+            logger.error("bhashini_client.translate_batch.parse_error", response=response)
+            raise BhashiniError("Failed to parse batch translation response") from e
 
     async def ocr(
         self, image_base64: str, source_lang: str, service_id: Optional[str] = None

@@ -16,6 +16,10 @@ class TranslationRequest(BaseModel):
     source_language: str = Field(..., min_length=2, max_length=10)
     target_language: str = Field(..., min_length=2, max_length=10)
 
+class BatchTranslationRequest(TranslationRequest):
+    text: str = ""
+    texts: list[str] = Field(..., min_length=1, max_length=20)
+
 @router.get("/languages")
 async def languages() -> dict:
     return {"languages": list_supported_languages()}
@@ -31,6 +35,15 @@ async def translate_text(body: TranslationRequest, service: TranslationService =
     except Exception:
         translated = body.text
     return {"text": translated, "source_language": source, "target_language": target, "provider": "bhashini"}
+
+@router.post("/translate-batch")
+async def translate_batch(body: BatchTranslationRequest, service: TranslationService = Depends(get_translation_service)) -> dict:
+    source = body.source_language.lower().split("-")[0]
+    target = body.target_language.lower().split("-")[0]
+    if not get_locale(source) or not get_locale(target):
+        raise HTTPException(status_code=400, detail="Unsupported source or target language")
+    translated = await service.translate_batch(body.texts, source, target)
+    return {"texts": translated, "source_language": source, "target_language": target, "provider": "bhashini"}
 
 @router.post("/transcribe")
 async def transcribe_audio(
