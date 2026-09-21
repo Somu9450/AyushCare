@@ -46,8 +46,6 @@ class TTSService:
     ) -> None:
         self._settings = settings
         self._bhashini_client = bhashini_client
-        self._cache: dict[tuple[str, str], dict] = {}
-        self._cache_limit = 128
 
     @property
     def is_available(self) -> bool:
@@ -80,20 +78,10 @@ class TTSService:
         Returns:
             dict with keys: 'audio_base64', 'encoding', 'duration_estimate_sec'
         """
-        # Small in-process cache avoids re-synthesizing repeated UI/interview questions.
-        cache_key = (language, text.strip())
-        cached = self._cache.get(cache_key)
-        if cached:
-            return dict(cached)
-
         # Primary: Bhashini TTS
         if self._bhashini_client and self._settings.tts_provider == "bhashini":
             try:
-                result = await self._synthesize_bhashini(text, language)
-                self._cache[cache_key] = dict(result)
-                if len(self._cache) > self._cache_limit:
-                    self._cache.pop(next(iter(self._cache)))
-                return result
+                return await self._synthesize_bhashini(text, language)
             except Exception as e:
                 logger.warning("bhashini_tts_failed_trying_edge", error=str(e))
 

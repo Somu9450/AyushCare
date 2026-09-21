@@ -20,7 +20,6 @@ import structlog
 
 from app.ai.llm_service import LLMService
 from app.ai.azure_health_service import AzureHealthNLP
-from app.ai.translation_service import TranslationService
 from app.ai.ocr_service import OCRService
 from app.ai.prompts.entity_extraction import (
     ABNORMAL_VALUE_ANALYSIS_SYSTEM,
@@ -59,12 +58,10 @@ class DocumentIntelligenceService:
         ocr: OCRService,
         llm: LLMService,
         medical_nlp: Optional[AzureHealthNLP] = None,
-        translation: Optional[TranslationService] = None,
     ) -> None:
         self._ocr = ocr
         self._llm = llm
         self._medical_nlp = medical_nlp
-        self._translation = translation
 
     async def process_document(
         self,
@@ -96,8 +93,7 @@ class DocumentIntelligenceService:
 
         # Step 1: Image quality assessment. PDFs are valid inputs for Azure
         # Document Intelligence and cannot be inspected reliably by PIL.
-        is_pdf = filename.lower().endswith(".pdf") or image_bytes.startswith(b"%PDF")
-        if is_pdf:
+        if filename.lower().endswith(".pdf"):
             image_quality = ImageQualityReport(
                 width=0,
                 height=0,
@@ -128,7 +124,6 @@ class DocumentIntelligenceService:
                 image_bytes,
                 language_hints,
                 filename=filename,
-                content_type="application/pdf" if is_pdf else None,
             )
             ocr_text = re.sub(r"<think>.*?</think>", "", ocr_result["text"], flags=re.DOTALL).strip()
             detected_language = ocr_result.get("language", "en")
@@ -162,30 +157,22 @@ class DocumentIntelligenceService:
             supported_health_languages = {
                 "en", "es", "fr", "de", "it", "pt", "he",
             }
-            try:
-                health_text = ocr_text
-                if health_language not in supported_health_languages:
-                    # Azure Health has a narrower hosted-language set. Use Bhashini NMT
-                    # as the bridge so Indian-language OCR can still reach the specialist
-                    # medical NLP model without mislabeling the source language.
-                    if self._translation is None:
-                        raise RuntimeError("Bhashini translation service is unavailable for Azure Health bridge")
-                    health_text = await self._translation.translate_to_english(ocr_text, health_language)
-                    health_language = "en"
-                health_result = await self._medical_nlp.analyze(health_text, language=health_language)
-                health_entities = health_result.get("entities", [])
-            except Exception as e:
-                logger.warning(
-                    "azure_health_nlp_failed_continuing_with_llm",
-                    document_id=document_id,
-                    error=str(e),
-                )
+            if health_language in supported_health_languages:
+                try:
+                    health_result = await self._medical_nlp.analyze(
+                        ocr_text, language=health_language
+                    )
+                    health_entities = health_result.get("entities", [])
+                except Exception as e:
+                    logger.warning(
+                        "azure_health_nlp_failed_continuing_with_llm",
+                        document_id=document_id,
+                        error=str(e),
+                    )
 
         # Step 4: LLM-powered entity extraction
         entities: list[ExtractedEntity] = []
         doc_type = DocumentType.OTHER
-        doc_summary: Optional[str] = None
-        doc_health_info: Optional[str] = None
 
         try:
             extraction_result = await self._llm.generate_json(
@@ -195,10 +182,6 @@ class DocumentIntelligenceService:
                 ),
                 temperature=0.1,
             )
-
-            # Parse summary & health info
-            doc_summary = extraction_result.get("summary")
-            doc_health_info = extraction_result.get("health_info")
 
             # Parse document type
             raw_doc_type = extraction_result.get("document_type", "other")
@@ -262,8 +245,6 @@ class DocumentIntelligenceService:
             entities=entities,
             abnormal_values=abnormal_entities,
             drug_interactions=interactions,
-            summary=doc_summary,
-            health_info=doc_health_info,
         )
 
     def build_timeline(

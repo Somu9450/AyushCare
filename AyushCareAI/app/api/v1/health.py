@@ -29,12 +29,7 @@ async def health_check() -> HealthResponse:
 
     llm_ok = settings.primary_llm_available
     ocr_ok = (
-        (
-            settings.ocr_provider == "azure"
-            and bool(settings.azure_document_intelligence_endpoint)
-            and bool(settings.azure_document_intelligence_key)
-        )
-        or settings.ocr_provider == "tesseract"
+        settings.ocr_provider == "tesseract"
         or (
             settings.ocr_provider == "groq_vision"
             and bool(settings.groq_api_key)

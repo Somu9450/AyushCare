@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { doctorService } from '../../../services/doctor.service';
 import { ConsultationQueueItem, ClinicalSummary, UploadedDocument } from '../../../types/api';
-import { Patient } from '../../../types/clinical';
+import { Patient, PrescriptionItem } from '../../../types/clinical';
 import { mapQueueItemToPatient } from '../../../lib/adapters';
 import { subscribeToQueueEvents } from '../../../lib/socket';
 import { TopNavbar } from '../../../components/TopNavbar';
@@ -89,6 +89,42 @@ const ClinicalWorkspaceSkeleton = () => (
   </div>
 );
 
+const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+const SIGNED_OFF_STORAGE_KEY = 'ayushcare_signed_off_patients';
+
+function getStoredSignedOffPatients(): Patient[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(SIGNED_OFF_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: Patient[] = JSON.parse(raw);
+    const now = Date.now();
+    const valid = parsed.filter((p) => {
+      if (!p.signedOffAt) return false;
+      const signedTime = new Date(p.signedOffAt).getTime();
+      return now - signedTime <= FORTY_EIGHT_HOURS_MS;
+    });
+    if (valid.length !== parsed.length) {
+      localStorage.setItem(SIGNED_OFF_STORAGE_KEY, JSON.stringify(valid));
+    }
+    return valid;
+  } catch {
+    return [];
+  }
+}
+
+function saveSignedOffPatientToStorage(patient: Patient): Patient[] {
+  if (typeof window === 'undefined') return [patient];
+  try {
+    const existing = getStoredSignedOffPatients().filter((p) => p.id !== patient.id);
+    const updated = [patient, ...existing];
+    localStorage.setItem(SIGNED_OFF_STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [patient];
+  }
+}
+
 export default function DoctorWorkspacePage() {
   const [rawQueue, setRawQueue] = useState<ConsultationQueueItem[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
@@ -106,14 +142,31 @@ export default function DoctorWorkspacePage() {
   const [isQueueSidebarOpen, setIsQueueSidebarOpen] = useState(false);
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [signedOffPatients, setSignedOffPatients] = useState<Patient[]>([]);
+  const isMountedRef = useRef(true);
+
+  // Persistent decoupled refs to prevent background polling from resetting doctor's active drafts
+  const rxDraftsRef = useRef<Record<string, PrescriptionItem[]>>({});
+  const customEditsRef = useRef<Record<string, Partial<Patient>>>({});
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    setSignedOffPatients(getStoredSignedOffPatients());
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // 1. Fetch initial queue from backend
   const fetchQueue = useCallback(async (selectFirst = true) => {
+    if (!isMountedRef.current) return;
     setLoadingQueue(true);
     setQueueError(null);
     try {
       const queueItems = await doctorService.getQueue();
       const validItems = Array.isArray(queueItems) ? queueItems : [];
+      if (!isMountedRef.current) return;
+
       setRawQueue(validItems);
 
       if (validItems.length > 0) {
@@ -125,15 +178,16 @@ export default function DoctorWorkspacePage() {
         });
       } else {
         setSelectedConsultationId(null);
-        setPatients([]);
       }
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       setQueueError(err.message || 'Failed to load OPD queue. Please check server connectivity.');
       setRawQueue([]);
-      setPatients([]);
       setSelectedConsultationId(null);
     } finally {
-      setLoadingQueue(false);
+      if (isMountedRef.current) {
+        setLoadingQueue(false);
+      }
     }
   }, []);
 
@@ -148,7 +202,9 @@ export default function DoctorWorkspacePage() {
       () => fetchQueue(false)
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, [fetchQueue]);
 
   // Synchronous, instant patient selection handler to eliminate stale state lag
@@ -177,7 +233,7 @@ export default function DoctorWorkspacePage() {
       return;
     }
 
-    let isMounted = true;
+    let isEffectActive = true;
     setLoadingDetails(true);
 
     const loadDetails = async () => {
@@ -188,19 +244,19 @@ export default function DoctorWorkspacePage() {
           doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
         ]);
 
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setActiveSummary(summary);
           setActiveReports(Array.isArray(reports) ? reports : []);
           setActiveSessionDocs(session?.documents || []);
         }
       } catch {
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setActiveSummary(null);
           setActiveReports([]);
           setActiveSessionDocs([]);
         }
       } finally {
-        if (isMounted) {
+        if (isEffectActive && isMountedRef.current) {
           setLoadingDetails(false);
         }
       }
@@ -208,8 +264,10 @@ export default function DoctorWorkspacePage() {
 
     loadDetails();
 
-    // Live Real-Time Sync Polling: Synchronize with AyushCare Mobile privacy toggles every 2.5s
+    // Live Real-Time Sync Polling: Synchronize with Mobile privacy toggles every 4s
     const pollTimer = setInterval(async () => {
+      if (!isEffectActive || !isMountedRef.current || document.hidden) return;
+
       try {
         const [summary, reports, session] = await Promise.all([
           doctorService.getPatientSummary(selectedConsultationId).catch(() => null),
@@ -217,16 +275,22 @@ export default function DoctorWorkspacePage() {
           doctorService.getConsultationSession(selectedConsultationId).catch(() => null),
         ]);
 
+        if (!isEffectActive || !isMountedRef.current) return;
+
         const validReports = Array.isArray(reports) ? reports : [];
         const sessionDocs = session?.documents || [];
 
         setActiveReports((prev) => {
           if (validReports.length > prev.length) {
             setLiveConsentNotification('🔓 Patient granted access via AyushCare Mobile! Document unlocked in real-time.');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           } else if (validReports.length < prev.length) {
             setLiveConsentNotification('🔒 Patient locked report access via AyushCare Mobile privacy controls.');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           }
           return validReports;
         });
@@ -234,7 +298,9 @@ export default function DoctorWorkspacePage() {
         setActiveSummary((prev) => {
           if (prev?.restricted && !summary?.restricted) {
             setLiveConsentNotification('🔓 Patient unlocked visit sharing via AyushCare Mobile!');
-            setTimeout(() => setLiveConsentNotification(null), 4500);
+            setTimeout(() => {
+              if (isMountedRef.current) setLiveConsentNotification(null);
+            }, 4500);
           }
           return summary;
         });
@@ -243,29 +309,51 @@ export default function DoctorWorkspacePage() {
           setActiveSessionDocs(sessionDocs);
         }
       } catch {
-        // Silent sync
+        // Silent sync catch
       }
-    }, 2500);
+    }, 4000);
 
     return () => {
-      isMounted = false;
+      isEffectActive = false;
       clearInterval(pollTimer);
     };
   }, [selectedConsultationId]);
 
-  // 4. Map raw queue items to frontend Patient UI models
+  // 4. Map raw queue items to frontend Patient UI models with decoupled draft preservation & 48h signed-off retention
   useEffect(() => {
-    if (rawQueue.length > 0) {
-      const mapped = rawQueue.map((item) =>
+    const now = Date.now();
+
+    // Map active queue items
+    const activeMapped: Patient[] = rawQueue.map((item) => {
+      const p =
         item.id === selectedConsultationId
           ? mapQueueItemToPatient(item, activeSummary, activeReports, activeSessionDocs)
-          : mapQueueItemToPatient(item)
-      );
-      setPatients(mapped);
-    } else {
-      setPatients([]);
-    }
-  }, [rawQueue, selectedConsultationId, activeSummary, activeReports, activeSessionDocs]);
+          : mapQueueItemToPatient(item);
+
+      // Decouple & preserve local prescription drafts
+      if (rxDraftsRef.current[item.id]) {
+        p.prescriptions = rxDraftsRef.current[item.id];
+      }
+      if (customEditsRef.current[item.id]) {
+        Object.assign(p, customEditsRef.current[item.id]);
+      }
+      return p;
+    });
+
+    // Exclude any active queue item that has already been signed off locally
+    const signedOffIds = new Set(signedOffPatients.map((sp) => sp.id));
+    const activeFiltered = activeMapped.filter((p) => !signedOffIds.has(p.id));
+
+    // Filter signed-off patients ensuring strict 48-hour retention window
+    const validSignedOff = signedOffPatients.filter((sp) => {
+      if (!sp.signedOffAt) return true;
+      return now - new Date(sp.signedOffAt).getTime() <= FORTY_EIGHT_HOURS_MS;
+    });
+
+    // Combine active patients + 48h completed patients
+    const combined = [...activeFiltered, ...validSignedOff];
+    setPatients(combined);
+  }, [rawQueue, selectedConsultationId, activeSummary, activeReports, activeSessionDocs, signedOffPatients]);
 
   // Active selected patient
   const selectedPatient = useMemo(() => {
@@ -273,7 +361,7 @@ export default function DoctorWorkspacePage() {
     return patients.find((p) => p.id === selectedConsultationId) || patients[0] || null;
   }, [patients, selectedConsultationId]);
 
-  // Auto-collapse right evidence drawer if there are zero documents and zero transcripts to maximize central workspace
+  // Auto-collapse right evidence drawer if there are zero documents and zero transcripts
   useEffect(() => {
     if (selectedPatient) {
       const hasDocs = selectedPatient.documents && selectedPatient.documents.length > 0;
@@ -286,8 +374,16 @@ export default function DoctorWorkspacePage() {
     }
   }, [selectedPatient?.id, selectedPatient?.documents?.length, selectedPatient?.transcripts?.length]);
 
-  // Update patient status & clinical notes in backend
+  // Update patient status & clinical notes in backend, while preserving local draft state
   const handleUpdatePatient = async (updated: Patient) => {
+    // 1. Preserve local prescription list & edits in persistent refs
+    rxDraftsRef.current[updated.id] = updated.prescriptions || [];
+    customEditsRef.current[updated.id] = {
+      chiefComplaint: updated.chiefComplaint,
+      historyOfPresentIllness: updated.historyOfPresentIllness,
+      socrates: updated.socrates,
+    };
+
     setPatients((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     try {
       await doctorService.updateConsultationStatus(updated.id, 'in_queue');
@@ -296,12 +392,12 @@ export default function DoctorWorkspacePage() {
     }
   };
 
-  // Sign off & confirm consultation
+  // Sign off & confirm consultation: marks completed & retains patient in queue for 48 hours
   const handleConfirmContinue = async () => {
-    if (!selectedConsultationId) return;
+    if (!selectedConsultationId || !selectedPatient) return;
 
     try {
-      const remarksText = selectedPatient?.prescriptions?.length
+      const remarksText = selectedPatient.prescriptions?.length
         ? `Prescribed: ${selectedPatient.prescriptions.map((p) => `${p.drugName} (${p.dosage}, ${p.frequency})`).join('; ')}`
         : 'Consultation completed and prescription sign-off verified.';
 
@@ -310,8 +406,23 @@ export default function DoctorWorkspacePage() {
       // Local state fallback
     }
 
-    // Refresh queue from server to remove completed token
-    await fetchQueue(true);
+    // Mark as completed & retain for 48 hours in queue
+    const now = new Date().toISOString();
+    const finalizedPatient: Patient = {
+      ...selectedPatient,
+      priority: 'Completed',
+      status: 'completed',
+      signedOffAt: now,
+    };
+
+    const updatedStored = saveSignedOffPatientToStorage(finalizedPatient);
+    setSignedOffPatients(updatedStored);
+
+    delete rxDraftsRef.current[selectedConsultationId];
+    delete customEditsRef.current[selectedConsultationId];
+
+    // Refresh queue from server without immediately deselecting
+    await fetchQueue(false);
   };
 
   return (

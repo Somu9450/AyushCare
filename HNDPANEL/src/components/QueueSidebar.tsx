@@ -22,11 +22,12 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
   onCloseMobile,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState<'All' | 'Urgent' | 'Waiting' | 'Ready'>('All');
+  const [filterTab, setFilterTab] = useState<'All' | 'Waiting' | 'Ready' | 'Urgent' | 'Completed'>('All');
 
   // Metrics
   const urgentCount = patients.filter((p) => p.priority === 'Urgent').length;
-  const waitingCount = patients.filter((p) => p.priority === 'Waiting').length;
+  const waitingCount = patients.filter((p) => p.priority === 'Waiting' || p.priority === 'History Ready').length;
+  const completedCount = patients.filter((p) => p.priority === 'Completed' || p.status === 'completed').length;
 
   // Filter logic
   const filteredPatients = patients.filter((patient) => {
@@ -41,10 +42,14 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
     if (filterTab === 'Urgent') return patient.priority === 'Urgent';
     if (filterTab === 'Waiting') return patient.priority === 'Waiting';
     if (filterTab === 'Ready') return patient.priority === 'History Ready';
+    if (filterTab === 'Completed') return patient.priority === 'Completed' || patient.status === 'completed';
     return true;
   });
 
-  const getBadgeStyle = (priority: PriorityStatus) => {
+  const getBadgeStyle = (priority: PriorityStatus, status?: string) => {
+    if (priority === 'Completed' || status === 'completed') {
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    }
     switch (priority) {
       case 'Urgent':
         return 'bg-red-50 text-red-700 border-red-200';
@@ -52,17 +57,15 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'History Ready':
         return 'bg-teal-50 text-teal-700 border-teal-200';
-      case 'Completed':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
-  const getDotStyle = (priority: PriorityStatus) => {
+  const getDotStyle = (priority: PriorityStatus, status?: string) => {
+    if (priority === 'Completed' || status === 'completed') return 'bg-emerald-500';
     if (priority === 'Urgent') return 'bg-red-500';
     if (priority === 'History Ready') return 'bg-teal-500';
-    if (priority === 'Completed') return 'bg-emerald-500';
     return 'bg-amber-400';
   };
 
@@ -75,6 +78,20 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
 
   // Dynamic clean snippet for queue card
   const getQueueSnippet = (patient: Patient) => {
+    if (patient.priority === 'Completed' || patient.status === 'completed') {
+      const rxCount = patient.prescriptions?.length || 0;
+      if (patient.signedOffAt) {
+        try {
+          const diffHours = Math.round((Date.now() - new Date(patient.signedOffAt).getTime()) / (1000 * 60 * 60));
+          const timeText = diffHours <= 1 ? 'Just now' : diffHours < 24 ? `${diffHours}h ago` : 'Yesterday';
+          return `Signed Off (${timeText}) • ${rxCount} Rx`;
+        } catch {
+          return `Signed Off • ${rxCount} Rx items`;
+        }
+      }
+      return `Signed Off • ${rxCount} Rx items`;
+    }
+
     const cc = patient.chiefComplaint?.trim();
     const isGenericIntake =
       !cc ||
@@ -82,29 +99,26 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
       cc.toLowerCase() === 'intake recorded' ||
       cc.toLowerCase() === 'not recorded';
 
-    if (!isGenericIntake) {
-      const onset = patient.socrates?.onset?.value;
-      const hasValidOnset =
-        onset &&
-        !onset.toLowerCase().includes('not recorded') &&
-        !onset.toLowerCase().includes('not provided');
-
-      return hasValidOnset ? `${cc} • ${onset}` : cc;
+    if (!cc || isGenericIntake) {
+      if (patient.alertMessage) {
+        return patient.alertMessage;
+      }
+      if (patient.ayushProfile?.prakriti) {
+        return `${patient.department || 'AYUSH'} • ${patient.ayushProfile.prakriti}`;
+      }
+      if (patient.department) {
+        return `${patient.department} • Triage Ready`;
+      }
+      return 'General OPD • Triage Ready';
     }
 
-    if (patient.alertMessage) {
-      return patient.alertMessage;
-    }
+    const onset = patient.socrates?.onset?.value;
+    const hasValidOnset =
+      onset &&
+      !onset.toLowerCase().includes('not recorded') &&
+      !onset.toLowerCase().includes('not provided');
 
-    if (patient.ayushProfile?.prakriti) {
-      return `${patient.department || 'AYUSH'} • ${patient.ayushProfile.prakriti}`;
-    }
-
-    if (patient.department) {
-      return `${patient.department} • Triage Ready`;
-    }
-
-    return 'General OPD • Triage Ready';
+    return hasValidOnset ? `${cc} • ${onset}` : cc;
   };
 
   const sidebarContent = (
@@ -120,12 +134,19 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
           <div className="flex items-center gap-2">
             {/* Counter Pills */}
             <div className="flex items-center space-x-1.5 text-xs">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200/80">
-                {urgentCount} Urgent
-              </span>
+              {urgentCount > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200/80">
+                  {urgentCount} Urgent
+                </span>
+              )}
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/60">
-                {waitingCount} Waiting
+                {waitingCount} Active
               </span>
+              {completedCount > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  {completedCount} Signed Off
+                </span>
+              )}
             </div>
 
             {/* Close button on mobile drawer */}
@@ -155,17 +176,17 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
 
         {/* Filter Tabs */}
         <div className="flex items-center space-x-1 text-xs font-medium overflow-x-auto pb-0.5">
-          {(['All', 'Urgent', 'Waiting', 'Ready'] as const).map((tab) => (
+          {(['All', 'Waiting', 'Ready', 'Urgent', 'Completed'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setFilterTab(tab)}
-              className={`px-3 py-1 rounded-full text-xs transition-all cursor-pointer shrink-0 ${
+              className={`px-2.5 py-1 rounded-full text-[11px] transition-all cursor-pointer shrink-0 ${
                 filterTab === tab
                   ? 'bg-[#064e4b] text-white font-semibold shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 border border-transparent hover:border-slate-200'
               }`}
             >
-              {tab}
+              {tab === 'Completed' ? `Signed Off (${completedCount})` : tab}
             </button>
           ))}
         </div>
@@ -217,7 +238,8 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
                   <div className="flex items-center space-x-1.5 min-w-0 flex-1">
                     <span
                       className={`w-2 h-2 rounded-full shrink-0 ${getDotStyle(
-                        patient.priority
+                        patient.priority,
+                        patient.status
                       )}`}
                     />
                     <span className="font-bold text-xs text-slate-900 shrink-0">
@@ -230,10 +252,13 @@ export const QueueSidebar: React.FC<QueueSidebarProps> = ({
 
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border shrink-0 ${getBadgeStyle(
-                      patient.priority
+                      patient.priority,
+                      patient.status
                     )}`}
                   >
-                    {patient.priority}
+                    {patient.priority === 'Completed' || patient.status === 'completed'
+                      ? 'Signed Off'
+                      : patient.priority}
                   </span>
                 </div>
 

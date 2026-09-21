@@ -8,8 +8,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AyushCare Doctor Workspace | Hospital OPD",
-  description: "AI-assisted clinical OPD Doctor Workspace for General Medicine & AYUSH OPD",
+  title: "AyushCare - Digital Health OS | Hospital & OPD Portal",
+  description: "AyushCare Central Health Operations, Doctor Workspace & OPD Control Desk",
+  icons: {
+    icon: [
+      { url: "/ayushCareLogo.png", type: "image/png" },
+    ],
+    shortcut: "/ayushCareLogo.png",
+    apple: "/ayushCareLogo.png",
+  },
 };
 
 export default function RootLayout({
@@ -18,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="h-full w-full overflow-hidden bg-slate-100 font-sans text-slate-900">
+    <html lang="en" className={`${inter.variable} min-h-full antialiased`}>
+      <body className="min-h-screen w-full overflow-x-hidden bg-slate-100 font-sans text-slate-900">
         {children}
       </body>
     </html>

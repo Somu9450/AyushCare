@@ -47,16 +47,25 @@ class AzureHealthNLP:
         # Bhashini; when the OCR language is unsupported, callers may choose
         # to translate to English before invoking this provider.
         normalized_language = self._normalize_language(language)
-        url = f"{self._endpoint}/language/analyze-text/jobs?api-version={self._api_version}"
+        url = (
+            f"{self._endpoint}/language/:analyze-text"
+            f"?api-version={self._api_version}"
+        )
         payload = {
-            "analysisInput": {
-                "documents": [{"id": "document-1", "language": normalized_language, "text": text}]
+            "kind": "Healthcare",
+            "parameters": {
+                "modelVersion": "latest",
+                "showStats": False,
             },
-            "tasks": [{
-                "taskId": "health-1",
-                "kind": "Healthcare",
-                "parameters": {"fhirVersion": "4.0.1"}
-            }]
+            "analysisInput": {
+                "documents": [
+                    {
+                        "id": "document-1",
+                        "language": normalized_language,
+                        "text": text,
+                    }
+                ]
+            },
         }
         headers = {
             "Ocp-Apim-Subscription-Key": self._key,
@@ -67,31 +76,12 @@ class AzureHealthNLP:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code >= 400:
                 raise AzureHealthNLPError(
-                    f"Azure Health NLP request failed ({response.status_code}): {response.text[:500]}"
+                    f"Azure Health NLP request failed ({response.status_code}): "
+                    f"{response.text[:500]}"
                 )
-            operation_url = response.headers.get("operation-location") or response.headers.get("Operation-Location")
-            if not operation_url:
-                # Some service revisions may return the result directly.
-                data = response.json()
-            else:
-                data = await self._poll(client, operation_url, headers)
+            data = response.json()
 
         return self._normalize(data)
-
-    async def _poll(self, client: httpx.AsyncClient, operation_url: str, headers: dict[str, str]) -> dict[str, Any]:
-        for _ in range(60):
-            response = await client.get(operation_url, headers=headers)
-            if response.status_code >= 400:
-                raise AzureHealthNLPError(f"Azure Health NLP polling failed ({response.status_code}): {response.text[:500]}")
-            payload = response.json()
-            status = str(payload.get("status", "")).lower()
-            if status == "succeeded":
-                return payload
-            if status in {"failed", "cancelled"}:
-                raise AzureHealthNLPError(f"Azure Health NLP operation {status}: {payload.get('errors', payload)}")
-            import asyncio
-            await asyncio.sleep(1)
-        raise AzureHealthNLPError("Azure Health NLP operation timed out.")
 
     @staticmethod
     def _normalize_language(language: str) -> str:
@@ -103,13 +93,7 @@ class AzureHealthNLP:
 
     @staticmethod
     def _normalize(data: dict[str, Any]) -> dict[str, Any]:
-        results = data.get("results", {})
-        if not results and isinstance(data.get("tasks"), dict):
-            for item in data.get("tasks", {}).get("items", []):
-                if item.get("kind") == "HealthcareLROResults":
-                    results = item.get("results", item)
-                    break
-        docs = results.get("documents", [])
+        docs = data.get("results", {}).get("documents", [])
         if not docs:
             return {"entities": [], "relations": [], "provider": "azure"}
 

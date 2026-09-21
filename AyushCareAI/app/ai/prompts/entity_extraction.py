@@ -23,10 +23,8 @@ Extract these entity types:
 - **symptom**: Symptoms, chief complaints, issues mentioned by patient or doctor
 
 ## OUTPUT FORMAT
-Respond with a JSON object:
+Respond with a JSON array of extracted entities:
 {{
-  "summary": "<2-3 sentence concise clinical review and summary of this document, conditions, and findings>",
-  "health_info": "<Key health information, precautions, and actionable advice for the patient based on this document>",
   "entities": [
     {{
       "kind": "<entity type>",

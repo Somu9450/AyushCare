@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class SummaryLanguage(str, Enum):
@@ -48,18 +48,6 @@ class GenerateSummaryRequest(BaseModel):
         description="Optional conversation history forwarded from the frontend. "
                     "Used as fallback if the backend session has no history.",
     )
-
-    @field_validator("language", mode="before")
-    @classmethod
-    def normalize_language(cls, v):
-        if isinstance(v, dict):
-            v = v.get("language", "en")
-        if isinstance(v, str):
-            v = v.strip().lower()
-            if "hi" in v:
-                return SummaryLanguage.HI
-            return SummaryLanguage.EN
-        return SummaryLanguage.EN
 
 
 class SummaryEditRequest(BaseModel):

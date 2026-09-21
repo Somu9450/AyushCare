@@ -65,31 +65,24 @@ async def set_value(key: str, value: Any, ttl_seconds: int = 1800) -> None:
     serialized = json.dumps(value) if not isinstance(value, str) else value
 
     if _redis_client:
-        try:
-            await _redis_client.set(key, serialized, ex=ttl_seconds)
-            return
-        except Exception as e:
-            logger.warning("redis_set_failed_using_fallback", error=str(e))
-
-    _fallback_store[key] = serialized
-    _fallback_ttl[key] = time.time() + ttl_seconds
+        await _redis_client.set(key, serialized, ex=ttl_seconds)
+    else:
+        _fallback_store[key] = serialized
+        _fallback_ttl[key] = time.time() + ttl_seconds
 
 
 async def get_value(key: str) -> Optional[str]:
     """Retrieve a value by key."""
     if _redis_client:
-        try:
-            return await _redis_client.get(key)
-        except Exception as e:
-            logger.warning("redis_get_failed_using_fallback", error=str(e))
-
-    if key in _fallback_store:
-        if time.time() < _fallback_ttl.get(key, 0):
-            return _fallback_store[key]
-        else:
-            del _fallback_store[key]
-            _fallback_ttl.pop(key, None)
-    return None
+        return await _redis_client.get(key)
+    else:
+        if key in _fallback_store:
+            if time.time() < _fallback_ttl.get(key, 0):
+                return _fallback_store[key]
+            else:
+                del _fallback_store[key]
+                _fallback_ttl.pop(key, None)
+        return None
 
 
 async def get_json(key: str) -> Optional[Any]:
@@ -103,30 +96,23 @@ async def get_json(key: str) -> Optional[Any]:
 async def delete_key(key: str) -> None:
     """Delete a key."""
     if _redis_client:
-        try:
-            await _redis_client.delete(key)
-            return
-        except Exception as e:
-            logger.warning("redis_delete_failed", error=str(e))
-
-    _fallback_store.pop(key, None)
-    _fallback_ttl.pop(key, None)
+        await _redis_client.delete(key)
+    else:
+        _fallback_store.pop(key, None)
+        _fallback_ttl.pop(key, None)
 
 
 async def increment(key: str, ttl_seconds: int = 60) -> int:
     """Increment a counter (for rate limiting)."""
     if _redis_client:
-        try:
-            pipe = _redis_client.pipeline()
-            pipe.incr(key)
-            pipe.expire(key, ttl_seconds)
-            results = await pipe.execute()
-            return results[0]
-        except Exception as e:
-            logger.warning("redis_increment_failed", error=str(e))
-
-    current = int(_fallback_store.get(key, 0))
-    current += 1
-    _fallback_store[key] = str(current)
-    _fallback_ttl[key] = time.time() + ttl_seconds
-    return current
+        pipe = _redis_client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, ttl_seconds)
+        results = await pipe.execute()
+        return results[0]
+    else:
+        current = int(_fallback_store.get(key, 0))
+        current += 1
+        _fallback_store[key] = str(current)
+        _fallback_ttl[key] = time.time() + ttl_seconds
+        return current

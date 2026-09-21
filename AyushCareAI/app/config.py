@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     medical_nlp_provider: str = "azure"
     azure_language_endpoint: Optional[str] = None
     azure_language_key: Optional[str] = None
-    azure_language_api_version: str = "2022-05-15-preview"
+    azure_language_api_version: str = "2023-04-01"
 
     # ── ASR — Speech-to-Text ─────────────────────────────────────────────
     asr_provider: str = "bhashini"  # "bhashini" | "groq_whisper"

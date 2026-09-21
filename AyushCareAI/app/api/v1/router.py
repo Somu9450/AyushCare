@@ -11,7 +11,6 @@ from app.api.v1.documents import router as documents_router
 from app.api.v1.summary import router as summary_router
 from app.api.v1.consent import router as consent_router
 from app.api.v1.fhir import router as fhir_router
-from app.api.v1.language import router as language_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -22,4 +21,3 @@ api_v1_router.include_router(documents_router)
 api_v1_router.include_router(summary_router)
 api_v1_router.include_router(consent_router)
 api_v1_router.include_router(fhir_router)
-api_v1_router.include_router(language_router)
