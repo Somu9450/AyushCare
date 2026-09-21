@@ -100,6 +100,7 @@ export default function Screen11_Sos() {
         <div><p className="eyebrow"><Siren size={16} /> EMERGENCY ASSISTANCE</p><h2> SOS help</h2><p>Find your patient record to alert hospital staff immediately.</p></div>
         <AlertTriangle size={44} className="sos-heading-icon" />
       </div>
+      <button type="button" className="secondary-btn sos-home-btn" onClick={resetSession}><Home size={18} /> Home</button>
 
       {stage === 'lookup' && <>
         <div className="sos-lookup-grid">

@@ -688,9 +688,9 @@ export const audioIntake = asyncHandler(async (req, res) => {
 
     const detectedLanguage = transcription.detected_language || transcription.language || (requestedLang !== 'auto' ? requestedLang : (c.language || 'en'));
 
-    // Automatically update consultation language if auto-detected
+    // Speech language is separate from the navbar-selected kiosk UI language.
     if (detectedLanguage && detectedLanguage !== 'auto' && detectedLanguage !== c.language) {
-        await pool.query('UPDATE consultations SET language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
+        await pool.query('UPDATE consultations SET speech_language = $1, updated_at = NOW() WHERE id = $2', [detectedLanguage, c.id]);
     }
 
     return res.json(new ApiResponse(200, {
@@ -699,33 +699,46 @@ export const audioIntake = asyncHandler(async (req, res) => {
         audioUrl,
         language: detectedLanguage,
         detected_language: detectedLanguage,
+        speech_language: detectedLanguage,
     }, 'Audio recorded and transcribed successfully'));
 });
 
 export const speakModeSubmit = asyncHandler(async (req, res) => {
     const c = await getConsultation(req.params.session_id);
-    const { transcript, audioUrl, duration, language = c.language || 'en' } = req.body || {};
+    const { transcript, audioUrl, duration, language, speech_language: speechLanguage } = req.body || {};
 
     if (!transcript || !transcript.trim()) {
         throw new ApiError(400, 'Transcript is required');
     }
 
-    const effectiveLanguage = language && language !== 'auto' ? language : (c.language || 'en');
+    const effectiveLanguage = (speechLanguage || language) && (speechLanguage || language) !== 'auto'
+        ? (speechLanguage || language)
+        : (c.speech_language || c.language || 'en');
 
     // 1. Update consultation record with speak mode, audio URL, and effective language
     await pool.query(
         `UPDATE consultations 
-         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, language = $3, updated_at = NOW() 
+         SET intake_mode = 'speak', patient_audio_url = $1, patient_transcript = $2, speech_language = $3, updated_at = NOW()
          WHERE id = $4`,
         [audioUrl || null, transcript.trim(), effectiveLanguage, c.id]
     );
 
-    // 2. Format conversation history turn to feed Groq LLM summary generator
+    let transcriptForAi = transcript.trim();
+    if (effectiveLanguage !== 'en') {
+        try {
+            const translated = await AiServiceGateway.translate(transcriptForAi, effectiveLanguage, 'en');
+            transcriptForAi = translated?.text || translated?.translated_text || transcriptForAi;
+        } catch (error) {
+            console.warn('Speech-to-English translation fallback:', error?.message || error);
+        }
+    }
+
+    // 2. Format English conversation history to feed Groq LLM summary generator
     const conversationHistory = [
         {
             question_id: 'q-chief-complaint',
             question: 'Please describe the health concerns and symptoms you are experiencing today in detail.',
-            answer: transcript.trim(),
+            answer: transcriptForAi,
             phase: 'symptom_exploration',
             input_mode: 'speech',
         },
@@ -737,7 +750,7 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
     try {
         summaryResult = await AiServiceGateway.generateSummary(
             c.ai_session_id,
-            effectiveLanguage,
+            'en',
             true,
             includeAyush,
             conversationHistory
@@ -763,6 +776,24 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
         };
     }
 
+    if (effectiveLanguage !== 'en' && Array.isArray(summaryResult?.sections)) {
+        summaryResult = {
+            ...summaryResult,
+            sections: await Promise.all(summaryResult.sections.map(async (section) => {
+                const [heading, body] = await Promise.all([
+                    AiServiceGateway.translate(section.heading_en || '', 'en', effectiveLanguage).catch(() => null),
+                    AiServiceGateway.translate(section.body || '', 'en', effectiveLanguage).catch(() => null),
+                ]);
+                return {
+                    ...section,
+                    heading_local: heading?.text || heading?.translated_text || section.heading_local || section.heading_en,
+                    body_local: body?.text || body?.translated_text || section.body_local || section.body,
+                };
+            })),
+            language: effectiveLanguage,
+        };
+    }
+
     // Attach transcripts item with audioUrl into ai_payload for doctor Evidence Drawer playback
     const transcriptsPayload = [
         {
@@ -784,6 +815,7 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
     const aiPayload = JSON.stringify({
         ...(summaryResult || {}),
         language: effectiveLanguage,
+        speech_language: effectiveLanguage,
         transcripts: transcriptsPayload,
         patient_audio_url: audioUrl || null,
         patient_transcript: transcript.trim(),
@@ -813,5 +845,6 @@ export const speakModeSubmit = asyncHandler(async (req, res) => {
         patient_audio_url: audioUrl,
         patient_transcript: transcript.trim(),
         language: effectiveLanguage,
+        speech_language: effectiveLanguage,
     }, 'Speak mode summary generated successfully'));
 });

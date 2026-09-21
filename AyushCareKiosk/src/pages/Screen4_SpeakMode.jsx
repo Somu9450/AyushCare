@@ -65,7 +65,7 @@ const getLocaleTag = (lang) => {
 };
 
 export default function Screen4_SpeakMode({ onSwitchToInterview }) {
-  const { sessionData, language, setLanguage, updateSession, nextScreen } = useKioskStore();
+  const { sessionData, language, updateSession, nextScreen } = useKioskStore();
   const { t } = useTranslation();
   const { openKeyboard } = useKeyboard();
 
@@ -327,9 +327,6 @@ export default function Screen4_SpeakMode({ onSwitchToInterview }) {
 
       if (detected) {
         setDetectedLanguage(detected);
-        if (typeof setLanguage === 'function') {
-          setLanguage(detected);
-        }
         updateSession({ interviewLanguage: detected });
       }
 
@@ -417,6 +414,7 @@ export default function Screen4_SpeakMode({ onSwitchToInterview }) {
         audioUrl,
         duration: `${recordingSeconds || 30}s`,
         language: detectedLanguage || language || 'auto',
+        speech_language: detectedLanguage || language || 'auto',
       });
 
       const summary = response?.summary || null;

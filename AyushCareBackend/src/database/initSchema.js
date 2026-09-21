@@ -50,7 +50,7 @@ export const initializeSchema = async () => {
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(), hospital_id UUID REFERENCES hospitals(id) ON DELETE CASCADE,
             patient_id UUID REFERENCES patients(id) ON DELETE CASCADE, department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
             assigned_doctor_id UUID REFERENCES users(id) ON DELETE SET NULL, token_number VARCHAR(20), status consultation_status DEFAULT 'waiting_triage',
-            risk_level risk_level DEFAULT 'routine', intake_pathway VARCHAR(30) NOT NULL DEFAULT 'general', language VARCHAR(20) DEFAULT 'en',
+            risk_level risk_level DEFAULT 'routine', intake_pathway VARCHAR(30) NOT NULL DEFAULT 'general', language VARCHAR(20) DEFAULT 'en', speech_language VARCHAR(20),
             ai_session_id VARCHAR(100), remarks TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );`);
         await client.query(`CREATE TABLE IF NOT EXISTS clinical_summaries (
@@ -169,6 +169,7 @@ export const initializeSchema = async () => {
         await addColumn(client, 'consultations', 'patient_audio_url', 'TEXT');
         await addColumn(client, 'consultations', 'patient_transcript', 'TEXT');
         await addColumn(client, 'consultations', 'language', "VARCHAR(20) DEFAULT 'en'");
+        await addColumn(client, 'consultations', 'speech_language', 'VARCHAR(20)');
         await addColumn(client, 'consultations', 'ai_session_id', 'VARCHAR(100)');
         await addColumn(client, 'consultations', 'updated_at', 'TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP');
         await addColumn(client, 'consultations', 'token_number', 'VARCHAR(20)');

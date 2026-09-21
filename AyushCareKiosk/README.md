@@ -16,9 +16,9 @@ Patient-facing kiosk frontend connected to the AyushCare backend and MediKiosk A
 Copy `.env.example` to `.env`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_API_BASE_URL=http://localhost:8001/api/v1
 VITE_KIOSK_ID=KIOSK-MAIN-01
-VITE_MOBILE_PAIR_URL=http://localhost:5174/mobile-upload
+VITE_MOBILE_PAIR_URL=http://localhost:5174
 ```
 
 `VITE_MOBILE_PAIR_URL` must match the route used by the final AyushCare Mobile app to receive a `pairing_token`.
