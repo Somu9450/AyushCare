@@ -1,71 +1,102 @@
-# AyushCare Backend — Kiosk + Mobile Foundation
+# AyushCare / MediKiosk — Orchestration & State Backend
 
-This backend is the shared patient-facing API layer for the AyushCare kiosk and mobile companion. Doctor and admin routes are intentionally preserved but are outside the scope of this integration.
+This is the primary orchestration, database state-holder, and security gateway backend for the **AyushCare / MediKiosk** clinical history-taking platform [1]. 
 
-## Run
+Built with Node.js and Express, this service manages transactional database states (PostgreSQL on Neon), patient identity verification, S3 presigned upload generation, and DPDPA-compliant data-sharing locks [2, 4]. It serves as the core broker to coordinate operations with your team's dedicated **FastAPI AI microservice** [1, 2, 4].
 
-```bash
-npm install
-cp .env.example .env
-npm run dev
+---
+
+## 1. System Architecture
+
+```
+                       +-------------------------+
+                       |   Kiosk / Mobile Web    |
+                       +-------------------------+
+                                    |
+                                    v
+                       +-------------------------+
+                       |   Express Gateway       |
+                       |   (This Service)        |
+                       +-------------------------+
+                         /          |          \
+                        /           |           \
+                       v            v            v
+           +--------------+  +-------------+  +--------------------+
+           |  PostgreSQL  |  |   S3 Standard|  | FastAPI AI Backend |
+           |  (Neon RDBMS)|  | (1-Day Life)|  | (OCR/LLM Engine)   |
+           +--------------+  +-------------+  +--------------------+
 ```
 
-The server defaults to port `8000` and exposes `GET /health`.
+*   **Express Gateway (Orchestration):** Holds the transactional state of the patient queue, logins, and patient profiles [3].
+*   **PostgreSQL (Neon):** Houses relational metadata (hospitals, doctors, consultations, and document registries).
+*   **FastAPI AI Backend:** Consumes raw file buffers and dialogue text to return structured OCR medical entities, dialogue trees, and clinical summaries [1, 2, 4].
 
-## Patient/Kiosk flow
+---
 
-1. `POST /api/v1/intake/auth/abha` — verify/register patient and initialize consultation + MediKiosk AI session.
-2. `GET /api/v1/intake/session/:session_id` — restore consultation state.
-3. `PUT /api/v1/intake/session/:session_id/language` — change language.
-4. `POST /api/v1/intake/session/:session_id/dialogue/start` — start adaptive AI interview.
-5. `GET /api/v1/intake/session/:session_id/dialogue/state` — restore AI interview.
-6. `POST /api/v1/intake/session/:session_id/dialogue/answer` — submit touch/text answer.
-7. `POST /api/v1/intake/session/:session_id/dialogue/speech` — forward audio to MediKiosk AI.
-8. `GET /api/v1/intake/session/:session_id/dialogue/tts` — forward TTS request to MediKiosk AI.
-9. `POST /api/v1/intake/session/:session_id/vitals` — store kiosk/manual vitals.
-10. `GET /api/v1/intake/departments?hospital_id=...&pathway=ayurveda|allopathy` — pathway-specific departments.
-11. `GET /api/v1/intake/departments/:department_id/doctors` — doctor catalog.
-12. `POST /api/v1/intake/session/:session_id/summary/generate` — generate AI summary.
-13. `GET /api/v1/intake/session/:session_id/summary` — retrieve summary.
-14. `GET/POST /api/v1/intake/session/:session_id/consent*` — consent lifecycle.
-15. `POST /api/v1/intake/session/:session_id/token` — assign queue token.
-16. `POST /api/v1/intake/session/:session_id/complete` — close kiosk session and hand off to queue.
-17. `POST /api/v1/intake/session/:session_id/cancel` — cancel/expire intake.
+## 2. Directory Structure
 
-## Mobile Flow A — kiosk-bound QR upload
+```
+backend/
+├── src/
+│   ├── controllers/
+│   ├── database/
+│   ├── middleware/
+│   ├── routes/
+│   ├── services/
+│   ├── utilities/
+│   ├── app.js
+│   └── index.js
+├── .env
+├── .gitignore
+└── package.json
+```
 
-- `GET /api/v1/mobile/kiosk-session/pair/:pairing_token`
-- `POST /api/v1/mobile/kiosk-session/:session_id/upload-url`
-- `POST /api/v1/mobile/kiosk-session/:session_id/register-document`
-- `GET /api/v1/mobile/kiosk-session/:session_id/documents`
-- `DELETE /api/v1/mobile/kiosk-session/:session_id/documents/:document_id`
-- `POST /api/v1/mobile/kiosk-session/:session_id/sync`
+---
 
-Uploads go to S3 using short-lived presigned URLs. Registration triggers asynchronous retrieval and forwarding of the document to MediKiosk AI for OCR/entity extraction.
+## 3. Technology Stack
 
-## Mobile Flow B — patient portal
+*   **Runtime Engine:** Node.js (ES Modules, `"type": "module"` enabled)
+*   **Web Framework:** Express
+*   **Database Client:** `pg` (PostgreSQL Connection Pooling to Neon)
+*   **Storage Access:** `@aws-sdk/client-s3` (S3 Put/Get file streaming) [4]
+*   **SMS Gateway:** Twilio / Custom mock console fallbacks
+*   **Cryptographic Libraries:** `bcryptjs` (password hashing) and `jsonwebtoken` (session handling)
 
-OTP login, dashboard, audio summary, document vault and privacy settings remain available under `/api/v1/mobile/portal/*`.
+---
 
-## AI gateway
+## 4. API Reference Map
 
-`src/services/aiService.js` is the server-side adapter for the MediKiosk AI API. React clients never need the AI service credentials.
+All endpoints are mounted under the base path `/api/v1`.
 
-Supported AI operations include session creation/deletion, language changes, conversation start/state/answer/speech/TTS, document upload/list/entity verification, summary generation/retrieval/editing, consent scopes/grant/receipt/withdraw and FHIR preview.
+### 4.1 Admin Endpoints (`/admin`)
+*   `GET /doctors` - Lists registered doctors assigned to the admin's hospital.
+*   `GET /analytics/visits` - Displays kiosk throughput metrics.
+*   `POST /queue/override` - Modifies patient queue status manually.
 
-## Language/Bhashini gateway
+### 4.2 Doctor Endpoints (`/doctor`)
+*   `GET /queue` - Retrieves the active patient queue, ordered by triage risk.
+*   `GET /patients/:id/summary` - Loads the AI-generated history summary [3, 4].
+*   `GET /patients/:id/reports` - Compiles the chronological timeline of past uploaded files [3, 4].
+*   `PATCH /consultations/:id/status` - Switches token statuses (`call`, `hold`, `complete`).
+*   `POST /consultations/:id/sign-off` - Finalizes clinical remarks and saves the encounter.
 
-`/api/v1/language/*` provides a backend-controlled language boundary for the 22 supported Indian languages. Static UI translations should remain in the frontends; dynamic speech/translation should use this backend boundary or the AI service. Bhashini credentials must remain server-side.
+### 4.3 Kiosk Intake Endpoints (`/intake`)
+*   `POST /auth/abha` - Registers ABDM ABHA ID profile records locally [4].
+*   `POST /dialogue/next` - Evaluates patient input and returns the next adaptive diagnostic question [3].
 
-The Bhashini gateway adapter is configurable through `BHASHINI_GATEWAY_URL` and `BHASHINI_API_KEY`; the exact production Bhashini pipeline contract can be wired there once credentials/pipeline configuration are supplied.
+### 4.4 Mobile Companion Endpoints (`/mobile`)
+*   `GET /kiosk-session/pair/:pairing_token` - Handshakes a kiosk QR code with the mobile client.
+*   `POST /kiosk-session/:session_id/upload-url` - Returns an S3 presigned PUT URL for direct camera upload [4].
+*   `POST /kiosk-session/:session_id/register-document` - Registers the file key and triggers background OCR extraction.
+*   `POST /portal/auth/send-otp` - Sends a verification SMS OTP to verify patient portals.
+*   `POST /portal/auth/verify-otp` - Validates OTP to generate authenticated patient JWTs.
+*   `GET /portal/dashboard` - Fetches active portal data, appointments, and general health summaries.
+*   `GET /portal/privacy-settings` & `PATCH /portal/privacy-settings` - Retrieves and saves DPDP-compliant settings (including the history isolation toggle) [4].
 
-## Database
+---
 
-`src/database/initSchema.js` is intentionally idempotent and also adds missing columns/indexes needed when upgrading the previous backend schema. It contains patient, consultation, department/pathway, kiosk session, vitals, documents, consent, summary, privacy and audit storage.
+## 5. Privacy, Security, & DPDP Compliance
 
-## Security notes
-
-- Do not commit `.env`.
-- Rotate any credentials that have previously been exposed.
-- Use `NODE_ENV=production` and HTTPS for production cookies.
-- Keep AWS, AI and Bhashini credentials on the server only.
+*   **History Isolation (`isolate_past_history`):** Fully integrated into patient portal settings. When enabled, database queries block historical medical records from doctor visibility, complying with the Digital Personal Data Protection (DPDP) Act 2023 [4].
+*   **Dual JWT Authentication:** Separates Patient validation from Doctor/Staff validation to prevent cross-account JWT compromise.
+*   **Ephemeral S3 Lifecycles:** The backend coordinates S3 storage parameters using standard S3 lifecycles to automatically purge raw temporary camera-captured files after 24 hours, keeping data storage minimized [4].
