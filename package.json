@@ -7,11 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-<<<<<<< HEAD
     "seed": "node src/database/seedData.js"
-=======
-    "seed": "node src/database/seed.js"
->>>>>>> 8acaa8ee24a96bbe3752c6b44afc9e654fb72e54
   },
   "keywords": [
     "Ministry of Ayush",
