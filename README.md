@@ -1,7 +1,5 @@
 <div align="center">
 
-![AyushCare](./AyushCareKiosk/public/ayushCareLogo.png)
-
 ![Smart India Hackathon 2026](./AyushCareKiosk/public/sih-2026-dark.png)
 
 <br>
