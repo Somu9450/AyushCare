@@ -13,8 +13,6 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  Zap,
-  Check,
   Activity,
   Leaf,
   Layers,
@@ -30,46 +28,11 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<'doctor' | 'hospital_admin'>('doctor');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [autoFillTarget, setAutoFillTarget] = useState<'doctor' | 'admin' | null>(null);
-
-  // Demo Credentials for SIH Evaluation
-  const DEMO_DOCTOR = {
-    email: 'dr.ananya.sen@ayushcare.com',
-    password: 'Doctor@123',
-    role: 'doctor' as const,
-  };
-
-  const DEMO_ADMIN = {
-    email: 'admin@ayushcare.com',
-    password: 'Admin@123',
-    role: 'hospital_admin' as const,
-  };
-
-  const handleAutoFill = (role: 'doctor' | 'admin' = 'doctor') => {
-    if (role === 'doctor') {
-      setSelectedRole(DEMO_DOCTOR.role);
-      setEmail(DEMO_DOCTOR.email);
-      setPassword(DEMO_DOCTOR.password);
-    } else {
-      setSelectedRole(DEMO_ADMIN.role);
-      setEmail(DEMO_ADMIN.email);
-      setPassword(DEMO_ADMIN.password);
-    }
-    setError(null);
-    setAutoFillTarget(role);
-    setTimeout(() => setAutoFillTarget(null), 2500);
-  };
-
   const handleRoleToggle = (role: 'doctor' | 'hospital_admin') => {
     setSelectedRole(role);
+    setEmail('');
+    setPassword('');
     setError(null);
-    if (role === 'hospital_admin') {
-      setEmail(DEMO_ADMIN.email);
-      setPassword(DEMO_ADMIN.password);
-    } else {
-      setEmail(DEMO_DOCTOR.email);
-      setPassword(DEMO_DOCTOR.password);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,8 +52,8 @@ export default function LoginPage() {
       } else {
         router.push('/doctor');
       }
-    } catch (err: any) {
-      setError(err.message || 'Invalid credentials or inactive account.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid credentials or inactive account.');
     } finally {
       setLoading(false);
     }
@@ -169,13 +132,13 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-medium text-[11px]">Email:</span>
                   <span className="font-mono font-bold text-slate-800 select-all text-[11px]">
-                    {DEMO_DOCTOR.email}
+                    Use your assigned staff email
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-medium text-[11px]">Password:</span>
                   <span className="font-mono font-bold text-slate-800 select-all text-[11px]">
-                    {DEMO_DOCTOR.password}
+                    Use your assigned password
                   </span>
                 </div>
               </div>
@@ -196,65 +159,22 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-medium text-[11px]">Email:</span>
                   <span className="font-mono font-bold text-slate-800 select-all text-[11px]">
-                    {DEMO_ADMIN.email}
+                    Use your assigned staff email
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-medium text-[11px]">Password:</span>
                   <span className="font-mono font-bold text-slate-800 select-all text-[11px]">
-                    {DEMO_ADMIN.password}
+                    Use your assigned password
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons: One-Tap Fill */}
-          <div className="space-y-2 pt-1">
-            <button
-              type="button"
-              onClick={() => handleAutoFill('doctor')}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-                autoFillTarget === 'doctor'
-                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-300 shadow-emerald-200'
-                  : 'bg-[#064e4b] hover:bg-[#043b39] text-white hover:shadow hover:scale-[1.01] active:scale-[0.99]'
-              }`}
-            >
-              {autoFillTarget === 'doctor' ? (
-                <>
-                  <Check className="w-4 h-4 text-white" />
-                  <span>Doctor Credentials Loaded!</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 text-teal-300" />
-                  <span>One-Tap Auto-Fill (Doctor Console)</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAutoFill('admin')}
-              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border ${
-                autoFillTarget === 'admin'
-                  ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300'
-                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs'
-              }`}
-            >
-              {autoFillTarget === 'admin' ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-white" />
-                  <span>Admin Credentials Loaded!</span>
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-                  <span>One-Tap Auto-Fill (Admin Panel)</span>
-                </>
-              )}
-            </button>
-          </div>
+          <p className="pt-1 text-center text-xs font-medium text-slate-600">
+            Use the staff credentials issued by your hospital administrator.
+          </p>
         </aside>
 
         {/* ============================================================ */}
@@ -331,7 +251,7 @@ export default function LoginPage() {
                   <input
                     type="email"
                     required
-                    placeholder={selectedRole === 'doctor' ? 'dr.ananya.sen@ayushcare.com' : 'admin@ayushcare.com'}
+                    placeholder="staff@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-800 transition-all"

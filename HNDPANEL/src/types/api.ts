@@ -39,6 +39,7 @@ export interface Doctor {
 
 export interface ConsultationQueueItem {
   id: string;
+  patient_id?: string;
   token_number: string;
   status: ConsultationStatus;
   risk_level: RiskLevel;
@@ -62,6 +63,16 @@ export interface ConsultationQueueItem {
   assigned_doctor_id?: string;
   created_at?: string;
   updated_at?: string;
+  signed_off_at?: string;
+  prescriptions?: Array<{
+    id?: string;
+    drugName?: string;
+    name?: string;
+    dosage?: string;
+    frequency?: string;
+    duration?: string;
+    instructions?: string;
+  }>;
   remarks?: string;
   systolic?: number;
   diastolic?: number;
@@ -81,6 +92,10 @@ export interface ClinicalSummary {
   consultation_id?: string;
   chief_complaint?: string;
   history_of_present_illness?: string;
+  clinical_summary?: string;
+  hpi_narrative?: string;
+  ai_draft?: { summary?: string; [key: string]: any };
+  socrates_assessment?: Record<string, any>;
   past_medical_history?: Array<{
     category?: string;
     condition?: string;
@@ -138,6 +153,7 @@ export interface ClinicalSummary {
   patient_audio_url?: string;
   patient_transcript?: string;
   intake_mode?: string;
+  vitals?: Record<string, any>;
 }
 
 export interface UploadedDocument {

@@ -14,6 +14,7 @@ import {
   SummarySection,
 } from '../types/clinical';
 import { ClinicalSummary, ConsultationQueueItem, UploadedDocument } from '../types/api';
+import { PatientHistoryResponse } from '../services/doctor.service';
 
 export function mapStatusToPriority(status: string, riskLevel: string): PriorityStatus {
   if (status === 'complete') return 'Completed';
@@ -68,7 +69,8 @@ export function mapQueueItemToPatient(
   item: ConsultationQueueItem,
   summary?: ClinicalSummary | null,
   reports: UploadedDocument[] = [],
-  sessionDocs: any[] = []
+  sessionDocs: any[] = [],
+  history?: PatientHistoryResponse | null
 ): Patient {
   const fullName = summary?.full_name || item.full_name || 'Anonymous Patient';
   const initials = fullName
@@ -93,7 +95,8 @@ export function mapQueueItemToPatient(
   const seenDocIds = new Set<string>();
 
   // Add permitted reports first
-  reports.forEach((doc) => {
+  const historicalReports = history?.documents || [];
+  [...historicalReports, ...reports].forEach((doc) => {
     if (doc?.id && !seenDocIds.has(String(doc.id))) {
       seenDocIds.add(String(doc.id));
       allRawDocs.push({
@@ -151,6 +154,8 @@ export function mapQueueItemToPatient(
       mimeType: doc.source_mime_type,
       extractedData: extracted,
       processingError: (doc as any).processing_error,
+      consultationId: doc.consultation_id,
+      visitDate: (doc as any).visit_date,
       isLocked,
       lockReason: isLocked
         ? 'Restricted by patient via AyushCare Mobile (Consent Required)'
@@ -168,6 +173,10 @@ export function mapQueueItemToPatient(
   }
 
   // Extract Chief Complaint
+  const rawClinicalSummary = safeParseJson((summary as any)?.clinical_summary);
+  const rawHpiNarrative = safeParseJson((summary as any)?.hpi_narrative);
+  const rawAiDraft = safeParseJson((summary as any)?.ai_draft) || {};
+  const rawSocratesAssessment = safeParseJson((summary as any)?.socrates_assessment) || {};
   const chiefComplaint =
     summary?.chief_complaint ||
     aiPayload?.chief_complaint ||
@@ -177,14 +186,20 @@ export function mapQueueItemToPatient(
 
   // Extract History of Present Illness (HPI)
   const historyOfPresentIllness =
+    (typeof rawClinicalSummary === 'string' && rawClinicalSummary) ||
+    (typeof rawHpiNarrative === 'string' && rawHpiNarrative) ||
     summary?.history_of_present_illness ||
     aiPayload?.history_of_present_illness ||
     aiPayload?.hpi ||
+    rawAiDraft?.summary ||
     parsedSummarySections.find((s) => /history|present illness|hpi/i.test(s.heading))?.body ||
     '';
 
   // Narrative Summary
   const narrativeSummary =
+    (typeof rawClinicalSummary === 'string' && rawClinicalSummary) ||
+    (typeof rawHpiNarrative === 'string' && rawHpiNarrative) ||
+    rawAiDraft?.summary ||
     aiPayload?.summary_text ||
     aiPayload?.narrative_summary ||
     aiPayload?.summary ||
@@ -200,6 +215,8 @@ export function mapQueueItemToPatient(
 
   // Extract SOCRATES from any available AI summary structure
   const rawSocrates =
+    rawSocratesAssessment?.fields ||
+    rawSocratesAssessment ||
     summary?.socrates ||
     aiPayload?.socrates ||
     ayushAttrs?.socrates ||
@@ -210,10 +227,7 @@ export function mapQueueItemToPatient(
     onset: formatSocratesField(rawSocrates.onset, rawSocrates.onset_confidence),
     character: formatSocratesField(rawSocrates.character, rawSocrates.character_confidence),
     radiation: formatSocratesField(rawSocrates.radiation, rawSocrates.radiation_confidence),
-    associated: formatSocratesField(
-      rawSocrates.associated || historyOfPresentIllness,
-      rawSocrates.associated_confidence
-    ),
+    associated: formatSocratesField(rawSocrates.associated, rawSocrates.associated_confidence),
     timing: formatSocratesField(rawSocrates.timing, rawSocrates.timing_confidence),
     aggravating: formatSocratesField(
       rawSocrates.aggravating || rawSocrates.exacerbating,
@@ -268,10 +282,12 @@ export function mapQueueItemToPatient(
   let parsedExtractions: ExtractedDrug[] = [];
   const rawExtractions =
     aiPayload?.medications ||
+    aiPayload?.prescriptions ||
+    aiPayload?.extracted_medications ||
     ayushAttrs?.extractions ||
     reports.flatMap((r) => {
       const ext = safeParseJson(r.extracted_data);
-      return Array.isArray(ext?.medications) ? ext.medications : [];
+      return ext?.medications || ext?.prescriptions || ext?.drugs || ext?.extracted_medications || [];
     });
 
   if (Array.isArray(rawExtractions)) {
@@ -335,6 +351,7 @@ export function mapQueueItemToPatient(
   // Parse Prescriptions
   let parsedPrescriptions: PrescriptionItem[] = [];
   const rawPrescriptions =
+    (item as any)?.prescriptions ||
     safeParseJson(summary?.medications) ||
     aiPayload?.prescriptions ||
     ayushAttrs?.prescriptions;
@@ -377,28 +394,18 @@ export function mapQueueItemToPatient(
     {};
 
   // Vitals: ONLY assign if genuinely recorded (no hardcoding)
-  const hasRecordedVitals = Boolean(
-    summary?.systolic !== undefined ||
-    summary?.pulse !== undefined ||
-    summary?.spo2 !== undefined ||
-    summary?.temperature !== undefined ||
-    item.systolic !== undefined ||
-    item.pulse !== undefined ||
-    item.spo2 !== undefined ||
-    item.temperature !== undefined
+  const normalizedVitals = normalizeVitals(summary, item, sessionDocs);
+  const hasRecordedVitals = [
+    normalizedVitals.systolic,
+    normalizedVitals.diastolic,
+    normalizedVitals.pulse,
+    normalizedVitals.spo2,
+    normalizedVitals.temperature,
+    normalizedVitals.weight,
+  ].some(
+    (value) => value !== undefined && value !== null && value !== 0
   );
-
-  const vitalsObj: PatientVitals | undefined = hasRecordedVitals
-    ? {
-        systolic: summary?.systolic ?? item.systolic,
-        diastolic: summary?.diastolic ?? item.diastolic,
-        pulse: summary?.pulse ?? item.pulse,
-        temperature: summary?.temperature ?? item.temperature,
-        spo2: summary?.spo2 ?? item.spo2,
-        source: summary?.vitals_source ?? item.vitals_source,
-        recordedAt: summary?.vitals_recorded_at ?? item.vitals_recorded_at,
-      }
-    : undefined;
+  const vitalsObj: PatientVitals | undefined = hasRecordedVitals ? normalizedVitals : undefined;
 
   const patientAge =
     summary?.age ??
@@ -479,6 +486,8 @@ export function mapQueueItemToPatient(
     transcripts: parsedTranscripts,
     medicalHistory: parsedHistory,
     prescriptions: parsedPrescriptions,
+    status: item.status,
+    signedOffAt: item.signed_off_at,
     patientAudioUrl:
       summary?.patient_audio_url ||
       (summary as any)?.patientAudioUrl ||
@@ -493,5 +502,101 @@ export function mapQueueItemToPatient(
       (summary as any)?.intakeMode ||
       (item as any)?.intake_mode ||
       'interview',
+    pastVisits: normalizePastVisits(history, item.id, mappedDocuments),
   };
 }
+
+const normalizePastVisits = (history: PatientHistoryResponse | null | undefined, currentConsultationId: string, documents: DocumentFile[]) => {
+  const historyRecord = history as (PatientHistoryResponse & Record<string, any>) | null | undefined;
+  const rawVisits = [
+    historyRecord?.visits,
+    historyRecord?.past_consultations,
+    historyRecord?.previous_visits,
+    historyRecord?.history,
+    historyRecord?.patientHistoryData?.visits,
+    historyRecord?.patientHistoryData?.past_consultations,
+    historyRecord?.patientHistoryData?.previous_visits,
+  ].find(Array.isArray) || [];
+
+  return rawVisits
+    .map((visit: any) => {
+      const consultationId = String(
+        visit?.consultation_id || visit?.consultationId || visit?.id || ''
+      );
+      const visitDocuments = documents.filter((document) => document.consultationId === consultationId);
+      const rawDiagnosisCodes = visit?.diagnosis_codes || visit?.diagnosisCodes || visit?.icd_codes || visit?.icdCodes;
+      const diagnosisCodes = Array.isArray(rawDiagnosisCodes)
+        ? rawDiagnosisCodes.map(String).filter(Boolean)
+        : rawDiagnosisCodes
+          ? [String(rawDiagnosisCodes)]
+          : [];
+
+      return {
+        consultationId,
+        tokenNumber: visit?.token_number || visit?.tokenNumber,
+        status: visit?.status,
+        riskLevel: visit?.risk_level || visit?.riskLevel,
+        createdAt: visit?.created_at || visit?.createdAt || visit?.date || visit?.visit_date,
+        signedOffAt: visit?.signed_off_at || visit?.signedOffAt,
+        department: visit?.department || visit?.department_name || visit?.departmentName,
+        pathway: visit?.pathway || visit?.department_pathway || visit?.departmentPathway,
+        doctorName: visit?.doctor_name || visit?.doctorName || visit?.attending_doctor,
+        chiefComplaint: visit?.chief_complaint || visit?.chiefComplaint || visit?.complaint,
+        diagnosis: visit?.diagnosis || visit?.primary_diagnosis || visit?.primaryDiagnosis,
+        diagnosisCode: visit?.diagnosis_code || visit?.diagnosisCode || visit?.icd_code || visit?.icdCode,
+        diagnosisCodes,
+        historyOfPresentIllness: visit?.history_of_present_illness || visit?.historyOfPresentIllness,
+        remarks: visit?.remarks || visit?.notes || visit?.doctor_notes,
+        prescriptions: parsePrescriptionItems(
+          visit?.prescriptions || visit?.medications || visit?.medicines,
+          consultationId || currentConsultationId
+        ),
+        documents: visitDocuments,
+      };
+    })
+    .filter((visit) => visit.consultationId);
+};
+
+const parsePrescriptionItems = (raw: any, consultationId: string): PrescriptionItem[] => {
+  const parsed = safeParseJson(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((rx: any, index: number) => ({
+    id: rx.id || `rx-${consultationId}-${index}`,
+    drugName: rx.drugName || rx.name || 'Prescription Drug',
+    dosage: rx.dosage || 'As directed',
+    frequency: rx.frequency || 'As directed',
+    duration: rx.duration || 'As directed',
+    instructions: rx.instructions || 'Take as advised by physician',
+  }));
+};
+
+const normalizeVitals = (summary: any, item: any, sessionData: any[] = []): PatientVitals => {
+  const candidates = [
+    item?.vitals,
+    item?.vitals_data,
+    item?.vitalsData,
+    item?.kiosk_vitals,
+    summary?.vitals,
+    summary?.vitals_data,
+    summary?.vitalsData,
+    summary?.kiosk_vitals,
+    summary?.clinicalSummary?.vitals,
+    summary?.intakeData?.vitals,
+    sessionData?.find((entry) => entry?.vitals || entry?.vitals_data)?.vitals,
+  ].filter(Boolean);
+  const raw = candidates[0] || {};
+  const read = (...keys: string[]) => keys.map((key) => raw?.[key]).find((value) => value !== undefined && value !== null && value !== '')
+    ?? keys.map((key) => summary?.[key] ?? item?.[key]).find((value) => value !== undefined && value !== null && value !== '');
+  const bloodPressure = raw.blood_pressure || raw.bloodPressure || raw.bp;
+  const [systolic, diastolic] = bloodPressure ? String(bloodPressure).split(/[/-]/).map(Number) : [];
+  return {
+    systolic: Number(read('systolic', 'systolic_bp', 'blood_pressure_systolic') ?? systolic) || undefined,
+    diastolic: Number(read('diastolic', 'diastolic_bp', 'blood_pressure_diastolic') ?? diastolic) || undefined,
+    pulse: Number(read('pulse', 'heart_rate', 'pulse_rate')) || undefined,
+    spo2: Number(read('spo2', 'spO2', 'oxygen_saturation', 'oxygenSaturation')) || undefined,
+    temperature: Number(read('temperature', 'temp', 'body_temperature')) || undefined,
+    weight: Number(read('weight', 'weight_kg', 'weightKg')) || undefined,
+    source: read('source', 'recorded_by') || summary?.vitals_source || item?.vitals_source,
+    recordedAt: read('recorded_at', 'recordedAt', 'timestamp') || summary?.vitals_recorded_at || item?.vitals_recorded_at,
+  };
+};
