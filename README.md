@@ -1,327 +1,269 @@
-# AyushCare - AI MediKiosk
+<div align="center">
 
-A smart healthcare intake and digital triage platform built to reduce patient wait time, improve documentation quality, and bring AI-assisted clinical workflows to public and private healthcare environments.
+![AyushCare](./AyushCareKiosk/public/ayushCareLogo.png)
 
-## Problem we are solving
+![Smart India Hackathon 2026](./AyushCareKiosk/public/sih-2026-dark.png)
 
-Healthcare systems in many hospitals still rely on slow, manual intake processes:
+<br>
 
-- long queues and waiting times at registration counters
-- repetitive patient data collection across departments
-- fragmented medical records and poor documentation consistency
-- heavy dependence on staff for initial case history capture
-- limited accessibility for patients with language barriers or low digital literacy
-- weak digital handoff between kiosk, mobile, and doctor workflows
+# AyushCare MediKiosk
 
-This often creates delays, inefficiencies, and inconsistent clinical records before a doctor even sees the patient.
+**AI-assisted multilingual patient intake and clinical handoff**<br>
+*From registration and triage to documents, vitals, queueing, and physician review*
 
-## Our solution
+<br>
 
-MediKiosk is a multi-module digital health ecosystem that transforms the front-end patient journey into a structured, AI-assisted clinical intake workflow.
+[![Kiosk](https://img.shields.io/badge/patient-kiosk-00796B?style=flat-square)](AyushCareKiosk/)
+[![AI](https://img.shields.io/badge/AI-FastAPI-415861?style=flat-square)](AyushCareAI/)
+[![Backend](https://img.shields.io/badge/API-Express.js-149447?style=flat-square)](AyushCareBackend/)
+[![Mobile](https://img.shields.io/badge/mobile-QR%20portal-F48C22?style=flat-square)](AyushCareMobile/)
+[![Panel](https://img.shields.io/badge/clinical-panel-Next.js-415861?style=flat-square)](HNDPANEL/)
 
-It connects:
+</div>
 
-- kiosk-based patient intake
-- mobile document upload and QR-based data exchange
-- AI-powered medical history collection
-- consent-driven privacy and record handling
-- routing to appropriate departments and doctors
-- clinician-ready summary generation for review
+<br>
 
-The platform is designed to keep the patient journey simple while giving doctors a more complete and organized clinical picture earlier in the consultation process.
+> **A better first five minutes of care.** AyushCare turns a patient’s arrival into a structured,
+> multilingual clinical intake that can be reviewed by the right doctor with less repetition and
+> less paperwork.
 
----
+AyushCare is a connected healthcare platform for hospitals and clinics. A patient can begin at a
+physical kiosk, continue on a phone through a QR handoff, and arrive in a doctor workspace with
+structured history, vitals, documents, consent, risk signals, and queue context.
 
-## Why this matters
+## Why it matters
 
-At the time of consultation, a doctor needs accurate, structured, and accessible information about the patient. Our platform helps capture this information in a guided, multilingual, and privacy-aware way before the doctor begins treatment.
+The front desk is often where clinical information gets fragmented. Patients repeat the same story,
+reports stay in paper folders, and doctors spend valuable consultation time reconstructing context.
+AyushCare moves that work earlier in the journey while keeping clinical decisions with the physician.
 
-This reduces:
+| Before the consultation | AyushCare workflow |
+| --- | --- |
+| Repeated registration questions | Guided, stateful patient intake |
+| Paper prescriptions and reports | QR-assisted phone upload and document processing |
+| Unstructured patient history | AI-assisted clinical summary with source context |
+| Unclear department routing | Department, pathway, doctor, and token flow |
+| Language and accessibility barriers | Multilingual UI plus voice input and narration |
+| Uncontrolled record sharing | Granular consent and patient privacy controls |
 
-- repeated questioning
-- documentation gaps
-- patient confusion during registration
-- delays caused by manual paperwork
-- loss of information between intake and review stages
+## What it does
 
----
+- **Guided patient intake** — identity, consent, language, department, pathway, symptoms, and history.
+- **AI clinical interview** — adaptive SOCRATES-style questioning with text and speech input.
+- **Safety-first triage** — deterministic red-flag rules, compound pattern detection, and escalation signals.
+- **Document intelligence** — upload prescriptions, laboratory reports, and medical documents for OCR and structured extraction.
+- **Clinical summary generation** — physician-ready sections with patient-reported and document-derived context.
+- **Vitals and queue management** — kiosk measurements, OPD tokens, consultation status, and doctor assignment.
+- **QR continuity** — pair a kiosk session with a mobile portal so patients can upload documents from their own phone.
+- **Privacy and consent** — DPDPA-oriented consent receipts, privacy settings, scoped sharing rules, and audit events.
+- **Clinician workspace** — doctor queue, patient summary, reports, vitals, notes, and consultation sign-off.
 
-## Key features
+## Patient journey
 
-### 1. Multilingual patient experience
-- bilingual and multilingual support for patient interaction
-- language-aware interface for kiosk and mobile users
-- easier adoption in diverse hospital environments
-
-### 2. AI-assisted clinical intake
-- adaptive conversation flow for symptom and history collection
-- guided responses for patient inputs
-- structured clinical summary generation for doctor review
-- safety checks and emergency flagging logic
-
-### 3. Document and record handling
-- upload prescriptions, reports, labs, and related documents
-- AI-driven document-processing workflow
-- extraction of medical information for later review
-
-### 4. Privacy-aware consent handling
-- patient consent records
-- privacy controls for sharing health data
-- secure views and access boundaries across hospital workflows
-
-### 5. Hospital operations support
-- department and doctor routing
-- queueing and token-based flow
-- patient session continuity across kiosk and mobile
-
-### 6. Mobile + kiosk integration
-- QR-based pairing between kiosk and mobile
-- patient can upload documents using phone without visiting a desk again
-- smoother continuity between intake and review stages
-
----
-
-## Architecture overview
-
-```text
-Patient / Kiosk / Mobile App
-          |            |
-          v            v
-  AyushCareKiosk   AyushCareMobile
-          \        /
-           \      /
-            v    v
-      AyushCareBackend
-            |
-            +------------------+
-            |                  |
-            v                  v
-     Auth / Queue /         AyushCareAI
-     Patient Flow /         - conversation
-     Consent / Routing      - summary generation
-     Storage / APIs        - document intelligence
-                              - safety rules
-
-         +-------------------------------+
-         |                               |
-         v                               v
-      PostgreSQL                     Cloud/Object Storage
-
-```
-      
-```
-Doctor/Admin Panel
-      |
-      v
-  HNDPANEL
+```mermaid
+flowchart LR
+  A[Patient arrives] --> B[Choose language]
+  B --> C[Identity and consent]
+  C --> D[Department and doctor routing]
+  D --> E[AI clinical interview]
+  E --> F[Vitals and red-flag checks]
+  F --> G[Upload documents by QR]
+  G --> H[Generate clinical summary]
+  H --> I[Token and queue]
+  I --> J[Doctor review and sign-off]
 ```
 
----
+## System architecture
+
+```mermaid
+flowchart TD
+  Kiosk[AyushCare Kiosk<br/>React + Vite] --> API[AyushCare Backend<br/>Node.js + Express]
+  Mobile[Patient Mobile Portal<br/>React + Vite] --> API
+  Panel[Doctor and Admin Panel<br/>Next.js + TypeScript] --> API
+  API --> DB[(PostgreSQL / Neon)]
+  API --> S3[(S3-compatible document storage)]
+  API --> AI[AyushCare AI<br/>FastAPI]
+  AI --> Providers[LLM / ASR / TTS / OCR / Translation providers]
+  AI --> AIDB[(AI session store)]
+```
+
+The core API owns identity, consultations, routing, queue state, document registration, consent,
+privacy, and portal access. The Python service owns the clinical conversation, document intelligence,
+summary generation, safety checks, and FHIR preview. Frontends remain presentation and workflow clients.
+
+## AI and clinical safety
+
+The AI layer is assistive by design. It does **not** diagnose, prescribe, or replace clinical judgement.
+
+| Capability | Implementation |
+| --- | --- |
+| Clinical interview | Adaptive history collection following SOCRATES-style questioning |
+| Speech | Server-side ASR and TTS integration with multilingual support |
+| Document processing | OCR, medical entity extraction, abnormal-value flagging, and image quality checks |
+| Safety | Deterministic red-flag rules plus LLM-assisted compound pattern detection |
+| Summary | Structured clinical summary with clinician accept, reject, and edit workflow |
+| Interoperability | FHIR R4 bundle preview |
+| Governance | Consent receipts, audit logging, privacy settings, and scoped access rules |
+
+## Product surfaces
+
+### Patient kiosk
+
+![AyushCare kiosk](./AyushCareKiosk/public/KioskScreenBg.png)
+
+Guided intake, language selection, consent, health interview, vitals, and queue registration.
+
+### Mobile portal
+
+![AyushCare mobile portal](./AyushCareMobile/src/assets/hero.png)
+
+QR-linked document upload, visits, appointments, records, vitals, and privacy controls.
+
+### Clinical workspace
+
+![AyushCare clinical workspace](./HNDPANEL/public/KioskScreenBg.png)
+
+Doctor queue, patient summary, reports, consultation status, and sign-off workflows.
+
+The repository also contains the full interface screens shown in the product walkthrough: welcome,
+language selection, health interview, document upload, patient visits, vitals, privacy controls, and
+doctor/admin operations. The supplied application screenshots represent these flows across desktop,
+kiosk, and mobile layouts.
 
 ## Repository structure
 
 ```text
 Medikiosk/
-├── AyushCareAI/              # Python FastAPI AI backend
-├── AyushCareBackend/         # Node.js/Express core application backend
-├── AyushCareKiosk/           # Kiosk frontend for patient intake
-├── AyushCareMobile/          # Mobile patient companion app
-├── HNDPANEL/                 # Doctor and admin panel
-├── README.md                 # Project overview and entry point
+├── AyushCareAI/              # FastAPI clinical AI service and tests
+├── AyushCareBackend/         # Express API, PostgreSQL access, auth, queue, QR, and storage
+├── AyushCareKiosk/           # React/Vite patient kiosk experience
+├── AyushCareMobile/          # React/Vite mobile portal and document flow
+├── HNDPANEL/                 # Next.js doctor and hospital admin panel
 ├── MEDIKIOSK_CURRENT_STATE_AUDIT.md
-├── MEDIKIOSK_CURRENT_STATE_AUDIT.json
-├── ...
-└── project documentation and migration notes
+└── MEDIKIOSK_CURRENT_STATE_AUDIT.json
 ```
 
----
+## Core data model
 
-## Project modules
+```mermaid
+erDiagram
+  PATIENTS ||--o{ CONSULTATIONS : has
+  HOSPITALS ||--o{ DEPARTMENTS : contains
+  CONSULTATIONS ||--o| CLINICAL_SUMMARIES : produces
+  CONSULTATIONS ||--o| VITALS : records
+  CONSULTATIONS ||--o{ UPLOADED_DOCUMENTS : contains
+  CONSULTATIONS ||--o{ CONSENT_RECORDS : requires
+  PATIENTS ||--o| PRIVACY_SETTINGS : controls
+  PATIENTS ||--o{ PATIENT_PRIVACY_RULES : defines
+  CONSULTATIONS ||--o| KIOSK_SESSIONS : pairs
+  PATIENTS ||--o{ PATIENT_QR_TOKENS : receives
+```
 
-### AyushCareAI
-Python-based AI engine for:
-- clinical conversation workflow
-- document intelligence and OCR support
-- summary generation
-- safety/flagging logic
-- multilingual and consent-aware processing
-
-### AyushCareBackend
-Core backend that powers:
-- auth and patient identity flow
-- consultation and routing logic
-- queue and token management
-- mobile and kiosk integrations
-- data persistence and service coordination
-
-### AyushCareKiosk
-Patient-facing kiosk frontend built for:
-- check-in and identification
-- department selection
-- guided intake
-- vitals collection
-- consent and summary review
-
-### AyushCareMobile
-Companion mobile experience for:
-- QR-based session linking
-- document upload
-- patient portal access
-- record visibility and privacy settings
-
-### HNDPANEL
-Doctor/admin dashboard for:
-- patient queue management
-- doctor assignment
-- clinical review
-- operational monitoring
-
----
-
-## Typical user flow
-
-1. Patient arrives at hospital kiosk
-2. Patient identity and consent are captured
-3. Department and doctor routing is selected
-4. AI-assisted intake conversation begins
-5. Medical history and symptoms are collected
-6. Documents and reports are uploaded from kiosk or mobile
-7. AI generates a structured clinical summary
-8. Doctor reviews patient status and proceeds with treatment
-9. Queue and patient journey continue seamlessly
-
----
+The backend uses PostgreSQL with UUID-based internal identities and unique ABHA identifiers. The AI
+service has its own session and audit persistence boundary, with Redis support and an in-memory fallback
+for development. Documents are stored through an S3-compatible object-storage integration.
 
 ## Technology stack
 
-### AI & backend services
-- Python
-- FastAPI
-- Node.js
-- Express.js
-- PostgreSQL
-- AWS S3 / cloud object storage
-- JWT authentication
-- AI-enabled document and intake workflows
+| Layer | Technology |
+| --- | --- |
+| Patient kiosk | React, Vite, Zustand, Axios, Lucide |
+| Mobile portal | React, Vite, React Router, React Hook Form, Zod, Zustand |
+| Doctor/admin panel | Next.js App Router, React, TypeScript, Tailwind CSS |
+| Core backend | Node.js, Express, PostgreSQL, JWT, AWS S3 SDK |
+| AI service | Python, FastAPI, Pydantic, SQLAlchemy, Redis |
+| AI integrations | Gemini, Groq, Bhashini, Azure Document Intelligence, Azure Language, Tesseract |
+| Testing | Pytest safety and service suites, frontend lint/build scripts |
 
-### Frontend applications
-- React
-- Vite
-- Next.js
-- Zustand
-- Tailwind CSS
-- modern component-based interfaces
+## Current implementation status
 
----
+The repository contains an end-to-end working prototype spanning five applications:
 
-## Getting started
+- 10 kiosk screens and a multilingual patient intake flow.
+- 23 mobile/portal screens covering home, visits, appointments, records, privacy, and QR connection.
+- Doctor queue and clinical workspace with summary, reports, vitals, and sign-off paths.
+- AI tests covering conversation, clinical summaries, document intelligence, FHIR, red flags, and safety.
+- Backend routes for auth, intake, mobile portal, language, documents, consent, privacy, routing, and queueing.
 
-### 1. Clone the repository
+Some infrastructure capabilities remain environment-dependent. For example, production credentials,
+PostgreSQL, object storage, provider APIs, and SMS configuration must be supplied separately. The audit
+file is the source of truth for the current implementation boundaries and known gaps.
 
-```bash
-git clone <your-repository-url>
-cd Medikiosk
-```
+## Run locally
 
-### 2. Run the AI service
+### Prerequisites
+
+- Python 3.10+
+- Node.js and npm
+- PostgreSQL for the core backend
+- Redis is recommended for the AI service
+- Provider credentials configured in server-side `.env` files
+
+### Start the AI service
 
 ```bash
 cd AyushCareAI
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
+.venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8001
 ```
 
-### 3. Run the backend
+Run the AI tests:
+
+```bash
+pytest tests/ -v
+```
+
+### Start the core backend
 
 ```bash
 cd AyushCareBackend
 npm install
-npm run dev
+npm run dev                    # port 8000
 ```
 
-The backend runs on port 8000 by default.
-
-### 4. Run the kiosk frontend
+### Start the patient applications
 
 ```bash
 cd AyushCareKiosk
 npm install
-npm run dev
+npm run dev                    # Vite, normally port 5173
 ```
-
-### 5. Run the mobile app
 
 ```bash
 cd AyushCareMobile
 npm install
-npm run dev
+npm run dev                    # Vite, normally port 5174
 ```
 
-### 6. Run the doctor/admin panel
+### Start the doctor/admin panel
 
 ```bash
 cd HNDPANEL
 npm install
-npm run dev
+npm run dev                    # Next.js, normally port 3000
 ```
 
----
-
-## Environment and security notes
-
-This project handles healthcare data, so all sensitive settings should remain server-side.
-
-Keep these in environment variables and do not expose them in frontend code:
-
-- database credentials
-- AI service keys
-- cloud storage credentials
-- SMS / notification credentials
-- hospital-specific configuration values
-
-Do not commit secrets or `.env` files to the repository.
-
----
-
-## Why this project is strong for SIH judging
-
-MediKiosk stands out because it combines:
-
-- real-world healthcare problem relevance
-- complete digital intake workflow
-- multilingual accessibility
-- AI-assisted clinical support
-- mobile + kiosk integration
-- hospital operations thinking
-- privacy-conscious patient data handling
-
-It is not only a prototype UI; it is a system designed around the full patient journey from intake to summary review.
-
----
+Each service should be configured with the API URL expected by its local environment. Keep database,
+AI, storage, SMS, and authentication secrets on the server and never commit `.env` files.
 
 ## Documentation
 
-Additional project details are available in:
+- [Current state audit](MEDIKIOSK_CURRENT_STATE_AUDIT.md) — architecture, routes, database, privacy, and integration findings.
+- [AI service README](AyushCareAI/README.md) — AI endpoints, providers, safety modules, and test commands.
+- [Backend README](AyushCareBackend/README.md) — core API setup and integration notes.
+- [Kiosk README](AyushCareKiosk/README.md) — kiosk workflow and frontend setup.
+- [Mobile README](AyushCareMobile/README.md) — patient portal and QR upload flow.
+- [Doctor panel README](HNDPANEL/README.md) — clinician and admin application setup.
 
-- [MEDIKIOSK_CURRENT_STATE_AUDIT.md](MEDIKIOSK_CURRENT_STATE_AUDIT.md)
-- [AyushCareAI/README.md](AyushCareAI/README.md)
-- [AyushCareBackend/README.md](AyushCareBackend/README.md)
-- [AyushCareKiosk/README.md](AyushCareKiosk/README.md)
-- [AyushCareMobile/README.md](AyushCareMobile/README.md)
+## Safety and privacy note
 
-These files provide deeper implementation and integration details for the platform.
+AyushCare is a clinical intake and decision-support prototype. AI output must be reviewed by qualified
+clinical staff before it is used in care. Deployments must complete their own security, privacy,
+clinical-safety, consent, and regulatory review before handling real patient data.
 
----
+## Licence
 
-## Project status
-
-This repository is a working multi-service healthcare platform prototype built to demonstrate an end-to-end digital intake and clinician-assist workflow across kiosk, mobile, AI, and hospital operations.
-
----
-
-## License
-
-Please review the repository-specific package and project metadata for the applicable licensing terms before public deployment or distribution.
+See the package and project metadata in each module for the applicable licensing terms before public
+deployment or distribution.
