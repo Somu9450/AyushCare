@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import pool from './dbConnection.js';
 import { initializeSchema } from './initSchema.js';
 
@@ -129,9 +130,12 @@ const seed = async () => {
             departmentIds.set(department.name, await getOrCreateDepartment(client, hospitalId, department));
         }
 
-        const passwordHash = await bcrypt.hash('SeedDoctor@123', 10);
         const doctorIds = new Map();
         for (const doctor of doctorSeeds) {
+            const passwordHash = await bcrypt.hash(
+                `${crypto.randomUUID()}-${crypto.randomUUID()}`,
+                10,
+            );
             doctorIds.set(
                 doctor.username,
                 await getOrCreateDoctor(client, hospitalId, doctor, departmentIds.get(doctor.department), passwordHash),
@@ -188,7 +192,6 @@ const seed = async () => {
 
         await client.query('COMMIT');
         console.log(`Seed complete: ${departments.length} departments, ${patients.length} patients, ${inserted} new consultations.`);
-        console.log('Seed doctor password: SeedDoctor@123');
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Seed failed:', error);
